@@ -1,0 +1,136 @@
+{
+  "asset": "Mush_MapProp_MountainSilhouette_V2.fbx",
+  "asset_type": "prop",
+  "importer": "bpy.ops.wm.fbx_import",
+  "passed": true,
+  "checks": [
+    {
+      "name": "모든 시각 Mesh 재질 슬롯 존재",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "모든 재질이 (0.8,0.8,0.8) 회색인지 검사",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "diffuse_color / Principled Base Color 기대값 일치",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "Mesh Transform 적용",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "예상 크기 / 실제 크기",
+      "passed": true,
+      "detail": "expected=[31.663118362426758, 19.021129608154297, 14.0], actual=[31.663118362426758, 19.02113151550293, 14.00000345681633]"
+    },
+    {
+      "name": "소품 피벗=바닥 중앙",
+      "passed": true,
+      "detail": "centerXY=(0.0000,0.0000), minZ=-0.0000, min=(-15.8316,-9.5106,-0.0000), max=(15.8316,9.5106,14.0000)"
+    },
+    {
+      "name": "소품 Mesh 수",
+      "passed": true,
+      "detail": "1 / max 1"
+    },
+    {
+      "name": "재질색 PNG 미리보기 렌더",
+      "passed": true,
+      "detail": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_MountainSilhouette_V2_Preview.png"
+    }
+  ],
+  "materials": {
+    "MUSH_MAT_Rock": {
+      "expected": [
+        0.28,
+        0.34,
+        0.4
+      ],
+      "diffuse_color": [
+        0.2800000011920929,
+        0.3400000035762787,
+        0.4000000059604645
+      ],
+      "base_color": [
+        0.2800000011920929,
+        0.3400000035762787,
+        0.4000000059604645
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_Snow": {
+      "expected": [
+        0.82,
+        0.89,
+        0.96
+      ],
+      "diffuse_color": [
+        0.8199999928474426,
+        0.8899999856948853,
+        0.9599999785423279
+      ],
+      "base_color": [
+        0.8199999928474426,
+        0.8899999856948853,
+        0.9599999785423279
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    }
+  },
+  "mesh_count": 1,
+  "mesh_names": [
+    "Mush_MapProp_MountainSilhouette_V2"
+  ],
+  "visual_mesh_count": 1,
+  "visual_mesh_names": [
+    "Mush_MapProp_MountainSilhouette_V2"
+  ],
+  "collision_mesh_count": 0,
+  "collision_mesh_names": [],
+  "triangle_count": 60,
+  "expected_bounds": {
+    "min": [
+      -15.831559181213379,
+      -9.510564804077148,
+      0.0
+    ],
+    "max": [
+      15.831559181213379,
+      9.510564804077148,
+      14.0
+    ],
+    "size": [
+      31.663118362426758,
+      19.021129608154297,
+      14.0
+    ]
+  },
+  "actual_bounds": {
+    "min": [
+      -15.831559181213379,
+      -9.510564804077148,
+      -1.549467697259388e-06
+    ],
+    "max": [
+      15.831559181213379,
+      9.510566711425781,
+      14.000001907348633
+    ],
+    "size": [
+      31.663118362426758,
+      19.02113151550293,
+      14.00000345681633
+    ]
+  },
+  "preview": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_MountainSilhouette_V2_Preview.png"
+}

@@ -1,0 +1,176 @@
+{
+  "asset": "Mush_MapProp_DestinationCabin_V2.fbx",
+  "asset_type": "prop",
+  "importer": "bpy.ops.wm.fbx_import",
+  "passed": true,
+  "checks": [
+    {
+      "name": "모든 시각 Mesh 재질 슬롯 존재",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "모든 재질이 (0.8,0.8,0.8) 회색인지 검사",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "diffuse_color / Principled Base Color 기대값 일치",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "Mesh Transform 적용",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "예상 크기 / 실제 크기",
+      "passed": true,
+      "detail": "expected=[6.289330959320068, 5.209205627441406, 3.1700000762939453], actual=[6.289330959320068, 5.2092061042785645, 3.1700009774747855]"
+    },
+    {
+      "name": "소품 피벗=바닥 중앙",
+      "passed": true,
+      "detail": "centerXY=(0.0000,0.0000), minZ=-0.0000, min=(-3.1447,-2.6046,-0.0000), max=(3.1447,2.6046,3.1700)"
+    },
+    {
+      "name": "소품 Mesh 수",
+      "passed": true,
+      "detail": "1 / max 1"
+    },
+    {
+      "name": "재질색 PNG 미리보기 렌더",
+      "passed": true,
+      "detail": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_DestinationCabin_V2_Preview.png"
+    }
+  ],
+  "materials": {
+    "MUSH_MAT_Ice": {
+      "expected": [
+        0.42,
+        0.63,
+        0.77
+      ],
+      "diffuse_color": [
+        0.41999998688697815,
+        0.6299999952316284,
+        0.7699999809265137
+      ],
+      "base_color": [
+        0.41999998688697815,
+        0.6299999952316284,
+        0.7699999809265137
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_RouteRed": {
+      "expected": [
+        0.58,
+        0.05,
+        0.04
+      ],
+      "diffuse_color": [
+        0.5799999833106995,
+        0.05000000074505806,
+        0.03999999910593033
+      ],
+      "base_color": [
+        0.5799999833106995,
+        0.05000000074505806,
+        0.03999999910593033
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_Wood": {
+      "expected": [
+        0.3,
+        0.15,
+        0.06
+      ],
+      "diffuse_color": [
+        0.30000001192092896,
+        0.15000000596046448,
+        0.05999999865889549
+      ],
+      "base_color": [
+        0.30000001192092896,
+        0.15000000596046448,
+        0.05999999865889549
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_WoodLight": {
+      "expected": [
+        0.48,
+        0.28,
+        0.1
+      ],
+      "diffuse_color": [
+        0.47999998927116394,
+        0.2800000011920929,
+        0.10000000149011612
+      ],
+      "base_color": [
+        0.47999998927116394,
+        0.2800000011920929,
+        0.10000000149011612
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    }
+  },
+  "mesh_count": 1,
+  "mesh_names": [
+    "Mush_MapProp_DestinationCabin_V2"
+  ],
+  "visual_mesh_count": 1,
+  "visual_mesh_names": [
+    "Mush_MapProp_DestinationCabin_V2"
+  ],
+  "collision_mesh_count": 0,
+  "collision_mesh_names": [],
+  "triangle_count": 72,
+  "expected_bounds": {
+    "min": [
+      -3.144665479660034,
+      -2.604602813720703,
+      0.0
+    ],
+    "max": [
+      3.144665479660034,
+      2.604602813720703,
+      3.1700000762939453
+    ],
+    "size": [
+      6.289330959320068,
+      5.209205627441406,
+      3.1700000762939453
+    ]
+  },
+  "actual_bounds": {
+    "min": [
+      -3.144665479660034,
+      -2.604602813720703,
+      -4.243436819706403e-07
+    ],
+    "max": [
+      3.144665479660034,
+      2.6046032905578613,
+      3.1700005531311035
+    ],
+    "size": [
+      6.289330959320068,
+      5.2092061042785645,
+      3.1700009774747855
+    ]
+  },
+  "preview": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_DestinationCabin_V2_Preview.png"
+}

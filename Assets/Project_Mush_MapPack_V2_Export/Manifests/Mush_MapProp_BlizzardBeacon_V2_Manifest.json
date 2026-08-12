@@ -1,0 +1,40 @@
+{
+  "asset": "Mush_MapProp_BlizzardBeacon_V2",
+  "asset_type": "prop",
+  "materials": {
+    "MUSH_MAT_BeaconGlow": [
+      1.0,
+      0.32,
+      0.03
+    ],
+    "MUSH_MAT_RouteRed": [
+      0.58,
+      0.05,
+      0.04
+    ],
+    "MUSH_MAT_Wood": [
+      0.3,
+      0.15,
+      0.06
+    ]
+  },
+  "expected_bounds": {
+    "min": [
+      -0.14000000059604645,
+      -0.11999999731779099,
+      0.0
+    ],
+    "max": [
+      0.14000000059604645,
+      0.11999999731779099,
+      2.0399999618530273
+    ],
+    "size": [
+      0.2800000011920929,
+      0.23999999463558197,
+      2.0399999618530273
+    ]
+  },
+  "max_mesh_count": 1,
+  "pivot_rule": "bottom_center"
+}

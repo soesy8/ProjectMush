@@ -1,0 +1,518 @@
+{
+  "asset": "Mush_Map_Forest_V2.fbx",
+  "asset_type": "map",
+  "importer": "bpy.ops.wm.fbx_import",
+  "passed": true,
+  "checks": [
+    {
+      "name": "모든 시각 Mesh 재질 슬롯 존재",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "모든 재질이 (0.8,0.8,0.8) 회색인지 검사",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "diffuse_color / Principled Base Color 기대값 일치",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "Mesh Transform 적용",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "예상 크기 / 실제 크기",
+      "passed": true,
+      "detail": "expected=[234.5300521850586, 901.0960300862789, 120.92120361328125], actual=[234.5300521850586, 901.0960300862789, 120.92127346992493]"
+    },
+    {
+      "name": "맵 출발점 원점",
+      "passed": true,
+      "detail": "SPAWN_Sled=(0.0, 0.0, 0.0)"
+    },
+    {
+      "name": "전체 Mesh 수 목표",
+      "passed": true,
+      "detail": "99 / max 150"
+    },
+    {
+      "name": "필수 이벤트/스폰 오브젝트",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "재질색 PNG 미리보기 렌더",
+      "passed": true,
+      "detail": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_Map_Forest_V2_Preview.png"
+    }
+  ],
+  "materials": {
+    "MUSH_MAT_Ice": {
+      "expected": [
+        0.42,
+        0.63,
+        0.77
+      ],
+      "diffuse_color": [
+        0.41999998688697815,
+        0.6299999952316284,
+        0.7699999809265137
+      ],
+      "base_color": [
+        0.41999998688697815,
+        0.6299999952316284,
+        0.7699999809265137
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_PackedSnow": {
+      "expected": [
+        0.6,
+        0.69,
+        0.78
+      ],
+      "diffuse_color": [
+        0.6000000238418579,
+        0.6899999976158142,
+        0.7799999713897705
+      ],
+      "base_color": [
+        0.6000000238418579,
+        0.6899999976158142,
+        0.7799999713897705
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_PineDark": {
+      "expected": [
+        0.04,
+        0.12,
+        0.07
+      ],
+      "diffuse_color": [
+        0.03999999910593033,
+        0.11999999731779099,
+        0.07000000029802322
+      ],
+      "base_color": [
+        0.03999999910593033,
+        0.11999999731779099,
+        0.07000000029802322
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_PineMid": {
+      "expected": [
+        0.08,
+        0.22,
+        0.12
+      ],
+      "diffuse_color": [
+        0.07999999821186066,
+        0.2199999988079071,
+        0.11999999731779099
+      ],
+      "base_color": [
+        0.07999999821186066,
+        0.2199999988079071,
+        0.11999999731779099
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_Rock": {
+      "expected": [
+        0.28,
+        0.34,
+        0.4
+      ],
+      "diffuse_color": [
+        0.2800000011920929,
+        0.3400000035762787,
+        0.4000000059604645
+      ],
+      "base_color": [
+        0.2800000011920929,
+        0.3400000035762787,
+        0.4000000059604645
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_RouteRed": {
+      "expected": [
+        0.58,
+        0.05,
+        0.04
+      ],
+      "diffuse_color": [
+        0.5799999833106995,
+        0.05000000074505806,
+        0.03999999910593033
+      ],
+      "base_color": [
+        0.5799999833106995,
+        0.05000000074505806,
+        0.03999999910593033
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_Sign": {
+      "expected": [
+        0.72,
+        0.52,
+        0.2
+      ],
+      "diffuse_color": [
+        0.7200000286102295,
+        0.5199999809265137,
+        0.20000000298023224
+      ],
+      "base_color": [
+        0.7200000286102295,
+        0.5199999809265137,
+        0.20000000298023224
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_Snow": {
+      "expected": [
+        0.82,
+        0.89,
+        0.96
+      ],
+      "diffuse_color": [
+        0.8199999928474426,
+        0.8899999856948853,
+        0.9599999785423279
+      ],
+      "base_color": [
+        0.8199999928474426,
+        0.8899999856948853,
+        0.9599999785423279
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_Star": {
+      "expected": [
+        0.75,
+        0.88,
+        1.0
+      ],
+      "diffuse_color": [
+        0.75,
+        0.8799999952316284,
+        1.0
+      ],
+      "base_color": [
+        0.75,
+        0.8799999952316284,
+        1.0
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_Wood": {
+      "expected": [
+        0.3,
+        0.15,
+        0.06
+      ],
+      "diffuse_color": [
+        0.30000001192092896,
+        0.15000000596046448,
+        0.05999999865889549
+      ],
+      "base_color": [
+        0.30000001192092896,
+        0.15000000596046448,
+        0.05999999865889549
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_WoodLight": {
+      "expected": [
+        0.48,
+        0.28,
+        0.1
+      ],
+      "diffuse_color": [
+        0.47999998927116394,
+        0.2800000011920929,
+        0.10000000149011612
+      ],
+      "base_color": [
+        0.47999998927116394,
+        0.2800000011920929,
+        0.10000000149011612
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    }
+  },
+  "mesh_count": 99,
+  "mesh_names": [
+    "Forest_CH00_COL",
+    "Forest_CH00_Props",
+    "Forest_CH00_Visual",
+    "Forest_CH01_COL",
+    "Forest_CH01_Props",
+    "Forest_CH01_Visual",
+    "Forest_CH02_COL",
+    "Forest_CH02_Props",
+    "Forest_CH02_Visual",
+    "Forest_CH03_COL",
+    "Forest_CH03_Props",
+    "Forest_CH03_Visual",
+    "Forest_CH04_COL",
+    "Forest_CH04_Props",
+    "Forest_CH04_Visual",
+    "Forest_CH05_COL",
+    "Forest_CH05_Props",
+    "Forest_CH05_Visual",
+    "Forest_CH06_COL",
+    "Forest_CH06_Props",
+    "Forest_CH06_Visual",
+    "Forest_CH07_COL",
+    "Forest_CH07_Props",
+    "Forest_CH07_Visual",
+    "Forest_CH08_COL",
+    "Forest_CH08_Props",
+    "Forest_CH08_Visual",
+    "Forest_CH09_COL",
+    "Forest_CH09_Props",
+    "Forest_CH09_Visual",
+    "Forest_CH10_COL",
+    "Forest_CH10_Props",
+    "Forest_CH10_Visual",
+    "Forest_CH11_COL",
+    "Forest_CH11_Props",
+    "Forest_CH11_Visual",
+    "Forest_CH12_COL",
+    "Forest_CH12_Props",
+    "Forest_CH12_Visual",
+    "Forest_CH13_COL",
+    "Forest_CH13_Props",
+    "Forest_CH13_Visual",
+    "Forest_CH14_COL",
+    "Forest_CH14_Props",
+    "Forest_CH14_Visual",
+    "Forest_CH15_COL",
+    "Forest_CH15_Props",
+    "Forest_CH15_Visual",
+    "Forest_CH16_COL",
+    "Forest_CH16_Props",
+    "Forest_CH16_Visual",
+    "Forest_CH17_COL",
+    "Forest_CH17_Props",
+    "Forest_CH17_Visual",
+    "Forest_CH18_COL",
+    "Forest_CH18_Props",
+    "Forest_CH18_Visual",
+    "Forest_CH19_COL",
+    "Forest_CH19_Props",
+    "Forest_CH19_Visual",
+    "Forest_CH20_COL",
+    "Forest_CH20_Props",
+    "Forest_CH20_Visual",
+    "Forest_CH21_COL",
+    "Forest_CH21_Props",
+    "Forest_CH21_Visual",
+    "Forest_CH22_COL",
+    "Forest_CH22_Props",
+    "Forest_CH22_Visual",
+    "Forest_CH23_COL",
+    "Forest_CH23_Props",
+    "Forest_CH23_Visual",
+    "Forest_CH24_COL",
+    "Forest_CH24_Props",
+    "Forest_CH24_Visual",
+    "Forest_CH25_COL",
+    "Forest_CH25_Props",
+    "Forest_CH25_Visual",
+    "Forest_CH26_COL",
+    "Forest_CH26_Props",
+    "Forest_CH26_Visual",
+    "Forest_CH27_COL",
+    "Forest_CH27_Props",
+    "Forest_CH27_Visual",
+    "Forest_CH28_COL",
+    "Forest_CH28_Props",
+    "Forest_CH28_Visual",
+    "Forest_CH29_COL",
+    "Forest_CH29_Props",
+    "Forest_CH29_Visual",
+    "FX_StarDome",
+    "LM_DestinationCabin",
+    "LM_DestinationFence",
+    "LM_DestinationSign",
+    "LM_FrozenCreek",
+    "LM_MountainSilhouette",
+    "LM_StartCabin",
+    "LM_StartFence",
+    "LM_WoodBridge"
+  ],
+  "visual_mesh_count": 69,
+  "visual_mesh_names": [
+    "Forest_CH00_Props",
+    "Forest_CH00_Visual",
+    "Forest_CH01_Props",
+    "Forest_CH01_Visual",
+    "Forest_CH02_Props",
+    "Forest_CH02_Visual",
+    "Forest_CH03_Props",
+    "Forest_CH03_Visual",
+    "Forest_CH04_Props",
+    "Forest_CH04_Visual",
+    "Forest_CH05_Props",
+    "Forest_CH05_Visual",
+    "Forest_CH06_Props",
+    "Forest_CH06_Visual",
+    "Forest_CH07_Props",
+    "Forest_CH07_Visual",
+    "Forest_CH08_Props",
+    "Forest_CH08_Visual",
+    "Forest_CH09_Props",
+    "Forest_CH09_Visual",
+    "Forest_CH10_Props",
+    "Forest_CH10_Visual",
+    "Forest_CH11_Props",
+    "Forest_CH11_Visual",
+    "Forest_CH12_Props",
+    "Forest_CH12_Visual",
+    "Forest_CH13_Props",
+    "Forest_CH13_Visual",
+    "Forest_CH14_Props",
+    "Forest_CH14_Visual",
+    "Forest_CH15_Props",
+    "Forest_CH15_Visual",
+    "Forest_CH16_Props",
+    "Forest_CH16_Visual",
+    "Forest_CH17_Props",
+    "Forest_CH17_Visual",
+    "Forest_CH18_Props",
+    "Forest_CH18_Visual",
+    "Forest_CH19_Props",
+    "Forest_CH19_Visual",
+    "Forest_CH20_Props",
+    "Forest_CH20_Visual",
+    "Forest_CH21_Props",
+    "Forest_CH21_Visual",
+    "Forest_CH22_Props",
+    "Forest_CH22_Visual",
+    "Forest_CH23_Props",
+    "Forest_CH23_Visual",
+    "Forest_CH24_Props",
+    "Forest_CH24_Visual",
+    "Forest_CH25_Props",
+    "Forest_CH25_Visual",
+    "Forest_CH26_Props",
+    "Forest_CH26_Visual",
+    "Forest_CH27_Props",
+    "Forest_CH27_Visual",
+    "Forest_CH28_Props",
+    "Forest_CH28_Visual",
+    "Forest_CH29_Props",
+    "Forest_CH29_Visual",
+    "FX_StarDome",
+    "LM_DestinationCabin",
+    "LM_DestinationFence",
+    "LM_DestinationSign",
+    "LM_FrozenCreek",
+    "LM_MountainSilhouette",
+    "LM_StartCabin",
+    "LM_StartFence",
+    "LM_WoodBridge"
+  ],
+  "collision_mesh_count": 30,
+  "collision_mesh_names": [
+    "Forest_CH00_COL",
+    "Forest_CH01_COL",
+    "Forest_CH02_COL",
+    "Forest_CH03_COL",
+    "Forest_CH04_COL",
+    "Forest_CH05_COL",
+    "Forest_CH06_COL",
+    "Forest_CH07_COL",
+    "Forest_CH08_COL",
+    "Forest_CH09_COL",
+    "Forest_CH10_COL",
+    "Forest_CH11_COL",
+    "Forest_CH12_COL",
+    "Forest_CH13_COL",
+    "Forest_CH14_COL",
+    "Forest_CH15_COL",
+    "Forest_CH16_COL",
+    "Forest_CH17_COL",
+    "Forest_CH18_COL",
+    "Forest_CH19_COL",
+    "Forest_CH20_COL",
+    "Forest_CH21_COL",
+    "Forest_CH22_COL",
+    "Forest_CH23_COL",
+    "Forest_CH24_COL",
+    "Forest_CH25_COL",
+    "Forest_CH26_COL",
+    "Forest_CH27_COL",
+    "Forest_CH28_COL",
+    "Forest_CH29_COL"
+  ],
+  "triangle_count": 48596,
+  "expected_bounds": {
+    "min": [
+      -116.5300521850586,
+      -0.1521824300289154,
+      -2.0
+    ],
+    "max": [
+      118.0,
+      900.94384765625,
+      118.92120361328125
+    ],
+    "size": [
+      234.5300521850586,
+      901.0960300862789,
+      120.92120361328125
+    ]
+  },
+  "actual_bounds": {
+    "min": [
+      -116.5300521850586,
+      -0.1521824300289154,
+      -2.0001232624053955
+    ],
+    "max": [
+      118.0,
+      900.94384765625,
+      118.92115020751953
+    ],
+    "size": [
+      234.5300521850586,
+      901.0960300862789,
+      120.92127346992493
+    ]
+  },
+  "preview": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_Map_Forest_V2_Preview.png"
+}

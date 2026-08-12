@@ -1,0 +1,1380 @@
+using System;
+using System.Collections.Generic;
+using Mush.Customization;
+using Mush.Prototype;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using UnityEngine.XR;
+
+/// <summary>
+/// Builds a playable desktop sled team at a V2 map's SPAWN_Sled marker.
+/// The scene only stores model references; all reins, camera anchors and
+/// controller connections are created consistently when play mode starts.
+/// </summary>
+[DisallowMultipleComponent]
+public sealed class MushMapRideBootstrap : MonoBehaviour
+{
+    [Header("Ride Models")]
+    [SerializeField] private GameObject sledPrefab;
+    [SerializeField] private GameObject leftDogPrefab;
+    [SerializeField] private GameObject rightDogPrefab;
+    [SerializeField] private string spawnMarkerName = "SPAWN_Sled";
+
+    [Header("Team Layout")]
+    [SerializeField] private float sledScale = 1.18f;
+    [SerializeField] private float dogScale = 0.62f;
+    [SerializeField, Min(0.5f)] private float targetDogHeight = 1.30f;
+    [SerializeField] private Vector3 leftDogPosition = new(-0.72f, 0f, 4.15f);
+    [SerializeField] private Vector3 rightDogPosition = new(0.72f, 0f, 4.15f);
+    [SerializeField] private Vector3 cameraPosition = new(0f, 1.36f, -1.78f);
+    [SerializeField] private Vector3 cameraLookTarget = new(0f, 1.36f, 8f);
+
+    [Header("Presentation")]
+    [SerializeField] private bool showKeyboardHelp = true;
+    [SerializeField, Range(70f, 100f)] private float normalFieldOfView = 82f;
+    [SerializeField, Range(75f, 110f)] private float boostFieldOfView = 90f;
+
+    [Header("Course Completion")]
+    [SerializeField] private string lobbySceneName = "MushLobby";
+    [SerializeField, Min(1f)] private float finishDistanceTolerance = 11f;
+
+    [Header("Off-course Speed")]
+    [SerializeField, Min(0.1f)] private float offCourseSpeed = 3f;
+    [SerializeField, Min(0.1f)] private float offCourseBoostSpeed = 5f;
+    [SerializeField, Min(0f)] private float roadExitMargin = 0.12f;
+    [SerializeField, Min(0f)] private float roadReturnInset = 0.45f;
+
+    private readonly List<DogRuntime> dogs = new();
+    private readonly Dictionary<string, Material> runtimeMaterials = new(StringComparer.Ordinal);
+    private MushSledKeyboardController rideController;
+    private MushCurvedMapRuntime curvedWorld;
+    private Camera rideCamera;
+    private Vector3 cameraBaseLocalPosition;
+    private Quaternion cameraRestLocalRotation;
+    private ParticleSystem speedParticles;
+    private MushSnowfieldBlizzardController snowController;
+    private GUIStyle helpStyle;
+    private GUIStyle lobbyButtonStyle;
+    private bool built;
+    private Transform rideTeam;
+    private Transform finishMarker;
+    private Vector3 lastRidePosition;
+    private float travelledCourseDistance;
+    private float courseLengthMeters = 960f;
+    private bool ridePositionInitialized;
+    private bool returningToLobby;
+    private bool offCourse;
+    private MushCustomizationState customization;
+
+    private sealed class DogRuntime
+    {
+        public Transform holder;
+        public Transform visual;
+        public Vector3 restLocalPosition;
+        public Quaternion restHolderLocalRotation;
+        public Quaternion forwardLocalRotation;
+        public Transform[] legPivots;
+        public Quaternion[] legRestRotations;
+        public float gaitPhase;
+        public float gaitClock;
+    }
+
+    private void Start()
+    {
+        BuildRideTeam();
+    }
+
+    private void BuildRideTeam()
+    {
+        if (built)
+            return;
+
+        Debug.Log(
+            $"[Mush] Runtime verification DOG_AXIS_V3: Project={Application.dataPath}, Scene={gameObject.scene.path}",
+            this);
+
+        Transform mapRoot = FindMapRoot();
+        if (mapRoot == null)
+        {
+            Debug.LogError("[Mush] V2 map root was not found; ride team was not created.", this);
+            return;
+        }
+
+        curvedWorld = MushCurvedMapRuntime.EnsureBuilt(mapRoot);
+
+        Transform spawn = FindDeepChild(mapRoot, spawnMarkerName);
+        Transform finish = FindDeepChild(mapRoot, "FINISH_Delivery");
+        finishMarker = finish;
+        if (curvedWorld != null)
+            courseLengthMeters = curvedWorld.LengthMeters;
+        Vector3 forward = curvedWorld != null ? curvedWorld.StartForward :
+            spawn != null ? spawn.forward : mapRoot.forward;
+        if (curvedWorld == null && spawn != null && finish != null)
+        {
+            Vector3 routeDirection = Vector3.ProjectOnPlane(finish.position - spawn.position, Vector3.up);
+            if (routeDirection.sqrMagnitude > 1f)
+                forward = routeDirection.normalized;
+        }
+        forward = Vector3.ProjectOnPlane(forward, Vector3.up).normalized;
+        if (forward.sqrMagnitude < 0.001f)
+            forward = Vector3.forward;
+
+        Vector3 spawnPosition = spawn != null ? spawn.position : mapRoot.position;
+        spawnPosition = SnapPointToGround(spawnPosition);
+        ImproveMapReadability(mapRoot);
+
+        GameObject teamObject = new("Mush Ride Team");
+        teamObject.transform.SetPositionAndRotation(
+            spawnPosition + Vector3.up * 0.06f,
+            Quaternion.LookRotation(forward, Vector3.up));
+        rideTeam = teamObject.transform;
+        lastRidePosition = rideTeam.position;
+        ridePositionInitialized = true;
+
+        customization = MushCustomizationSave.Load();
+        BuildSled(teamObject.transform);
+        Vector3 visibleLeftDogPosition = leftDogPosition;
+        Vector3 visibleRightDogPosition = rightDogPosition;
+        visibleLeftDogPosition.z = Mathf.Min(visibleLeftDogPosition.z, 3.55f);
+        visibleRightDogPosition.z = Mathf.Min(visibleRightDogPosition.z, 3.55f);
+        DogRuntime leftDog = BuildDog("Left Husky", leftDogPrefab, teamObject.transform,
+            visibleLeftDogPosition, false, 0f);
+        DogRuntime rightDog = BuildDog("Right Malamute", rightDogPrefab, teamObject.transform,
+            visibleRightDogPosition, true, Mathf.PI);
+        dogs.Add(leftDog);
+        dogs.Add(rightDog);
+
+        Transform leftGrip = CreateAnchor("Left Rein Grip", teamObject.transform, new Vector3(-0.48f, 1.08f, -1.06f));
+        Transform rightGrip = CreateAnchor("Right Rein Grip", teamObject.transform, new Vector3(0.48f, 1.08f, -1.06f));
+        leftGrip.localRotation = Quaternion.Euler(18f, -5f, -7f);
+        rightGrip.localRotation = Quaternion.Euler(18f, 5f, 7f);
+        Transform leftHarness = CreateAnchor("Left Dog Harness", leftDog.holder, new Vector3(0f, 0.58f, -0.35f));
+        Transform rightHarness = CreateAnchor("Right Dog Harness", rightDog.holder, new Vector3(0f, 0.58f, -0.35f));
+
+        Transform leftMitten = BuildMitten("Left Winter Mitten", leftGrip, -1);
+        Transform rightMitten = BuildMitten("Right Winter Mitten", rightGrip, 1);
+        LineRenderer leftRein = BuildRein("Left Rein", teamObject.transform);
+        LineRenderer rightRein = BuildRein("Right Rein", teamObject.transform);
+
+        MushReinsVisual reinsVisual = teamObject.AddComponent<MushReinsVisual>();
+        reinsVisual.Configure(leftGrip, rightGrip, leftHarness, rightHarness, leftRein, rightRein);
+        reinsVisual.SetHeld(false);
+
+        rideController = teamObject.AddComponent<MushSledKeyboardController>();
+        rideController.Configure(reinsVisual, leftMitten, rightMitten, null, null, true);
+
+        ConfigureRideCamera(teamObject.transform);
+        BuildSpeedParticles();
+        EnsureDogTeamVisible();
+        ApplyRideDogCustomization();
+        ConnectMapEffects(mapRoot, teamObject.transform);
+
+        built = true;
+        Debug.Log(
+            $"[Mush] Ride ready. Spawn={teamObject.transform.position}, Forward={teamObject.transform.forward}, " +
+            $"Finish={(finish != null ? finish.position.ToString() : "missing")}, Camera={rideCamera.transform.position}",
+            teamObject);
+    }
+
+    private Transform FindMapRoot()
+    {
+        MushSnowfieldBlizzardController snow = FindFirstObjectByType<MushSnowfieldBlizzardController>();
+        if (snow != null)
+            return snow.transform;
+
+        MushForestTimeCycleController forest = FindFirstObjectByType<MushForestTimeCycleController>();
+        if (forest != null)
+            return forest.transform;
+
+        foreach (Transform candidate in FindObjectsByType<Transform>(FindObjectsSortMode.None))
+        {
+            if (candidate.name.Contains("Mush_Map_", StringComparison.OrdinalIgnoreCase))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    private void BuildSled(Transform parent)
+    {
+        Transform holder = CreateAnchor("Sled", parent, Vector3.zero);
+        MushCustomizationCatalog catalog = MushCustomizationCatalog.Load();
+        GameObject selectedSled = catalog != null && customization != null
+            ? catalog.GetPrefab(customization.equippedSledBody)
+            : null;
+        selectedSled ??= sledPrefab;
+        string visualName = customization != null
+            ? "Equipped " + customization.equippedSledBody + " Visual"
+            : "Natural Sled Visual";
+        GameObject model = InstantiateModel(selectedSled, visualName, holder, sledScale);
+        if (model == null)
+        {
+            BuildFallbackSled(holder);
+        }
+        else
+        {
+            GroundModel(holder, model.transform);
+            ApplySledMaterials(model);
+            if (customization?.equippedSledBody == MushCustomizationIds.SledSanta)
+            {
+                foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>(true))
+                    renderer.enabled = false;
+            }
+        }
+
+        GameObject decoration = MushCustomizationVisuals.ApplySledDecoration(holder, customization, 1.25f);
+        if (decoration != null && customization?.equippedSledDecoration == MushCustomizationIds.SledLantern)
+            BuildVisibleRideLantern(decoration.transform);
+        BuildSledCockpit(holder);
+    }
+
+    private DogRuntime BuildDog(
+        string dogName,
+        GameObject prefab,
+        Transform parent,
+        Vector3 localPosition,
+        bool malamute,
+        float phase)
+    {
+        Transform holder = CreateAnchor(dogName, parent, localPosition);
+        GameObject model = InstantiateModel(prefab, dogName + " Visual", holder, dogScale);
+        if (model == null)
+            model = BuildFallbackDog(holder, malamute);
+
+        NormalizeDogModel(holder, model.transform);
+        ApplyDogMaterials(model, malamute);
+        DisableModelColliders(model);
+
+        DogRuntime dog = new DogRuntime
+        {
+            holder = holder,
+            visual = model.transform,
+            restLocalPosition = model.transform.localPosition,
+            restHolderLocalRotation = holder.localRotation,
+            forwardLocalRotation = model.transform.localRotation,
+            gaitPhase = phase,
+        };
+        BuildDogLegPivots(dog);
+        return dog;
+    }
+
+    private static void BuildDogLegPivots(DogRuntime dog)
+    {
+        string[][] legGroups =
+        {
+            new[] { "_Front_L_Upper", "_Front_L_Lower", "_Front_L_Paw" },
+            new[] { "_Front_R_Upper", "_Front_R_Lower", "_Front_R_Paw" },
+            new[] { "_Rear_L_Thigh", "_Rear_L_Shin", "_Rear_L_Paw" },
+            new[] { "_Rear_R_Thigh", "_Rear_R_Shin", "_Rear_R_Paw" },
+        };
+
+        dog.legPivots = new Transform[legGroups.Length];
+        dog.legRestRotations = new Quaternion[legGroups.Length];
+        for (int index = 0; index < legGroups.Length; index++)
+        {
+            Transform upper = FindChildContaining(dog.visual, legGroups[index][0]);
+            Transform lower = FindChildContaining(dog.visual, legGroups[index][1]);
+            Transform paw = FindChildContaining(dog.visual, legGroups[index][2]);
+            if (upper == null || lower == null || paw == null)
+                continue;
+
+            GameObject pivotObject = new($"Sled Run Leg Pivot {index}");
+            Transform pivot = pivotObject.transform;
+            pivot.SetParent(dog.visual, true);
+
+            Vector3 upperToLower = lower.position - upper.position;
+            pivot.position = upper.position - upperToLower * 0.35f;
+            pivot.rotation = Quaternion.LookRotation(dog.holder.forward, dog.holder.up);
+
+            upper.SetParent(pivot, true);
+            lower.SetParent(pivot, true);
+            paw.SetParent(pivot, true);
+
+            dog.legPivots[index] = pivot;
+            dog.legRestRotations[index] = pivot.localRotation;
+        }
+    }
+
+    private static GameObject InstantiateModel(GameObject prefab, string instanceName, Transform parent, float scale)
+    {
+        if (prefab == null)
+            return null;
+
+        GameObject instance = Instantiate(prefab, parent);
+        instance.name = instanceName;
+        instance.transform.localPosition = Vector3.zero;
+        instance.transform.localRotation = Quaternion.identity;
+        instance.transform.localScale = Vector3.one * scale;
+        return instance;
+    }
+
+    private static void GroundModel(Transform relativeTo, Transform model)
+    {
+        Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0)
+            return;
+
+        float minimumY = float.PositiveInfinity;
+        foreach (Renderer renderer in renderers)
+        {
+            Bounds bounds = renderer.bounds;
+            for (int x = 0; x <= 1; x++)
+            for (int z = 0; z <= 1; z++)
+            {
+                Vector3 corner = new(
+                    x == 0 ? bounds.min.x : bounds.max.x,
+                    bounds.min.y,
+                    z == 0 ? bounds.min.z : bounds.max.z);
+                minimumY = Mathf.Min(minimumY, relativeTo.InverseTransformPoint(corner).y);
+            }
+        }
+
+        if (!float.IsInfinity(minimumY))
+            model.localPosition += Vector3.up * -minimumY;
+    }
+
+    private void NormalizeDogModel(Transform holder, Transform model)
+    {
+        if (!TryGetLocalRendererBounds(holder, model, out Bounds bounds))
+            return;
+
+        // Derive the complete 3D basis from semantic FBX parts. The two dog
+        // files can arrive with their length axis in Unity's Y direction; a
+        // yaw-only nose correction then leaves them standing vertically.
+        if (TryGetDogSemanticBasis(holder, model, out Vector3 semanticUp, out Vector3 semanticForward,
+                out _, out _))
+        {
+            Quaternion importedBasis = Quaternion.LookRotation(semanticForward, semanticUp);
+            Quaternion axisCorrection = Quaternion.Inverse(importedBasis);
+            model.localRotation = axisCorrection * model.localRotation;
+        }
+
+        if (TryGetLocalRendererBounds(holder, model, out bounds))
+        {
+            // These FBXs are authored in centimetres. Depending on importer unit
+            // conversion their Unity bounds can be only about 2 cm high. Scale
+            // from the measured renderer height instead of trusting import scale.
+            if (bounds.size.y > 0.0001f)
+            {
+                float heightMultiplier = DesiredDogHeight / bounds.size.y;
+                model.localScale *= heightMultiplier;
+                TryGetLocalRendererBounds(holder, model, out bounds);
+            }
+
+            // The FBXs contain an authored root offset. Centering the renderer
+            // bounds removes that offset and places both breeds on the snow.
+            model.localPosition += new Vector3(-bounds.center.x, -bounds.min.y, -bounds.center.z);
+        }
+    }
+
+    private static bool TryGetDogSemanticBasis(
+        Transform holder,
+        Transform model,
+        out Vector3 semanticUp,
+        out Vector3 semanticForward,
+        out Vector3 nosePosition,
+        out Vector3 pawPosition)
+    {
+        semanticUp = Vector3.up;
+        semanticForward = Vector3.forward;
+        nosePosition = Vector3.zero;
+        pawPosition = Vector3.zero;
+
+        Transform nose = FindChildContaining(model, "Nose");
+        Transform torso = FindChildContaining(model, "Torso");
+        if (nose == null || torso == null ||
+            !TryAverageNamedParts(holder, model, "Paw", null, out pawPosition) ||
+            !TryAverageNamedParts(holder, model, "Upper", "Thigh", out Vector3 upperLegPosition))
+            return false;
+
+        nosePosition = holder.InverseTransformPoint(nose.position);
+        Vector3 torsoPosition = holder.InverseTransformPoint(torso.position);
+        semanticUp = upperLegPosition - pawPosition;
+        if (semanticUp.sqrMagnitude < 0.000001f)
+            return false;
+        semanticUp.Normalize();
+
+        semanticForward = Vector3.ProjectOnPlane(nosePosition - torsoPosition, semanticUp);
+        if (semanticForward.sqrMagnitude < 0.000001f)
+            return false;
+        semanticForward.Normalize();
+        return true;
+    }
+
+    private static bool TryAverageNamedParts(
+        Transform holder,
+        Transform root,
+        string firstNamePart,
+        string secondNamePart,
+        out Vector3 average)
+    {
+        average = Vector3.zero;
+        int count = 0;
+        foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+        {
+            bool matches = child.name.Contains(firstNamePart, StringComparison.OrdinalIgnoreCase) ||
+                           (!string.IsNullOrEmpty(secondNamePart) &&
+                            child.name.Contains(secondNamePart, StringComparison.OrdinalIgnoreCase));
+            if (!matches)
+                continue;
+
+            average += holder.InverseTransformPoint(child.position);
+            count++;
+        }
+
+        if (count == 0)
+            return false;
+
+        average /= count;
+        return true;
+    }
+
+    private static bool TryGetLocalRendererBounds(Transform relativeTo, Transform root, out Bounds bounds)
+    {
+        bounds = default;
+        bool hasBounds = false;
+        foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            Bounds worldBounds = renderer.bounds;
+            for (int x = 0; x <= 1; x++)
+            for (int y = 0; y <= 1; y++)
+            for (int z = 0; z <= 1; z++)
+            {
+                Vector3 worldCorner = new(
+                    x == 0 ? worldBounds.min.x : worldBounds.max.x,
+                    y == 0 ? worldBounds.min.y : worldBounds.max.y,
+                    z == 0 ? worldBounds.min.z : worldBounds.max.z);
+                Vector3 localCorner = relativeTo.InverseTransformPoint(worldCorner);
+                if (!hasBounds)
+                {
+                    bounds = new Bounds(localCorner, Vector3.zero);
+                    hasBounds = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(localCorner);
+                }
+            }
+        }
+
+        return hasBounds;
+    }
+
+    private void ConfigureRideCamera(Transform team)
+    {
+        rideCamera = Camera.main;
+        if (rideCamera == null)
+            rideCamera = FindFirstObjectByType<Camera>(FindObjectsInactive.Include);
+        if (rideCamera == null)
+        {
+            GameObject cameraObject = new("Main Camera");
+            cameraObject.tag = "MainCamera";
+            rideCamera = cameraObject.AddComponent<Camera>();
+            cameraObject.AddComponent<AudioListener>();
+        }
+
+        rideCamera.transform.SetParent(team, false);
+        bool santaSled = customization?.equippedSledBody == MushCustomizationIds.SledSanta;
+        cameraBaseLocalPosition = santaSled
+            ? new Vector3(0f, 1.62f, -1.42f)
+            : new Vector3(0f, Mathf.Max(cameraPosition.y, 1.46f), Mathf.Max(cameraPosition.z, -1.62f));
+        Vector3 effectiveLookTarget = santaSled
+            ? new Vector3(0f, 1.12f, 6.2f)
+            : new Vector3(cameraLookTarget.x, Mathf.Min(cameraLookTarget.y, 1.28f), cameraLookTarget.z);
+        rideCamera.transform.localPosition = cameraBaseLocalPosition;
+        Vector3 lookDirection = effectiveLookTarget - cameraBaseLocalPosition;
+        rideCamera.transform.localRotation = lookDirection.sqrMagnitude > 0.001f
+            ? Quaternion.LookRotation(lookDirection.normalized, Vector3.up)
+            : Quaternion.identity;
+        cameraRestLocalRotation = rideCamera.transform.localRotation;
+        rideCamera.nearClipPlane = 0.04f;
+        rideCamera.farClipPlane = 1500f;
+        rideCamera.fieldOfView = normalFieldOfView;
+        rideCamera.clearFlags = CameraClearFlags.Skybox;
+        rideCamera.cullingMask = ~0;
+        rideCamera.rect = new Rect(0f, 0f, 1f, 1f);
+        rideCamera.targetTexture = null;
+        rideCamera.targetDisplay = 0;
+        rideCamera.useOcclusionCulling = false;
+        rideCamera.enabled = true;
+        if (!XRSettings.isDeviceActive)
+            rideCamera.stereoTargetEye = StereoTargetEyeMask.None;
+    }
+
+    private void BuildSpeedParticles()
+    {
+        if (rideCamera == null)
+            return;
+
+        GameObject particleObject = new("Mush Speed Snow");
+        particleObject.transform.SetParent(rideCamera.transform, false);
+        particleObject.transform.localPosition = new Vector3(0f, 0f, 7f);
+
+        speedParticles = particleObject.AddComponent<ParticleSystem>();
+        ParticleSystem.MainModule main = speedParticles.main;
+        main.loop = true;
+        main.playOnAwake = true;
+        main.maxParticles = 260;
+        main.simulationSpace = ParticleSystemSimulationSpace.Local;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.42f, 0.68f);
+        main.startSpeed = 0f;
+        main.startSize = new ParticleSystem.MinMaxCurve(0.018f, 0.045f);
+        main.startColor = new ParticleSystem.MinMaxGradient(
+            new Color(0.78f, 0.90f, 1f, 0.34f),
+            new Color(1f, 1f, 1f, 0.68f));
+
+        ParticleSystem.EmissionModule emission = speedParticles.emission;
+        emission.rateOverTime = 0f;
+        ParticleSystem.ShapeModule shape = speedParticles.shape;
+        shape.shapeType = ParticleSystemShapeType.Box;
+        shape.scale = new Vector3(8f, 4.5f, 1.2f);
+        ParticleSystem.VelocityOverLifetimeModule velocity = speedParticles.velocityOverLifetime;
+        velocity.enabled = true;
+        velocity.space = ParticleSystemSimulationSpace.Local;
+        velocity.z = -16f;
+
+        ParticleSystemRenderer particleRenderer = particleObject.GetComponent<ParticleSystemRenderer>();
+        particleRenderer.renderMode = ParticleSystemRenderMode.Stretch;
+        particleRenderer.velocityScale = 0.08f;
+        particleRenderer.lengthScale = 2.6f;
+        particleRenderer.shadowCastingMode = ShadowCastingMode.Off;
+        particleRenderer.receiveShadows = false;
+
+        Shader particleShader = Shader.Find("Universal Render Pipeline/Particles/Unlit") ??
+                                Shader.Find("Particles/Standard Unlit") ?? Shader.Find("Unlit/Color");
+        if (particleShader != null)
+        {
+            Material particleMaterial = new(particleShader) { name = "Runtime Speed Snow" };
+            if (particleMaterial.HasProperty("_BaseColor"))
+                particleMaterial.SetColor("_BaseColor", new Color(0.86f, 0.94f, 1f, 0.72f));
+            if (particleMaterial.HasProperty("_Color"))
+                particleMaterial.SetColor("_Color", new Color(0.86f, 0.94f, 1f, 0.72f));
+            particleRenderer.sharedMaterial = particleMaterial;
+            runtimeMaterials["SpeedSnowParticles"] = particleMaterial;
+        }
+
+        speedParticles.Play();
+    }
+
+    private void UpdateRidePresentation(bool running, float boost01)
+    {
+        float smoothedBoost = Mathf.SmoothStep(0f, 1f, boost01);
+        float blend = 1f - Mathf.Exp(-5f * Time.deltaTime);
+
+        if (rideCamera != null)
+        {
+            float targetFov = Mathf.Lerp(normalFieldOfView, boostFieldOfView, smoothedBoost);
+            rideCamera.fieldOfView = Mathf.Lerp(rideCamera.fieldOfView, targetFov, blend);
+
+            if (!XRSettings.isDeviceActive)
+            {
+                float shake = running ? Mathf.Lerp(0.004f, 0.022f, smoothedBoost) : 0f;
+                float shakeTime = Time.time * Mathf.Lerp(8f, 16f, smoothedBoost);
+                Vector3 offset = new(
+                    (Mathf.PerlinNoise(shakeTime, 0.31f) - 0.5f) * shake,
+                    Mathf.Sin(shakeTime * 1.7f) * shake,
+                    0f);
+                rideCamera.transform.localPosition = Vector3.Lerp(
+                    rideCamera.transform.localPosition,
+                    cameraBaseLocalPosition + offset,
+                    blend);
+                Quaternion targetRotation = cameraRestLocalRotation * Quaternion.Euler(
+                    Mathf.Sin(shakeTime * 1.3f) * shake * 24f,
+                    0f,
+                    Mathf.Sin(shakeTime) * shake * 38f);
+                rideCamera.transform.localRotation = Quaternion.Slerp(
+                    rideCamera.transform.localRotation,
+                    targetRotation,
+                    blend);
+            }
+        }
+
+        if (speedParticles != null)
+        {
+            ParticleSystem.EmissionModule emission = speedParticles.emission;
+            emission.rateOverTime = running ? Mathf.Lerp(18f, 125f, smoothedBoost) : 0f;
+            ParticleSystem.VelocityOverLifetimeModule velocity = speedParticles.velocityOverLifetime;
+            velocity.z = -Mathf.Lerp(13f, 30f, smoothedBoost);
+        }
+
+        snowController?.SetRideSpeedStrength(running ? smoothedBoost : 0f);
+    }
+
+    private void EnsureDogTeamVisible()
+    {
+        if (rideCamera == null)
+            return;
+
+        for (int dogIndex = 0; dogIndex < dogs.Count; dogIndex++)
+        {
+            DogRuntime dog = dogs[dogIndex];
+            if (dog?.visual == null)
+                continue;
+
+            dog.holder.gameObject.SetActive(true);
+            dog.visual.gameObject.SetActive(true);
+            foreach (Transform child in dog.visual.GetComponentsInChildren<Transform>(true))
+            {
+                child.gameObject.SetActive(true);
+                child.gameObject.layer = 0;
+            }
+
+            Renderer[] renderers = dog.visual.GetComponentsInChildren<Renderer>(true);
+            foreach (Renderer renderer in renderers)
+            {
+                renderer.enabled = true;
+                renderer.forceRenderingOff = false;
+            }
+
+            if (!TryGetWorldRendererBounds(dog.visual, out Bounds bounds))
+            {
+                Debug.LogError($"[Mush] {dog.holder.name}: no renderer bounds were found.", dog.holder);
+                continue;
+            }
+
+            if (bounds.size.y < DesiredDogHeight * 0.8f || bounds.size.y > DesiredDogHeight * 1.2f)
+            {
+                float emergencyScale = DesiredDogHeight / Mathf.Max(bounds.size.y, 0.0001f);
+                dog.visual.localScale *= emergencyScale;
+                NormalizeDogModel(dog.holder, dog.visual);
+                dog.restLocalPosition = dog.visual.localPosition;
+                dog.forwardLocalRotation = dog.visual.localRotation;
+                TryGetWorldRendererBounds(dog.visual, out bounds);
+            }
+
+            Vector3 viewport = rideCamera.WorldToViewportPoint(bounds.center);
+            bool centerOnScreen = viewport.z > rideCamera.nearClipPlane &&
+                                  viewport.x > 0.03f && viewport.x < 0.97f &&
+                                  viewport.y > 0.03f && viewport.y < 0.97f;
+            if (!centerOnScreen)
+            {
+                dog.holder.localPosition = new Vector3(dogIndex == 0 ? -0.72f : 0.72f, 0f, 3.45f);
+                NormalizeDogModel(dog.holder, dog.visual);
+                dog.restLocalPosition = dog.visual.localPosition;
+                dog.forwardLocalRotation = dog.visual.localRotation;
+                TryGetWorldRendererBounds(dog.visual, out bounds);
+                viewport = rideCamera.WorldToViewportPoint(bounds.center);
+            }
+
+            Vector3 viewportBottom = rideCamera.WorldToViewportPoint(bounds.center - Vector3.up * bounds.extents.y);
+            Vector3 viewportTop = rideCamera.WorldToViewportPoint(bounds.center + Vector3.up * bounds.extents.y);
+            float screenHeight = Mathf.Abs(viewportTop.y - viewportBottom.y);
+            string poseCheck = "semantic-parts-missing";
+            if (TryGetDogSemanticBasis(dog.holder, dog.visual,
+                    out Vector3 semanticUp, out Vector3 semanticForward,
+                    out Vector3 nosePosition, out Vector3 pawPosition))
+            {
+                poseCheck =
+                    $"upDot={Vector3.Dot(semanticUp, Vector3.up):0.000}, " +
+                    $"forwardDot={Vector3.Dot(semanticForward, Vector3.forward):0.000}, " +
+                    $"noseAbovePaws={(nosePosition.y - pawPosition.y):0.000}";
+            }
+            Debug.Log(
+                $"[Mush] {dog.holder.name} visible-check: renderers={renderers.Length}, " +
+                $"boundsCenter={bounds.center}, boundsSize={bounds.size}, viewport={viewport}, " +
+                $"screenHeight={screenHeight:0.000}, {poseCheck}",
+                dog.holder);
+        }
+    }
+
+    private void ApplyRideDogCustomization()
+    {
+        if (customization == null)
+            return;
+        if (dogs.Count > 0 && dogs[0]?.visual != null)
+            MushCustomizationVisuals.ApplyDogLoadout(dogs[0].visual, false, customization, 0);
+        if (dogs.Count > 1 && dogs[1]?.visual != null)
+            MushCustomizationVisuals.ApplyDogLoadout(dogs[1].visual, true, customization, 1);
+    }
+
+    private float DesiredDogHeight => Mathf.Max(targetDogHeight, 1.42f);
+
+    private static bool TryGetWorldRendererBounds(Transform root, out Bounds bounds)
+    {
+        bounds = default;
+        bool hasBounds = false;
+        foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            if (!hasBounds)
+            {
+                bounds = renderer.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        return hasBounds;
+    }
+
+    private void ConnectMapEffects(Transform mapRoot, Transform team)
+    {
+        Transform ambientSnow = FindDeepChild(mapRoot, "FX_AmbientSnow_Rebuilt");
+        if (ambientSnow != null)
+        {
+            ambientSnow.SetParent(team, false);
+            ambientSnow.localPosition = new Vector3(0f, 4f, 7f);
+        }
+
+        snowController = mapRoot.GetComponent<MushSnowfieldBlizzardController>();
+        if (snowController != null)
+        {
+            snowController.SetProgressTarget(team);
+        }
+
+        MushForestTimeCycleController forest = mapRoot.GetComponent<MushForestTimeCycleController>();
+        if (forest != null)
+            forest.SetProgressTarget(team);
+    }
+
+    private void LateUpdate()
+    {
+        if (!built || rideController == null)
+            return;
+
+        UpdateOffCourseSpeedLimit();
+
+        bool running = rideController.RideStarted;
+        if (UpdateCourseCompletion(running))
+            return;
+        float speed01 = Mathf.InverseLerp(0f, rideController.SecondLevelSpeed, rideController.CurrentSpeed);
+        float boost01 = Mathf.InverseLerp(
+            rideController.FirstLevelSpeed,
+            rideController.SecondLevelSpeed,
+            rideController.CurrentSpeed);
+        UpdateRidePresentation(running, boost01);
+
+        foreach (DogRuntime dog in dogs)
+        {
+            if (dog?.visual == null)
+                continue;
+
+            if (!running && rideCamera != null)
+            {
+                Vector3 lookDirection = Vector3.ProjectOnPlane(
+                    rideCamera.transform.position - dog.holder.position,
+                    Vector3.up);
+                if (lookDirection.sqrMagnitude > 0.001f)
+                {
+                    Quaternion target = Quaternion.LookRotation(lookDirection.normalized, Vector3.up);
+                    float lookBlend = 1f - Mathf.Exp(-5f * Time.deltaTime);
+                    // Turn the outer holder only. Rotating the imported visual
+                    // directly discards its FBX axis correction and makes the
+                    // dog's nose point into the ground.
+                    dog.holder.rotation = Quaternion.Slerp(dog.holder.rotation, target, lookBlend);
+                    dog.visual.localRotation = Quaternion.Slerp(
+                        dog.visual.localRotation,
+                        dog.forwardLocalRotation,
+                        lookBlend);
+                }
+
+                dog.visual.localPosition = Vector3.Lerp(
+                    dog.visual.localPosition,
+                    dog.restLocalPosition,
+                    1f - Mathf.Exp(-8f * Time.deltaTime));
+                AnimateDogLegs(dog, 0f, 12f);
+                continue;
+            }
+
+            float forwardBlend = 1f - Mathf.Exp(-7f * Time.deltaTime);
+            dog.holder.localRotation = Quaternion.Slerp(
+                dog.holder.localRotation,
+                dog.restHolderLocalRotation,
+                forwardBlend);
+            dog.visual.localRotation = Quaternion.Slerp(
+                dog.visual.localRotation,
+                dog.forwardLocalRotation,
+                forwardBlend);
+            float cadence = Mathf.Lerp(6.5f, 13.5f, speed01);
+            float strideAngle = Mathf.Lerp(10f, 24f, speed01);
+            dog.gaitClock += cadence * Time.deltaTime;
+            AnimateDogLegs(dog, strideAngle, Mathf.Lerp(12f, 20f, speed01));
+
+            float gait = Mathf.Abs(Mathf.Sin(dog.gaitClock + dog.gaitPhase));
+            Vector3 targetPosition = dog.restLocalPosition + Vector3.up * (gait * 0.055f * speed01);
+            dog.visual.localPosition = Vector3.Lerp(dog.visual.localPosition, targetPosition, forwardBlend);
+        }
+    }
+
+    private void UpdateOffCourseSpeedLimit()
+    {
+        if (curvedWorld == null || rideTeam == null || rideController == null ||
+            !curvedWorld.TryGetRoadLateralDistance(rideTeam.position, out float lateralDistance))
+            return;
+
+        float roadEdge = curvedWorld.RoadHalfWidthMeters;
+        bool nextOffCourse = offCourse
+            ? lateralDistance > Mathf.Max(0f, roadEdge - roadReturnInset)
+            : lateralDistance > roadEdge + roadExitMargin;
+        if (nextOffCourse == offCourse)
+            return;
+
+        offCourse = nextOffCourse;
+        rideController.SetTerrainSpeedLimit(offCourse, offCourseSpeed, offCourseBoostSpeed);
+    }
+
+    private bool UpdateCourseCompletion(bool running)
+    {
+        if (returningToLobby || rideTeam == null)
+            return returningToLobby;
+
+        if (!ridePositionInitialized)
+        {
+            lastRidePosition = rideTeam.position;
+            ridePositionInitialized = true;
+        }
+
+        float step = Vector3.Distance(rideTeam.position, lastRidePosition);
+        lastRidePosition = rideTeam.position;
+        if (running && step < 30f)
+            travelledCourseDistance += step;
+
+        float remainingToFinish = finishMarker != null
+            ? Vector3.Distance(rideTeam.position, finishMarker.position)
+            : float.PositiveInfinity;
+        bool reachedFinishMarker = running && remainingToFinish <= finishDistanceTolerance;
+        bool coveredCourseLength = running && travelledCourseDistance >= Mathf.Max(20f, courseLengthMeters - 8f);
+        if (!reachedFinishMarker && !coveredCourseLength)
+            return false;
+
+        ReturnToLobby();
+        return true;
+    }
+
+    private void ReturnToLobby()
+    {
+        if (returningToLobby)
+            return;
+        returningToLobby = true;
+
+        if (!Application.CanStreamedLevelBeLoaded(lobbySceneName))
+        {
+            returningToLobby = false;
+            Debug.LogError($"[Mush] 완주했지만 로비 씬 '{lobbySceneName}'을 찾을 수 없습니다.", this);
+            return;
+        }
+
+        Debug.Log($"[Mush] 완주했습니다. {lobbySceneName} 로비로 돌아갑니다.", this);
+        SceneManager.LoadScene(lobbySceneName);
+    }
+
+    private static void AnimateDogLegs(DogRuntime dog, float strideAngle, float blendSpeed)
+    {
+        if (dog.legPivots == null || dog.legRestRotations == null)
+            return;
+
+        float blend = 1f - Mathf.Exp(-blendSpeed * Time.deltaTime);
+        for (int index = 0; index < dog.legPivots.Length; index++)
+        {
+            Transform pivot = dog.legPivots[index];
+            if (pivot == null)
+                continue;
+
+            // Front-right and rear-left form the opposite diagonal pair.
+            bool oppositeDiagonal = index == 1 || index == 2;
+            float phase = dog.gaitPhase + (oppositeDiagonal ? Mathf.PI : 0f);
+            float angle = strideAngle > 0f ? Mathf.Sin(dog.gaitClock + phase) * strideAngle : 0f;
+            Quaternion target = dog.legRestRotations[index] * Quaternion.Euler(angle, 0f, 0f);
+            pivot.localRotation = Quaternion.Slerp(pivot.localRotation, target, blend);
+        }
+    }
+
+    private void OnGUI()
+    {
+        if (!built)
+            return;
+
+        lobbyButtonStyle ??= CreateLobbyButtonStyle();
+        if (GUI.Button(new Rect(18f, 18f, 230f, 48f), "로비로 돌아가기", lobbyButtonStyle))
+            ReturnToLobby();
+
+        if (!showKeyboardHelp || rideController == null)
+            return;
+
+        helpStyle ??= new GUIStyle(GUI.skin.box)
+        {
+            alignment = TextAnchor.UpperLeft,
+            fontSize = 18,
+            normal = { textColor = Color.white },
+            padding = new RectOffset(14, 14, 10, 10),
+        };
+
+        string state = rideController.RideStarted
+            ? $"RUNNING  SPEED {rideController.SpeedLevel}/2  {rideController.CurrentSpeed:0.0} m/s"
+            : "DOGS WAITING - PRESS SPACE TO GRAB THE REINS";
+        GUI.Box(new Rect(18f, 78f, 470f, 92f),
+            state + "\nA: LEFT REIN    D: RIGHT REIN    HOLD W: SPEED 2", helpStyle);
+    }
+
+    private static GUIStyle CreateLobbyButtonStyle()
+    {
+        MushCustomizationCatalog catalog = MushCustomizationCatalog.Load();
+        GUIStyle style = new(GUI.skin.button)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            fontSize = 21,
+            fontStyle = FontStyle.Bold,
+            padding = new RectOffset(14, 14, 8, 8),
+        };
+        if (catalog != null && catalog.koreanFont != null)
+            style.font = catalog.koreanFont;
+        return style;
+    }
+
+    private Vector3 SnapPointToGround(Vector3 point)
+    {
+        Vector3 origin = point + Vector3.up * 20f;
+        RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, 50f,
+            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+
+        bool foundGround = false;
+        RaycastHit bestHit = default;
+        float bestHeightDifference = float.PositiveInfinity;
+        for (int i = 0; i < hits.Length; i++)
+        {
+            RaycastHit candidate = hits[i];
+            if (candidate.normal.y < 0.58f)
+                continue;
+
+            float heightDifference = Mathf.Abs(candidate.point.y - point.y);
+            if (heightDifference < bestHeightDifference)
+            {
+                foundGround = true;
+                bestHit = candidate;
+                bestHeightDifference = heightDifference;
+            }
+        }
+
+        return foundGround ? bestHit.point : point;
+    }
+
+    private void ImproveMapReadability(Transform mapRoot)
+    {
+        Material snow = GetRuntimeMaterial("ReadableSnow", new Color(0.86f, 0.92f, 0.98f), 0.14f);
+        Material road = GetRuntimeMaterial("ReadablePackedSnow", new Color(0.29f, 0.39f, 0.51f), 0.18f);
+        Material tracks = GetRuntimeMaterial("ReadableSledTrack", new Color(0.10f, 0.15f, 0.22f), 0.12f);
+
+        foreach (Renderer renderer in mapRoot.GetComponentsInChildren<Renderer>(true))
+        {
+            Material[] slots = renderer.sharedMaterials;
+            bool changed = false;
+            for (int i = 0; i < slots.Length; i++)
+            {
+                string materialName = slots[i] != null ? slots[i].name : string.Empty;
+                if (materialName.Contains("MUSH_MAT_SledTrack", StringComparison.OrdinalIgnoreCase))
+                {
+                    slots[i] = tracks;
+                    changed = true;
+                }
+                else if (materialName.Contains("MUSH_MAT_PackedSnow", StringComparison.OrdinalIgnoreCase))
+                {
+                    slots[i] = road;
+                    changed = true;
+                }
+                else if (materialName.Contains("MUSH_MAT_Snow", StringComparison.OrdinalIgnoreCase))
+                {
+                    slots[i] = snow;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+                renderer.sharedMaterials = slots;
+        }
+    }
+
+    private LineRenderer BuildRein(string reinName, Transform parent)
+    {
+        GameObject reinObject = new(reinName);
+        reinObject.transform.SetParent(parent, false);
+        LineRenderer line = reinObject.AddComponent<LineRenderer>();
+        line.useWorldSpace = true;
+        line.positionCount = 3;
+        line.startWidth = 0.04f;
+        line.endWidth = 0.026f;
+        line.startColor = new Color(0.24f, 0.075f, 0.018f, 1f);
+        line.endColor = new Color(0.12f, 0.035f, 0.01f, 1f);
+        line.numCapVertices = 4;
+        line.shadowCastingMode = ShadowCastingMode.Off;
+        line.receiveShadows = false;
+        line.sharedMaterial = GetRuntimeMaterial("ReinLeather", new Color(0.11f, 0.035f, 0.012f), 0.12f);
+        return line;
+    }
+
+    private Transform BuildMitten(string mittenName, Transform parent, int side)
+    {
+        GameObject mitten = new(mittenName);
+        mitten.transform.SetParent(parent, false);
+        mitten.transform.localPosition = Vector3.zero;
+        mitten.transform.localRotation = Quaternion.Euler(8f, side * 5f, side * 4f);
+
+        Material glove = GetRuntimeMaterial("WinterMitten", new Color(0.24f, 0.08f, 0.025f), 0.16f);
+        Material fur = GetRuntimeMaterial("WinterFur", new Color(0.80f, 0.69f, 0.51f), 0.12f);
+        CreateGlovePart("Palm", PrimitiveType.Sphere, mitten.transform,
+            new Vector3(0f, 0f, 0.02f), new Vector3(0.22f, 0.15f, 0.29f), Vector3.zero, glove);
+        CreateGlovePart("Curled Fingers", PrimitiveType.Sphere, mitten.transform,
+            new Vector3(0f, -0.005f, 0.17f), new Vector3(0.23f, 0.145f, 0.20f), Vector3.zero, glove);
+        CreateGlovePart("Thumb", PrimitiveType.Capsule, mitten.transform,
+            new Vector3(side * 0.13f, -0.02f, 0.055f), new Vector3(0.065f, 0.105f, 0.065f),
+            new Vector3(62f, 0f, side * -32f), glove);
+        CreateGlovePart("Wrist", PrimitiveType.Cylinder, mitten.transform,
+            new Vector3(0f, 0f, -0.17f), new Vector3(0.11f, 0.09f, 0.11f), new Vector3(90f, 0f, 0f), glove);
+        CreateGlovePart("Fur Cuff", PrimitiveType.Cylinder, mitten.transform,
+            new Vector3(0f, 0f, -0.25f), new Vector3(0.16f, 0.075f, 0.16f), new Vector3(90f, 0f, 0f), fur);
+        return mitten.transform;
+    }
+
+    private void BuildSledCockpit(Transform parent)
+    {
+        if (customization?.equippedSledBody == MushCustomizationIds.SledSanta)
+        {
+            BuildSantaSledCockpit(parent);
+            return;
+        }
+
+        Color sledColor = EquippedSledColor();
+        Material wood = GetRuntimeMaterial("CockpitWood_" + (customization?.equippedSledBody ?? "natural"),
+            Color.Lerp(sledColor, Color.black, 0.28f), 0.22f);
+        Material lightWood = GetRuntimeMaterial("CockpitLightWood_" + (customization?.equippedSledBody ?? "natural"),
+            Color.Lerp(sledColor, Color.white, 0.18f), 0.24f);
+        Material runner = GetRuntimeMaterial("CockpitRunner", new Color(0.24f, 0.29f, 0.34f), 0.62f);
+        CreatePrimitive("First Person Handle", PrimitiveType.Cube, parent,
+            new Vector3(0f, 0.88f, -0.52f), new Vector3(1.25f, 0.065f, 0.075f), wood);
+        CreateGlovePart("Left Handle Upright", PrimitiveType.Cube, parent,
+            new Vector3(-0.56f, 0.65f, -0.32f), new Vector3(0.07f, 0.50f, 0.07f),
+            new Vector3(-15f, 0f, 0f), wood);
+        CreateGlovePart("Right Handle Upright", PrimitiveType.Cube, parent,
+            new Vector3(0.56f, 0.65f, -0.32f), new Vector3(0.07f, 0.50f, 0.07f),
+            new Vector3(-15f, 0f, 0f), wood);
+        CreatePrimitive("Front Cross Bar", PrimitiveType.Cube, parent,
+            new Vector3(0f, 0.46f, 0.05f), new Vector3(1.12f, 0.055f, 0.07f), lightWood);
+
+        // Guaranteed first-person deck: open slats keep the snow visible while
+        // showing more than just the front handle at the bottom of the frame.
+        for (int i = -2; i <= 2; i++)
+        {
+            CreatePrimitive($"Deck Slat {i + 3}", PrimitiveType.Cube, parent,
+                new Vector3(i * 0.19f, 0.34f, -0.28f), new Vector3(0.13f, 0.045f, 1.85f), lightWood);
+        }
+        CreatePrimitive("Left Visible Runner", PrimitiveType.Cube, parent,
+            new Vector3(-0.57f, 0.23f, -0.22f), new Vector3(0.07f, 0.07f, 2.25f), runner);
+        CreatePrimitive("Right Visible Runner", PrimitiveType.Cube, parent,
+            new Vector3(0.57f, 0.23f, -0.22f), new Vector3(0.07f, 0.07f, 2.25f), runner);
+    }
+
+    private void BuildSantaSledCockpit(Transform parent)
+    {
+        Material red = GetRuntimeMaterial("SantaCockpitRed", new Color(0.72f, 0.025f, 0.035f), 0.28f);
+        Material deepRed = GetRuntimeMaterial("SantaCockpitDeepRed", new Color(0.34f, 0.012f, 0.018f), 0.22f);
+        Material cream = GetRuntimeMaterial("SantaCockpitCream", new Color(0.92f, 0.82f, 0.63f), 0.25f);
+        Material gold = GetRuntimeMaterial("SantaCockpitGold", new Color(0.92f, 0.57f, 0.08f), 0.62f);
+        Material runner = GetRuntimeMaterial("SantaCockpitRunner", new Color(0.18f, 0.20f, 0.23f), 0.70f);
+
+        // Enclosed sleigh body: unlike the ordinary open slat sled, the Santa
+        // model has a deep red tub, raised sides, cream padding and gold trim.
+        CreatePrimitive("Santa Solid Floor", PrimitiveType.Cube, parent,
+            new Vector3(0f, 0.31f, -0.20f), new Vector3(1.18f, 0.11f, 1.92f), red);
+        CreatePrimitive("Santa Left Raised Side", PrimitiveType.Cube, parent,
+            new Vector3(-0.61f, 0.60f, -0.16f), new Vector3(0.12f, 0.62f, 1.92f), red);
+        CreatePrimitive("Santa Right Raised Side", PrimitiveType.Cube, parent,
+            new Vector3(0.61f, 0.60f, -0.16f), new Vector3(0.12f, 0.62f, 1.92f), red);
+        CreateGlovePart("Santa Curved Front", PrimitiveType.Cube, parent,
+            new Vector3(0f, 0.57f, 0.63f), new Vector3(1.25f, 0.50f, 0.12f),
+            new Vector3(-10f, 0f, 0f), deepRed);
+
+        CreatePrimitive("Santa Left Cream Rim", PrimitiveType.Cube, parent,
+            new Vector3(-0.61f, 0.94f, -0.13f), new Vector3(0.16f, 0.10f, 1.92f), cream);
+        CreatePrimitive("Santa Right Cream Rim", PrimitiveType.Cube, parent,
+            new Vector3(0.61f, 0.94f, -0.13f), new Vector3(0.16f, 0.10f, 1.92f), cream);
+        CreatePrimitive("Santa Front Cream Rim", PrimitiveType.Cube, parent,
+            new Vector3(0f, 0.84f, 0.68f), new Vector3(1.30f, 0.11f, 0.10f), cream);
+
+        CreatePrimitive("Santa Front Gold Trim", PrimitiveType.Cube, parent,
+            new Vector3(0f, 0.48f, 0.70f), new Vector3(1.33f, 0.055f, 0.08f), gold);
+        CreatePrimitive("Santa Left Gold Rail", PrimitiveType.Cube, parent,
+            new Vector3(-0.69f, 0.50f, -0.18f), new Vector3(0.045f, 0.045f, 1.92f), gold);
+        CreatePrimitive("Santa Right Gold Rail", PrimitiveType.Cube, parent,
+            new Vector3(0.69f, 0.50f, -0.18f), new Vector3(0.045f, 0.045f, 1.92f), gold);
+
+        CreatePrimitive("Santa Left Runner", PrimitiveType.Cube, parent,
+            new Vector3(-0.58f, 0.15f, -0.18f), new Vector3(0.08f, 0.08f, 2.25f), runner);
+        CreatePrimitive("Santa Right Runner", PrimitiveType.Cube, parent,
+            new Vector3(0.58f, 0.15f, -0.18f), new Vector3(0.08f, 0.08f, 2.25f), runner);
+
+        CreatePrimitive("Santa Padded Handle", PrimitiveType.Cube, parent,
+            new Vector3(0f, 0.92f, -0.56f), new Vector3(1.32f, 0.085f, 0.095f), cream);
+        CreateGlovePart("Santa Left Handle Upright", PrimitiveType.Cube, parent,
+            new Vector3(-0.59f, 0.69f, -0.38f), new Vector3(0.075f, 0.48f, 0.075f),
+            new Vector3(-14f, 0f, 0f), gold);
+        CreateGlovePart("Santa Right Handle Upright", PrimitiveType.Cube, parent,
+            new Vector3(0.59f, 0.69f, -0.38f), new Vector3(0.075f, 0.48f, 0.075f),
+            new Vector3(-14f, 0f, 0f), gold);
+    }
+
+    private void BuildVisibleRideLantern(Transform parent)
+    {
+        Material frame = GetRuntimeMaterial("EquippedLanternFrame", new Color(0.11f, 0.065f, 0.028f), 0.48f);
+        Material glass = GetRuntimeMaterial("EquippedLanternGlass", new Color(1f, 0.38f, 0.035f), 0.58f);
+        CreatePrimitive("Visible Lantern Glass", PrimitiveType.Sphere, parent,
+            Vector3.zero, new Vector3(0.19f, 0.25f, 0.16f), glass);
+        CreatePrimitive("Visible Lantern Top", PrimitiveType.Cube, parent,
+            new Vector3(0f, 0.27f, 0f), new Vector3(0.25f, 0.055f, 0.21f), frame);
+        CreatePrimitive("Visible Lantern Bottom", PrimitiveType.Cube, parent,
+            new Vector3(0f, -0.27f, 0f), new Vector3(0.25f, 0.055f, 0.21f), frame);
+        for (int side = -1; side <= 1; side += 2)
+        {
+            CreatePrimitive("Visible Lantern Side", PrimitiveType.Cube, parent,
+                new Vector3(side * 0.13f, 0f, 0f), new Vector3(0.035f, 0.53f, 0.035f), frame);
+        }
+        CreateGlovePart("Visible Lantern Handle", PrimitiveType.Capsule, parent,
+            new Vector3(0f, 0.39f, 0f), new Vector3(0.045f, 0.15f, 0.045f),
+            new Vector3(0f, 0f, 90f), frame);
+    }
+
+    private Color EquippedSledColor()
+    {
+        return customization?.equippedSledBody switch
+        {
+            MushCustomizationIds.SledRed => new Color(0.68f, 0.07f, 0.045f),
+            MushCustomizationIds.SledBlue => new Color(0.055f, 0.25f, 0.62f),
+            MushCustomizationIds.SledBlack => new Color(0.07f, 0.075f, 0.085f),
+            MushCustomizationIds.SledSanta => new Color(0.76f, 0.055f, 0.035f),
+            _ => new Color(0.52f, 0.25f, 0.075f),
+        };
+    }
+
+    private static GameObject CreateGlovePart(
+        string objectName,
+        PrimitiveType type,
+        Transform parent,
+        Vector3 localPosition,
+        Vector3 localScale,
+        Vector3 localEuler,
+        Material material)
+    {
+        GameObject primitive = CreatePrimitive(objectName, type, parent, localPosition, localScale, material);
+        primitive.transform.localRotation = Quaternion.Euler(localEuler);
+        return primitive;
+    }
+
+    private void BuildFallbackSled(Transform parent)
+    {
+        Material wood = GetRuntimeMaterial("FallbackSledWood", new Color(0.36f, 0.16f, 0.055f), 0.22f);
+        Material metal = GetRuntimeMaterial("FallbackSledMetal", new Color(0.34f, 0.39f, 0.44f), 0.65f);
+        CreatePrimitive("Sled Deck", PrimitiveType.Cube, parent, new Vector3(0f, 0.24f, -0.2f), new Vector3(1.15f, 0.12f, 1.9f), wood);
+        CreatePrimitive("Left Runner", PrimitiveType.Cube, parent, new Vector3(-0.48f, 0.07f, -0.1f), new Vector3(0.08f, 0.08f, 2.15f), metal);
+        CreatePrimitive("Right Runner", PrimitiveType.Cube, parent, new Vector3(0.48f, 0.07f, -0.1f), new Vector3(0.08f, 0.08f, 2.15f), metal);
+    }
+
+    private GameObject BuildFallbackDog(Transform parent, bool malamute)
+    {
+        GameObject root = new(malamute ? "Visible Malamute Visual" : "Visible Husky Visual");
+        root.transform.SetParent(parent, false);
+        Material darkCoat = GetRuntimeMaterial(
+            malamute ? "VisibleMalamuteDark" : "VisibleHuskyDark",
+            malamute ? new Color(0.20f, 0.12f, 0.075f) : new Color(0.12f, 0.16f, 0.20f),
+            0.14f);
+        Material cream = GetRuntimeMaterial(
+            malamute ? "VisibleMalamuteCream" : "VisibleHuskyCream",
+            malamute ? new Color(0.76f, 0.64f, 0.46f) : new Color(0.86f, 0.88f, 0.86f),
+            0.12f);
+        Material harness = GetRuntimeMaterial(
+            malamute ? "VisibleMalamuteHarness" : "VisibleHuskyHarness",
+            malamute ? new Color(0.82f, 0.18f, 0.055f) : new Color(0.04f, 0.38f, 0.72f),
+            0.22f);
+        Material nose = GetRuntimeMaterial("VisibleDogNose", new Color(0.025f, 0.018f, 0.015f), 0.30f);
+        Material eye = GetRuntimeMaterial("VisibleDogEye", new Color(0.035f, 0.020f, 0.012f), 0.55f);
+
+        CreateGlovePart("Long Body", PrimitiveType.Capsule, root.transform,
+            new Vector3(0f, 0.64f, 0f), new Vector3(0.38f, 0.57f, 0.38f),
+            new Vector3(90f, 0f, 0f), darkCoat);
+        CreatePrimitive("Cream Chest", PrimitiveType.Sphere, root.transform,
+            new Vector3(0f, 0.71f, 0.34f), new Vector3(0.42f, 0.52f, 0.38f), cream);
+        CreatePrimitive("Head", PrimitiveType.Sphere, root.transform,
+            new Vector3(0f, 0.99f, 0.62f), new Vector3(0.39f, 0.41f, 0.38f), darkCoat);
+        CreatePrimitive("Muzzle", PrimitiveType.Sphere, root.transform,
+            new Vector3(0f, 0.91f, 0.89f), new Vector3(0.25f, 0.19f, 0.26f), cream);
+        CreatePrimitive("Nose", PrimitiveType.Sphere, root.transform,
+            new Vector3(0f, 0.94f, 1.08f), new Vector3(0.105f, 0.08f, 0.08f), nose);
+
+        CreateGlovePart("Left Ear", PrimitiveType.Cube, root.transform,
+            new Vector3(-0.18f, 1.25f, 0.61f), new Vector3(0.13f, 0.27f, 0.12f),
+            new Vector3(8f, 0f, -12f), darkCoat);
+        CreateGlovePart("Right Ear", PrimitiveType.Cube, root.transform,
+            new Vector3(0.18f, 1.25f, 0.61f), new Vector3(0.13f, 0.27f, 0.12f),
+            new Vector3(8f, 0f, 12f), darkCoat);
+        CreatePrimitive("Left Eye", PrimitiveType.Sphere, root.transform,
+            new Vector3(-0.13f, 1.04f, 0.95f), new Vector3(0.045f, 0.045f, 0.035f), eye);
+        CreatePrimitive("Right Eye", PrimitiveType.Sphere, root.transform,
+            new Vector3(0.13f, 1.04f, 0.95f), new Vector3(0.045f, 0.045f, 0.035f), eye);
+
+        for (int side = -1; side <= 1; side += 2)
+        for (int row = -1; row <= 1; row += 2)
+        {
+            float x = side * 0.25f;
+            float z = row * 0.32f;
+            CreatePrimitive($"Leg {side} {row}", PrimitiveType.Capsule, root.transform,
+                new Vector3(x, 0.31f, z), new Vector3(0.105f, 0.27f, 0.105f), darkCoat);
+            CreatePrimitive($"Paw {side} {row}", PrimitiveType.Sphere, root.transform,
+                new Vector3(x, 0.08f, z + 0.055f), new Vector3(0.14f, 0.08f, 0.19f), cream);
+        }
+
+        CreateGlovePart("Raised Tail", PrimitiveType.Capsule, root.transform,
+            new Vector3(0f, 0.84f, -0.63f), new Vector3(0.13f, 0.36f, 0.13f),
+            new Vector3(-42f, 0f, 0f), darkCoat);
+        CreatePrimitive("Harness Back", PrimitiveType.Cube, root.transform,
+            new Vector3(0f, 0.91f, 0.06f), new Vector3(0.44f, 0.075f, 0.45f), harness);
+        CreateGlovePart("Harness Chest", PrimitiveType.Cube, root.transform,
+            new Vector3(0f, 0.69f, 0.38f), new Vector3(0.45f, 0.065f, 0.34f),
+            new Vector3(28f, 0f, 0f), harness);
+        return root;
+    }
+
+    private static GameObject CreatePrimitive(
+        string objectName,
+        PrimitiveType type,
+        Transform parent,
+        Vector3 localPosition,
+        Vector3 localScale,
+        Material material)
+    {
+        GameObject primitive = GameObject.CreatePrimitive(type);
+        primitive.name = objectName;
+        primitive.transform.SetParent(parent, false);
+        primitive.transform.localPosition = localPosition;
+        primitive.transform.localScale = localScale;
+        primitive.GetComponent<Renderer>().sharedMaterial = material;
+        Collider collider = primitive.GetComponent<Collider>();
+        if (collider != null)
+            Destroy(collider);
+        return primitive;
+    }
+
+    private void ApplySledMaterials(GameObject root)
+    {
+        string sledKey = customization?.equippedSledBody ?? "natural";
+        Color baseColor = EquippedSledColor();
+        foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            Material[] slots = renderer.sharedMaterials;
+            for (int index = 0; index < slots.Length; index++)
+            {
+                string source = slots[index] != null ? slots[index].name.ToLowerInvariant() : string.Empty;
+                if (sledKey == MushCustomizationIds.SledSanta && source.Contains("santa_gold"))
+                    slots[index] = GetRuntimeMaterial("SantaSledGold", new Color(0.92f, 0.57f, 0.08f), 0.62f);
+                else if (sledKey == MushCustomizationIds.SledSanta && source.Contains("santa_cream"))
+                    slots[index] = GetRuntimeMaterial("SantaSledCream", new Color(0.92f, 0.82f, 0.63f), 0.25f);
+                else if (sledKey == MushCustomizationIds.SledSanta && source.Contains("santa_red"))
+                    slots[index] = GetRuntimeMaterial("SantaSledRed", new Color(0.72f, 0.025f, 0.035f), 0.28f);
+                else if (source.Contains("metal"))
+                    slots[index] = GetRuntimeMaterial("SledMetal_" + sledKey, new Color(0.33f, 0.38f, 0.43f), 0.68f);
+                else if (source.Contains("woodlight"))
+                    slots[index] = GetRuntimeMaterial("SledWoodLight_" + sledKey, Color.Lerp(baseColor, Color.white, 0.22f), 0.22f);
+                else
+                    slots[index] = GetRuntimeMaterial("SledWood_" + sledKey, baseColor, 0.20f);
+            }
+            renderer.sharedMaterials = slots;
+        }
+    }
+
+    private void ApplyDogMaterials(GameObject root, bool malamute)
+    {
+        foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            Material[] slots = renderer.sharedMaterials;
+            for (int index = 0; index < slots.Length; index++)
+            {
+                string source = slots[index] != null ? slots[index].name.ToLowerInvariant() : string.Empty;
+                if (source.Contains("tongue"))
+                    slots[index] = GetRuntimeMaterial("DogTongue", new Color(0.67f, 0.16f, 0.19f), 0.28f);
+                else if (source.Contains("eye") || source.Contains("iris"))
+                    slots[index] = GetRuntimeMaterial(malamute ? "BrownIris" : "BlueIris",
+                        malamute ? new Color(0.48f, 0.20f, 0.045f) : new Color(0.08f, 0.42f, 0.78f), 0.55f);
+                else if (source.Contains("collar"))
+                    slots[index] = GetRuntimeMaterial("DogBlueCollar", new Color(0.035f, 0.30f, 0.72f), 0.28f);
+                else if (source.Contains("innerear"))
+                    slots[index] = GetRuntimeMaterial("DogInnerEar", new Color(0.56f, 0.24f, 0.23f), 0.18f);
+                else if (source.Contains("sclera") || source.Contains("lightcoat") ||
+                         source.Contains("white") || source.Contains("cream"))
+                    slots[index] = GetRuntimeMaterial("DogCream", new Color(0.78f, 0.76f, 0.70f), 0.14f);
+                else if (source.Contains("black"))
+                    slots[index] = GetRuntimeMaterial("DogBlack", new Color(0.018f, 0.022f, 0.026f), 0.20f);
+                else if (source.Contains("darkcoat") || source.Contains("darkdetail") || source.Contains("dark"))
+                    slots[index] = GetRuntimeMaterial(malamute ? "MalamuteDark" : "HuskyDark",
+                        malamute ? new Color(0.075f, 0.052f, 0.042f) : new Color(0.035f, 0.045f, 0.055f), 0.16f);
+                else
+                    slots[index] = GetRuntimeMaterial(malamute ? "MalamuteCoat" : "HuskyCoat",
+                        malamute ? new Color(0.29f, 0.31f, 0.34f) : new Color(0.25f, 0.30f, 0.35f), 0.16f);
+            }
+            renderer.sharedMaterials = slots;
+        }
+    }
+
+    private Material GetRuntimeMaterial(string key, Color color, float smoothness)
+    {
+        if (runtimeMaterials.TryGetValue(key, out Material material))
+            return material;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+        material = new Material(shader) { name = "Runtime " + key };
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+        if (material.HasProperty("_Color")) material.SetColor("_Color", color);
+        if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", smoothness);
+        material.enableInstancing = true;
+        runtimeMaterials[key] = material;
+        return material;
+    }
+
+    private static void DisableModelColliders(GameObject root)
+    {
+        foreach (Collider collider in root.GetComponentsInChildren<Collider>(true))
+            collider.enabled = false;
+    }
+
+    private static Transform CreateAnchor(string anchorName, Transform parent, Vector3 localPosition)
+    {
+        GameObject anchor = new(anchorName);
+        anchor.transform.SetParent(parent, false);
+        anchor.transform.localPosition = localPosition;
+        return anchor.transform;
+    }
+
+    private static Transform FindDeepChild(Transform root, string targetName)
+    {
+        if (root == null)
+            return null;
+        foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (child.name.Equals(targetName, StringComparison.OrdinalIgnoreCase))
+                return child;
+        }
+        return null;
+    }
+
+    private static Transform FindChildContaining(Transform root, string namePart)
+    {
+        if (root == null)
+            return null;
+
+        foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (child.name.Contains(namePart, StringComparison.OrdinalIgnoreCase))
+                return child;
+        }
+
+        return null;
+    }
+
+    private void OnDestroy()
+    {
+        foreach (Material material in runtimeMaterials.Values)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+        runtimeMaterials.Clear();
+    }
+}

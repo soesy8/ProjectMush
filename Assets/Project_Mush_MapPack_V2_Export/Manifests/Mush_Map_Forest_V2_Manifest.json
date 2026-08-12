@@ -1,0 +1,90 @@
+{
+  "asset": "Mush_Map_Forest_V2",
+  "asset_type": "map",
+  "materials": {
+    "MUSH_MAT_Ice": [
+      0.42,
+      0.63,
+      0.77
+    ],
+    "MUSH_MAT_PackedSnow": [
+      0.6,
+      0.69,
+      0.78
+    ],
+    "MUSH_MAT_PineDark": [
+      0.04,
+      0.12,
+      0.07
+    ],
+    "MUSH_MAT_PineMid": [
+      0.08,
+      0.22,
+      0.12
+    ],
+    "MUSH_MAT_Rock": [
+      0.28,
+      0.34,
+      0.4
+    ],
+    "MUSH_MAT_RouteRed": [
+      0.58,
+      0.05,
+      0.04
+    ],
+    "MUSH_MAT_Sign": [
+      0.72,
+      0.52,
+      0.2
+    ],
+    "MUSH_MAT_Snow": [
+      0.82,
+      0.89,
+      0.96
+    ],
+    "MUSH_MAT_Star": [
+      0.75,
+      0.88,
+      1.0
+    ],
+    "MUSH_MAT_Wood": [
+      0.3,
+      0.15,
+      0.06
+    ],
+    "MUSH_MAT_WoodLight": [
+      0.48,
+      0.28,
+      0.1
+    ]
+  },
+  "expected_bounds": {
+    "min": [
+      -116.5300521850586,
+      -0.1521824300289154,
+      -2.0
+    ],
+    "max": [
+      118.0,
+      900.94384765625,
+      118.92120361328125
+    ],
+    "size": [
+      234.5300521850586,
+      901.0960300862789,
+      120.92120361328125
+    ]
+  },
+  "max_mesh_count": 150,
+  "required_markers": [
+    "SPAWN_Sled",
+    "SPAWN_Dog_Left",
+    "SPAWN_Dog_Right",
+    "FINISH_Delivery",
+    "TRG_Time_Afternoon",
+    "TRG_Time_Dusk",
+    "TRG_Time_Night",
+    "TRG_Time_Dawn",
+    "TRG_Time_Sunrise"
+  ]
+}

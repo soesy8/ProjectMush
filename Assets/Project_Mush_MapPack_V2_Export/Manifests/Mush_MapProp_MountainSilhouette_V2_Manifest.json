@@ -1,0 +1,35 @@
+{
+  "asset": "Mush_MapProp_MountainSilhouette_V2",
+  "asset_type": "prop",
+  "materials": {
+    "MUSH_MAT_Rock": [
+      0.28,
+      0.34,
+      0.4
+    ],
+    "MUSH_MAT_Snow": [
+      0.82,
+      0.89,
+      0.96
+    ]
+  },
+  "expected_bounds": {
+    "min": [
+      -15.831559181213379,
+      -9.510564804077148,
+      0.0
+    ],
+    "max": [
+      15.831559181213379,
+      9.510564804077148,
+      14.0
+    ],
+    "size": [
+      31.663118362426758,
+      19.021129608154297,
+      14.0
+    ]
+  },
+  "max_mesh_count": 1,
+  "pivot_rule": "bottom_center"
+}

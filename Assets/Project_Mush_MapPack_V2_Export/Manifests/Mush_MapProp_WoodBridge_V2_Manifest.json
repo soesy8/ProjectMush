@@ -1,0 +1,35 @@
+{
+  "asset": "Mush_MapProp_WoodBridge_V2",
+  "asset_type": "prop",
+  "materials": {
+    "MUSH_MAT_Wood": [
+      0.3,
+      0.15,
+      0.06
+    ],
+    "MUSH_MAT_WoodLight": [
+      0.48,
+      0.28,
+      0.1
+    ]
+  },
+  "expected_bounds": {
+    "min": [
+      -4.0,
+      -4.059999942779541,
+      0.0
+    ],
+    "max": [
+      4.0,
+      4.059999942779541,
+      1.024999976158142
+    ],
+    "size": [
+      8.0,
+      8.119999885559082,
+      1.024999976158142
+    ]
+  },
+  "max_mesh_count": 1,
+  "pivot_rule": "bottom_center"
+}

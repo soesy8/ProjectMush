@@ -1,0 +1,27 @@
+00:00.031  color_management | Using OCIO=C:\Program Files\Blender Foundation\Blender 5.2\5.2\datafiles\colormanagement\config.ocio
+C:\Users\rkfka\Downloads\Project_Mush_MapPack_V2_COMPLETE_FIXED2\Mush_MapPack_V2_FBXValidator_FIXED2.py:34: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  if material is None or not material.use_nodes or material.node_tree is None:
+C:\Users\rkfka\Downloads\Project_Mush_MapPack_V2_COMPLETE_FIXED2\Mush_MapPack_V2_FBXValidator_FIXED2.py:164: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  world.use_nodes = True
+00:04.875  render           | Saved: 'C:\Users\rkfka\Desktop\Project_Mush_MapPack_V2_Export\Preview\Mush_MapProp_MountainSilhouette_V2_Preview.png'
+Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40)
+FBX import of 'Mush_MapProp_MountainSilhouette_V2.fbx' took 1.64 ms
+
+============================================================================================================
+FBX VALIDATION : Mush_MapProp_MountainSilhouette_V2.fbx
+============================================================================================================
+검사                                         | 결과     | 상세
+------------------------------------------------------------------------------------------------------------
+모든 시각 Mesh 재질 슬롯 존재                        | PASS   | OK
+모든 재질이 (0.8,0.8,0.8) 회색인지 검사               | PASS   | OK
+diffuse_color / Principled Base Color 기대값  | PASS   | OK
+Mesh Transform 적용                          | PASS   | OK
+예상 크기 / 실제 크기                              | PASS   | expected=[31.663119316101074, 19.021129608154297, 14.0], actual=[31.663119316101074, 19.02113151550293, 14.00000345681633]
+소품 피벗=바닥 중앙                                | FAIL   | centerXY=(2.1684,0.0000), minZ=-0.0000
+소품 Mesh 수                                  | PASS   | 1 / max 1
+재질색 PNG 미리보기 렌더                            | PASS   | C:\Users\rkfka\Desktop\Project_Mush_MapPack_V2_Export\Preview\Mush_MapProp_MountainSilhouette_V2_Preview.png
+------------------------------------------------------------------------------------------------------------
+Mesh=1 / Visual=1 / COL=0 / Triangles=60
+Imported Meshes: Mush_MapProp_MountainSilhouette_V2
+Actual size: [31.663119316101074, 19.02113151550293, 14.00000345681633]
+============================================================================================================

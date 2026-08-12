@@ -1,0 +1,116 @@
+{
+  "asset": "Mush_MapProp_WoodFence_V2.fbx",
+  "asset_type": "prop",
+  "importer": "bpy.ops.wm.fbx_import",
+  "passed": true,
+  "checks": [
+    {
+      "name": "모든 시각 Mesh 재질 슬롯 존재",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "모든 재질이 (0.8,0.8,0.8) 회색인지 검사",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "diffuse_color / Principled Base Color 기대값 일치",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "Mesh Transform 적용",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "예상 크기 / 실제 크기",
+      "passed": true,
+      "detail": "expected=[3.5999999046325684, 0.10000000149011612, 1.2999999523162842], actual=[3.5999999046325684, 0.10000021383166313, 1.2999999604623182]"
+    },
+    {
+      "name": "소품 피벗=바닥 중앙",
+      "passed": true,
+      "detail": "centerXY=(0.0000,0.0000), minZ=-0.0000, min=(-1.8000,-0.0500,-0.0000), max=(1.8000,0.0500,1.3000)"
+    },
+    {
+      "name": "소품 Mesh 수",
+      "passed": true,
+      "detail": "1 / max 1"
+    },
+    {
+      "name": "재질색 PNG 미리보기 렌더",
+      "passed": true,
+      "detail": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_WoodFence_V2_Preview.png"
+    }
+  ],
+  "materials": {
+    "MUSH_MAT_Wood": {
+      "expected": [
+        0.3,
+        0.15,
+        0.06
+      ],
+      "diffuse_color": [
+        0.30000001192092896,
+        0.15000000596046448,
+        0.05999999865889549
+      ],
+      "base_color": [
+        0.30000001192092896,
+        0.15000000596046448,
+        0.05999999865889549
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    }
+  },
+  "mesh_count": 1,
+  "mesh_names": [
+    "Mush_MapProp_WoodFence_V2"
+  ],
+  "visual_mesh_count": 1,
+  "visual_mesh_names": [
+    "Mush_MapProp_WoodFence_V2"
+  ],
+  "collision_mesh_count": 0,
+  "collision_mesh_names": [],
+  "triangle_count": 60,
+  "expected_bounds": {
+    "min": [
+      -1.7999999523162842,
+      -0.05000000074505806,
+      0.0
+    ],
+    "max": [
+      1.7999999523162842,
+      0.05000000074505806,
+      1.2999999523162842
+    ],
+    "size": [
+      3.5999999046325684,
+      0.10000000149011612,
+      1.2999999523162842
+    ]
+  },
+  "actual_bounds": {
+    "min": [
+      -1.7999999523162842,
+      -0.05000000074505806,
+      -8.146034069511643e-09
+    ],
+    "max": [
+      1.7999999523162842,
+      0.05000021308660507,
+      1.2999999523162842
+    ],
+    "size": [
+      3.5999999046325684,
+      0.10000021383166313,
+      1.2999999604623182
+    ]
+  },
+  "preview": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_WoodFence_V2_Preview.png"
+}

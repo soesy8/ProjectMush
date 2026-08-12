@@ -1,0 +1,116 @@
+{
+  "asset": "Mush_MapProp_FrozenWater_V2.fbx",
+  "asset_type": "prop",
+  "importer": "bpy.ops.wm.fbx_import",
+  "passed": true,
+  "checks": [
+    {
+      "name": "모든 시각 Mesh 재질 슬롯 존재",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "모든 재질이 (0.8,0.8,0.8) 회색인지 검사",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "diffuse_color / Principled Base Color 기대값 일치",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "Mesh Transform 적용",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "예상 크기 / 실제 크기",
+      "passed": true,
+      "detail": "expected=[10.0, 14.0, 0.10000000149011612], actual=[10.0, 14.0, 0.1000022818736852]"
+    },
+    {
+      "name": "소품 피벗=바닥 중앙",
+      "passed": true,
+      "detail": "centerXY=(0.0000,0.0000), minZ=-0.0000, min=(-5.0000,-7.0000,-0.0000), max=(5.0000,7.0000,0.1000)"
+    },
+    {
+      "name": "소품 Mesh 수",
+      "passed": true,
+      "detail": "1 / max 1"
+    },
+    {
+      "name": "재질색 PNG 미리보기 렌더",
+      "passed": true,
+      "detail": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_FrozenWater_V2_Preview.png"
+    }
+  ],
+  "materials": {
+    "MUSH_MAT_Ice": {
+      "expected": [
+        0.42,
+        0.63,
+        0.77
+      ],
+      "diffuse_color": [
+        0.41999998688697815,
+        0.6299999952316284,
+        0.7699999809265137
+      ],
+      "base_color": [
+        0.41999998688697815,
+        0.6299999952316284,
+        0.7699999809265137
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    }
+  },
+  "mesh_count": 1,
+  "mesh_names": [
+    "Mush_MapProp_FrozenWater_V2"
+  ],
+  "visual_mesh_count": 1,
+  "visual_mesh_names": [
+    "Mush_MapProp_FrozenWater_V2"
+  ],
+  "collision_mesh_count": 0,
+  "collision_mesh_names": [],
+  "triangle_count": 12,
+  "expected_bounds": {
+    "min": [
+      -5.0,
+      -7.0,
+      0.0
+    ],
+    "max": [
+      5.0,
+      7.0,
+      0.10000000149011612
+    ],
+    "size": [
+      10.0,
+      14.0,
+      0.10000000149011612
+    ]
+  },
+  "actual_bounds": {
+    "min": [
+      -5.0,
+      -7.0,
+      -1.140444737757207e-06
+    ],
+    "max": [
+      5.0,
+      7.0,
+      0.10000114142894745
+    ],
+    "size": [
+      10.0,
+      14.0,
+      0.1000022818736852
+    ]
+  },
+  "preview": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_FrozenWater_V2_Preview.png"
+}

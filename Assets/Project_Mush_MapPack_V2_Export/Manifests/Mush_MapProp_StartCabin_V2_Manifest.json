@@ -1,0 +1,40 @@
+{
+  "asset": "Mush_MapProp_StartCabin_V2",
+  "asset_type": "prop",
+  "materials": {
+    "MUSH_MAT_Ice": [
+      0.42,
+      0.63,
+      0.77
+    ],
+    "MUSH_MAT_Wood": [
+      0.3,
+      0.15,
+      0.06
+    ],
+    "MUSH_MAT_WoodLight": [
+      0.48,
+      0.28,
+      0.1
+    ]
+  },
+  "expected_bounds": {
+    "min": [
+      -3.144665479660034,
+      -2.604602813720703,
+      0.0
+    ],
+    "max": [
+      3.144665479660034,
+      2.604602813720703,
+      3.1700000762939453
+    ],
+    "size": [
+      6.289330959320068,
+      5.209205627441406,
+      3.1700000762939453
+    ]
+  },
+  "max_mesh_count": 1,
+  "pivot_rule": "bottom_center"
+}

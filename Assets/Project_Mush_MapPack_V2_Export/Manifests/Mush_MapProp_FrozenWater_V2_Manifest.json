@@ -1,0 +1,30 @@
+{
+  "asset": "Mush_MapProp_FrozenWater_V2",
+  "asset_type": "prop",
+  "materials": {
+    "MUSH_MAT_Ice": [
+      0.42,
+      0.63,
+      0.77
+    ]
+  },
+  "expected_bounds": {
+    "min": [
+      -5.0,
+      -7.0,
+      0.0
+    ],
+    "max": [
+      5.0,
+      7.0,
+      0.10000000149011612
+    ],
+    "size": [
+      10.0,
+      14.0,
+      0.10000000149011612
+    ]
+  },
+  "max_mesh_count": 1,
+  "pivot_rule": "bottom_center"
+}

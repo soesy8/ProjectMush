@@ -1,0 +1,116 @@
+{
+  "asset": "Mush_MapProp_StarDome_V2.fbx",
+  "asset_type": "prop",
+  "importer": "bpy.ops.wm.fbx_import",
+  "passed": true,
+  "checks": [
+    {
+      "name": "모든 시각 Mesh 재질 슬롯 존재",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "모든 재질이 (0.8,0.8,0.8) 회색인지 검사",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "diffuse_color / Principled Base Color 기대값 일치",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "Mesh Transform 적용",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "예상 크기 / 실제 크기",
+      "passed": true,
+      "detail": "expected=[232.24362182617188, 228.9468994140625, 94.11972045898438], actual=[232.24362182617188, 228.94691467285156, 94.11975436786634]"
+    },
+    {
+      "name": "소품 피벗=바닥 중앙",
+      "passed": true,
+      "detail": "centerXY=(0.0000,0.0000), minZ=-0.0000, min=(-116.1218,-114.4734,-0.0000), max=(116.1218,114.4735,94.1197)"
+    },
+    {
+      "name": "소품 Mesh 수",
+      "passed": true,
+      "detail": "1 / max 1"
+    },
+    {
+      "name": "재질색 PNG 미리보기 렌더",
+      "passed": true,
+      "detail": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_StarDome_V2_Preview.png"
+    }
+  ],
+  "materials": {
+    "MUSH_MAT_Star": {
+      "expected": [
+        0.75,
+        0.88,
+        1.0
+      ],
+      "diffuse_color": [
+        0.75,
+        0.8799999952316284,
+        1.0
+      ],
+      "base_color": [
+        0.75,
+        0.8799999952316284,
+        1.0
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    }
+  },
+  "mesh_count": 1,
+  "mesh_names": [
+    "Mush_MapProp_StarDome_V2"
+  ],
+  "visual_mesh_count": 1,
+  "visual_mesh_names": [
+    "Mush_MapProp_StarDome_V2"
+  ],
+  "collision_mesh_count": 0,
+  "collision_mesh_names": [],
+  "triangle_count": 512,
+  "expected_bounds": {
+    "min": [
+      -116.12181091308594,
+      -114.47344970703125,
+      0.0
+    ],
+    "max": [
+      116.12181091308594,
+      114.47344970703125,
+      94.11972045898438
+    ],
+    "size": [
+      232.24362182617188,
+      228.9468994140625,
+      94.11972045898438
+    ]
+  },
+  "actual_bounds": {
+    "min": [
+      -116.12181091308594,
+      -114.47344970703125,
+      -1.8650092897587456e-05
+    ],
+    "max": [
+      116.12181091308594,
+      114.47346496582031,
+      94.11973571777344
+    ],
+    "size": [
+      232.24362182617188,
+      228.94691467285156,
+      94.11975436786634
+    ]
+  },
+  "preview": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_StarDome_V2_Preview.png"
+}

@@ -1,0 +1,156 @@
+{
+  "asset": "Mush_MapProp_Pine_C_V2.fbx",
+  "asset_type": "prop",
+  "importer": "bpy.ops.wm.fbx_import",
+  "passed": true,
+  "checks": [
+    {
+      "name": "모든 시각 Mesh 재질 슬롯 존재",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "모든 재질이 (0.8,0.8,0.8) 회색인지 검사",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "diffuse_color / Principled Base Color 기대값 일치",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "Mesh Transform 적용",
+      "passed": true,
+      "detail": "OK"
+    },
+    {
+      "name": "예상 크기 / 실제 크기",
+      "passed": true,
+      "detail": "expected=[1.9183560609817505, 1.947949767112732, 3.697999954223633], actual=[1.9183560609817505, 1.9479503631591797, 3.698000351322861]"
+    },
+    {
+      "name": "소품 피벗=바닥 중앙",
+      "passed": true,
+      "detail": "centerXY=(0.0000,0.0000), minZ=-0.0000, min=(-0.9592,-0.9740,-0.0000), max=(0.9592,0.9740,3.6980)"
+    },
+    {
+      "name": "소품 Mesh 수",
+      "passed": true,
+      "detail": "1 / max 1"
+    },
+    {
+      "name": "재질색 PNG 미리보기 렌더",
+      "passed": true,
+      "detail": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_Pine_C_V2_Preview.png"
+    }
+  ],
+  "materials": {
+    "MUSH_MAT_PineDark": {
+      "expected": [
+        0.04,
+        0.12,
+        0.07
+      ],
+      "diffuse_color": [
+        0.03999999910593033,
+        0.11999999731779099,
+        0.07000000029802322
+      ],
+      "base_color": [
+        0.03999999910593033,
+        0.11999999731779099,
+        0.07000000029802322
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_Snow": {
+      "expected": [
+        0.82,
+        0.89,
+        0.96
+      ],
+      "diffuse_color": [
+        0.8199999928474426,
+        0.8899999856948853,
+        0.9599999785423279
+      ],
+      "base_color": [
+        0.8199999928474426,
+        0.8899999856948853,
+        0.9599999785423279
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    },
+    "MUSH_MAT_Wood": {
+      "expected": [
+        0.3,
+        0.15,
+        0.06
+      ],
+      "diffuse_color": [
+        0.30000001192092896,
+        0.15000000596046448,
+        0.05999999865889549
+      ],
+      "base_color": [
+        0.30000001192092896,
+        0.15000000596046448,
+        0.05999999865889549
+      ],
+      "diffuse_pass": true,
+      "base_pass": true,
+      "passed": true
+    }
+  },
+  "mesh_count": 1,
+  "mesh_names": [
+    "Mush_MapProp_Pine_C_V2"
+  ],
+  "visual_mesh_count": 1,
+  "visual_mesh_names": [
+    "Mush_MapProp_Pine_C_V2"
+  ],
+  "collision_mesh_count": 0,
+  "collision_mesh_names": [],
+  "triangle_count": 136,
+  "expected_bounds": {
+    "min": [
+      -0.9591780304908752,
+      -0.973974883556366,
+      0.0
+    ],
+    "max": [
+      0.9591780304908752,
+      0.973974883556366,
+      3.697999954223633
+    ],
+    "size": [
+      1.9183560609817505,
+      1.947949767112732,
+      3.697999954223633
+    ]
+  },
+  "actual_bounds": {
+    "min": [
+      -0.9591780304908752,
+      -0.973974883556366,
+      -1.5868064906499058e-07
+    ],
+    "max": [
+      0.9591780304908752,
+      0.9739754796028137,
+      3.698000192642212
+    ],
+    "size": [
+      1.9183560609817505,
+      1.9479503631591797,
+      3.698000351322861
+    ]
+  },
+  "preview": "C:\\Users\\rkfka\\Desktop\\Project_Mush_MapPack_V2_Export\\Preview\\Mush_MapProp_Pine_C_V2_Preview.png"
+}
