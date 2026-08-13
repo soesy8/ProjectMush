@@ -192,7 +192,7 @@ namespace Mush.Lobby.Editor
             if (roamer == null)
                 roamer = dogRoot.AddComponent<MushLobbyDogRoamer>();
             roamer.Configure(visual.transform, tail,
-                new Vector2(-2.15f, -1.65f), new Vector2(2.05f, 0.90f));
+                new Vector2(-3.25f, -5.20f), new Vector2(3.25f, 0.85f));
             roamer.ConfigureCharacter(null, lobbyCamera != null ? lobbyCamera.transform : null, callSideOffset);
 
             MushLobbyDogExpression expression = dogRoot.GetComponent<MushLobbyDogExpression>();

@@ -39,6 +39,9 @@ namespace Mush.Lobby
         private string selectedSceneName = "snow";
         private string transientMessage = "마우스 또는 컨트롤러 광선으로 원하는 항목을 선택하세요";
 
+        private const string RightControllerSecondaryButtonBinding = "<XRController>{RightHand}/secondaryButton"; // OpenXR의 오른손 XR 컨트롤러 보조 버튼을 지정한다. Quest Touch 계열에서는 이 경로가 B 버튼에 대응한다.
+        private InputAction callDogsVrAction; // 로비에서 오른손 B 버튼을 눌렀을 때 개들을 부르기 위한 New Input System 액션을 런타임에 보관한다.
+
         private static readonly Dictionary<string, string> KoreanLabels = new Dictionary<string, string>
         {
             ["MUSH LODGE"] = "머쉬 산장",
@@ -118,6 +121,26 @@ namespace Mush.Lobby
             RefreshAllText();
         }
 
+        private void OnEnable() // 이 로비 컨트롤러가 활성화될 때 VR 호출 입력도 함께 활성화한다.
+        {
+            callDogsVrAction ??= new InputAction( // 씬이나 프리팹에 별도 InputActionReference를 연결하지 않아도 동작하도록 호출 전용 액션을 한 번만 만든다.
+                name: "Call Dogs (VR B)", // Input Debugger에서 어떤 액션인지 바로 알아볼 수 있도록 호출 용도를 이름에 남긴다.
+                type: InputActionType.Button, // B 버튼의 눌림 상태만 필요하므로 축이 아닌 Button 타입으로 만든다.
+                binding: RightControllerSecondaryButtonBinding); // 오른손 XR 컨트롤러의 secondaryButton만 바인딩해서 왼손 Y 버튼과 섞이지 않게 한다.
+            callDogsVrAction.Enable(); // 활성화된 액션만 입력 이벤트를 읽을 수 있으므로 로비가 켜질 때 입력 감지를 시작한다.
+        }
+
+        private void OnDisable() // 로비 컨트롤러가 비활성화되면 호출 입력도 같이 멈춰 다른 화면에서 불필요한 입력을 받지 않게 한다.
+        {
+            callDogsVrAction?.Disable(); // 액션이 아직 만들어지지 않은 경우도 안전하도록 null 조건 연산자로 비활성화한다.
+        }
+
+        private void OnDestroy() // 로비 씬을 떠나면서 이 컴포넌트가 파괴될 때 런타임 생성 액션의 네이티브 자원도 정리한다.
+        {
+            callDogsVrAction?.Dispose(); // 직접 생성한 InputAction은 더 이상 필요 없을 때 Dispose해서 입력 시스템 자원을 명확하게 해제한다.
+            callDogsVrAction = null; // 파괴 과정에서 폐기된 액션을 다시 참조하지 않도록 필드도 비운다.
+        }
+
         private void Update()
         {
             Mouse mouse = Mouse.current;
@@ -146,6 +169,9 @@ namespace Mush.Lobby
                 if (keyboard.enterKey.wasPressedThisFrame)
                     LoadSelectedMap();
             }
+
+            if (callDogsVrAction != null && callDogsVrAction.WasPressedThisFrame()) // Quest 오른손 B 버튼이 이번 프레임에 새로 눌렸을 때만 한 번 호출한다.
+                CallDogs(); // 기존 스페이스 호출과 완전히 같은 함수를 사용하므로 개의 이동·도착·쓰다듬기 흐름은 바꾸지 않는다.
         }
 
         private void LoadSelectedMap()

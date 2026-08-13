@@ -61,6 +61,8 @@ namespace Mush.Prototype
         private Vector3 rightMouseTarget;
         private bool mouseTargetsInitialized;
         private bool terrainSpeedLimited;
+        private bool externalSteeringActive;
+        private float externalSteeringInput;
 
         public bool RideStarted => rideStarted;
         public int SpeedLevel => speedLevel;
@@ -86,6 +88,7 @@ namespace Mush.Prototype
             rightHandAnimator = newRightHandAnimator;
             configuredHandsAreDesktop = newHandsAreDesktop;
             StoreHandRestPositions();
+            PrepareGuaranteedDesktopHands();
             if (!rideStarted)
                 reinsVisual?.SetHeld(false);
         }
@@ -103,10 +106,8 @@ namespace Mush.Prototype
             UpdateDesktopMouseHands();
 
             Keyboard keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
 
-            if (keyboard.spaceKey.wasPressedThisFrame)
+            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
                 StartRide();
 
             if (!rideStarted)
@@ -115,13 +116,16 @@ namespace Mush.Prototype
                 return;
             }
 
-            SetSpeedLevel(keyboard.wKey.isPressed || commandBoostHeld);
+            SetSpeedLevel((keyboard != null && keyboard.wKey.isPressed) || commandBoostHeld);
 
-            float steeringInput = 0f;
-            if (keyboard.aKey.isPressed)
-                steeringInput -= 1f;
-            if (keyboard.dKey.isPressed)
-                steeringInput += 1f;
+            float steeringInput = externalSteeringActive ? externalSteeringInput : 0f;
+            if (!externalSteeringActive && keyboard != null)
+            {
+                if (keyboard.aKey.isPressed)
+                    steeringInput -= 1f;
+                if (keyboard.dKey.isPressed)
+                    steeringInput += 1f;
+            }
 
             float steeringRate = Mathf.Approximately(steeringInput, 0f)
                 ? steeringReleaseRate
@@ -170,6 +174,12 @@ namespace Mush.Prototype
             commandBoostHeld = held;
             if (rideStarted)
                 SetSpeedLevel(held);
+        }
+
+        public void SetExternalSteering(float steering, bool active = true)
+        {
+            externalSteeringActive = active;
+            externalSteeringInput = Mathf.Clamp(steering, -1f, 1f);
         }
 
         public void SetTerrainSpeedLimit(bool limited, float firstLevelLimit = 3f, float secondLevelLimit = 5f)

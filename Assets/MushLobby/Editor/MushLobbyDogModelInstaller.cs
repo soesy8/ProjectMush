@@ -172,7 +172,7 @@ namespace Mush.Lobby.Editor
             MushLobbyDogRoamer roamer = dogRoot.GetComponent<MushLobbyDogRoamer>();
             if (roamer == null)
                 roamer = dogRoot.AddComponent<MushLobbyDogRoamer>();
-            roamer.Configure(visual.transform, tail, new Vector2(-2.15f, -1.65f), new Vector2(2.05f, 0.90f));
+            roamer.Configure(visual.transform, tail, new Vector2(-3.25f, -5.20f), new Vector2(3.25f, 0.85f));
             roamer.ConfigureCharacter(animator, lobbyCamera != null ? lobbyCamera.transform : null, sideOffset);
 
             CapsuleCollider collider = dogRoot.GetComponent<CapsuleCollider>();
@@ -221,9 +221,9 @@ namespace Mush.Lobby.Editor
             GameObject accessory = (GameObject)PrefabUtility.InstantiatePrefab(prefab, socket.gameObject.scene);
             accessory.name = displayName;
             accessory.transform.SetParent(socket, false);
-            accessory.transform.localPosition = Vector3.zero;
-            accessory.transform.localRotation = Quaternion.identity;
-            accessory.transform.localScale = Vector3.one;
+            accessory.transform.localPosition = Vector3.zero; // 머리/목 소켓의 위치는 모델에 이미 잡혀 있으므로 액세서리 루트 위치는 소켓 원점에 둔다.
+            accessory.transform.localRotation = Quaternion.Euler(90f, 0f, 0f); // 중절모·산타 모자·빨간 반다나·보라 스카프 FBX가 모두 -90도 X축 가져오기 회전을 가지므로 네 종류 모두 같은 축 보정을 적용한다.
+            accessory.transform.localScale = Vector3.one; // 소켓 설치형 구형 경로에서는 FBX 원래 크기를 유지하고 런타임 커스터마이징 경로가 품종별 크기를 별도로 맞춘다.
             ApplyAccessoryMaterials(accessory, malamute);
             return accessory;
         }

@@ -89,21 +89,21 @@ namespace Mush.Customization
 
             if (!string.IsNullOrEmpty(hatId))
             {
-                Vector3 hatWorld;
-                float fittedWidth;
+                Vector3 hatWorld; // 모자 생성 직후 임시로 둘 머리 중심 기준 월드 위치를 저장한다.
+                float fittedWidth; // 품종별 머리 폭에 맞춰 중절모와 산타 모자의 최종 크기를 계산해 저장한다.
                 if (hasDogFrame)
                 {
-                    float headUpRadius = ProjectedRadius(headBounds.extents, anatomicalUp);
-                    float headForwardRadius = ProjectedRadius(headBounds.extents, anatomicalForward);
-                    float headWidth = ProjectedRadius(headBounds.extents, anatomicalRight) * 2f;
-                    hatWorld = headBounds.center + anatomicalUp * (headUpRadius * 0.78f) +
-                               anatomicalForward * (headForwardRadius * 0.04f);
-                    fittedWidth = Mathf.Clamp(headWidth * 1.12f, width * 0.46f, width * 0.78f) / parentScale;
+                    float headUpRadius = ProjectedRadius(headBounds.extents, anatomicalUp); // 머리 Bounds가 해부학적 위 방향으로 얼마나 뻗어 있는지 계산한다.
+                    float headForwardRadius = ProjectedRadius(headBounds.extents, anatomicalForward); // 모자를 지나치게 뒤로 두지 않기 위해 머리 앞뒤 반경도 계산한다.
+                    float headWidth = ProjectedRadius(headBounds.extents, anatomicalRight) * 2f; // 머리 좌우 실제 폭을 구해 모자 폭의 기준으로 사용한다.
+                    hatWorld = headBounds.center + anatomicalUp * headUpRadius +
+                               anatomicalForward * (headForwardRadius * 0.03f); // 우선 머리 꼭대기 근처에 모자를 만든 뒤 회전된 실제 Bounds로 최종 높이를 다시 맞춘다.
+                    fittedWidth = Mathf.Clamp(headWidth * 1.12f, width * 0.46f, width * 0.78f) / parentScale; // 모자가 품종별 머리보다 너무 작거나 몸통 폭만큼 커지지 않도록 범위를 제한한다.
                 }
                 else
                 {
-                    hatWorld = new Vector3(dogBounds.center.x, dogBounds.max.y, dogBounds.center.z);
-                    fittedWidth = localWidth * 0.68f;
+                    hatWorld = new Vector3(dogBounds.center.x, dogBounds.max.y, dogBounds.center.z); // 해부학적 프레임을 못 찾은 예외 상황에서는 전체 개 Bounds의 정수리를 사용한다.
+                    fittedWidth = localWidth * 0.68f; // 머리 파츠를 못 찾았을 때도 기존 몸 폭 비율로 대략적인 모자 크기를 유지한다.
                 }
 
                 GameObject hat = CreateFittedModel(
@@ -112,24 +112,43 @@ namespace Mush.Customization
                     GeneratedPrefix + "Hat",
                     fittedWidth,
                     dogRoot.InverseTransformPoint(hatWorld),
-                    true);
-                PositionDogAccessory(hat, head, hatWorld, anatomicalForward, anatomicalUp);
+                    false); // 네 액세서리 FBX가 모두 -90도 X축 가져오기 회전을 가지므로 회전 전에 바닥 정렬을 해버리지 않고 중심 기준으로 만든다.
+                Quaternion accessoryAxisFix = Quaternion.Euler(90f, 0f, 0f); // 중절모와 산타 모자 모두 가져오기 -90도를 상쇄해 FBX에서 의도한 위쪽 축이 개 머리의 위쪽과 일치하게 한다.
+
+                if (hasDogFrame)
+                    PositionHatAboveHead(hat, head, headBounds, anatomicalForward, anatomicalUp, accessoryAxisFix, hatId == MushCustomizationIds.DogFedora ? 0.10f : 0.08f); // 두 모자 모두 회전이 끝난 실제 최저면을 머리 윗면에 맞춰 눈이나 귀 속으로 파고들지 않게 한다.
+                else
+                    PositionDogAccessory(hat, head, hatWorld, anatomicalForward, anatomicalUp, accessoryAxisFix); // 머리 Bounds가 없는 예외 상황에서도 최소한 축 방향만은 정상적으로 보정한다.
             }
 
             if (!string.IsNullOrEmpty(neckId))
             {
                 Vector3 neckWorld = hasDogFrame && neck != null
-                    ? GetPartWorldCenter(neck)
+                    ? GetPartWorldCenter(neck) // 목 파츠가 있으면 실제 목 중심을 스카프 기준점으로 사용한다.
                     : hasDogFrame
-                        ? Vector3.Lerp(headBounds.center, dogBounds.center, 0.62f)
-                        : new Vector3(dogBounds.center.x, dogBounds.min.y + height * 0.67f, dogBounds.center.z);
+                        ? Vector3.Lerp(headBounds.center, dogBounds.center, 0.62f) // 목 파츠가 없으면 머리와 몸통 사이를 보간해 목 위치를 추정한다.
+                        : new Vector3(dogBounds.center.x, dogBounds.min.y + height * 0.67f, dogBounds.center.z); // 해부학 정보 자체가 없으면 전체 Bounds 높이 비율로 마지막 대체 위치를 만든다.
+                Bounds neckBounds = default; // 빨간 반다나와 보라 스카프를 목 윗부분에 정확히 걸기 위한 실제 목 Bounds를 저장한다.
+                bool hasNeckBounds = neck != null && TryGetPartWorldBounds(neck, out neckBounds); // 목 Renderer가 있으면 품종별 목 크기를 직접 읽고, 없으면 아래의 안전한 추정값을 사용한다.
+                float fittedNeckSize = Mathf.Max(localWidth * 0.62f, localHeight * 0.28f); // 기존 0.78배보다 줄여 목 장식이 가슴 전체를 감싸거나 어깨를 뚫는 현상을 완화한다.
+                if (hasDogFrame && hasNeckBounds)
+                {
+                    float neckWidth = ProjectedRadius(neckBounds.extents, anatomicalRight) * 2f; // 실제 목 좌우 폭을 계산한다.
+                    fittedNeckSize = Mathf.Clamp(neckWidth * 1.22f, width * 0.42f, width * 0.68f) / parentScale; // 목 털을 살짝 감싸되 몸통 전체 크기로 커지지 않도록 액세서리 크기를 제한한다.
+                }
+
                 GameObject neckAccessory = CreateFittedModel(
                     catalog.GetPrefab(neckId, malamute),
                     dogRoot,
                     GeneratedPrefix + "Neck",
-                    Mathf.Max(localWidth * 0.78f, localHeight * 0.32f),
-                    dogRoot.InverseTransformPoint(neckWorld));
-                PositionDogAccessory(neckAccessory, neck != null ? neck : head, neckWorld, anatomicalForward, anatomicalUp);
+                    fittedNeckSize,
+                    dogRoot.InverseTransformPoint(neckWorld),
+                    false); // 스카프도 회전 전 Bounds 정렬을 하지 않아 -90도 가져오기 축 때문에 위치 오프셋이 앞뒤로 돌아가는 문제를 막는다.
+                Quaternion accessoryAxisFix = Quaternion.Euler(90f, 0f, 0f); // 빨간 반다나와 보라 스카프도 모자와 같은 FBX -90도 회전을 상쇄한다.
+                if (hasDogFrame)
+                    PositionNeckAccessory(neckAccessory, neck != null ? neck : head, neckWorld, hasNeckBounds ? neckBounds : default, hasNeckBounds, anatomicalForward, anatomicalUp, accessoryAxisFix); // 회전한 뒤 스카프의 실제 윗면을 목 윗부분에 맞춰 목을 관통하거나 턱까지 올라오는 현상을 줄인다.
+                else
+                    PositionDogAccessory(neckAccessory, neck != null ? neck : head, neckWorld, anatomicalForward, anatomicalUp, accessoryAxisFix); // 해부학 프레임이 없는 경우에도 축 보정과 추적은 유지한다.
             }
         }
 
@@ -345,12 +364,128 @@ namespace Mush.Customization
             return true;
         }
 
+        private static void PositionHatAboveHead(
+            GameObject accessory,
+            Transform trackedPart,
+            Bounds headBounds,
+            Vector3 forward,
+            Vector3 up,
+            Quaternion localRotationOffset,
+            float overlapRatio)
+        {
+            if (accessory == null)
+                return; // 모자 프리팹을 불러오지 못했다면 위치 계산도 진행하지 않는다.
+
+            if (forward.sqrMagnitude < 0.000001f)
+                forward = Vector3.forward; // 머리 앞 방향 계산이 실패한 예외 상황에서는 Unity 기본 앞 방향을 사용한다.
+            if (up.sqrMagnitude < 0.000001f)
+                up = Vector3.up; // 머리 위 방향 계산이 실패한 예외 상황에서는 월드 위 방향을 사용한다.
+            forward.Normalize(); // 투영 계산 전에 머리 앞 방향 길이를 1로 맞춘다.
+            up.Normalize(); // 머리 윗면과 모자 최저면을 같은 단위로 비교하기 위해 위 방향도 정규화한다.
+
+            Quaternion headAlignedRotation = Quaternion.LookRotation(forward, up); // 개 머리의 해부학적 앞/위 축을 기준으로 기본 모자 방향을 만든다.
+            accessory.transform.rotation = headAlignedRotation * localRotationOffset; // 산타 모자 FBX 축 보정 90도를 먼저 적용해 최종 자세에서 Bounds를 다시 계산한다.
+            accessory.transform.position = headBounds.center + up * ProjectedRadius(headBounds.extents, up); // 우선 모자 중심을 머리 윗면 근처로 올려 투영 Bounds 계산이 안정적으로 되게 한다.
+
+            float headTop = Vector3.Dot(headBounds.center, up) + ProjectedRadius(headBounds.extents, up); // 개 머리 Bounds에서 위 방향으로 가장 높은 면의 좌표를 계산한다.
+            if (TryGetProjectedRange(accessory, up, out float accessoryMin, out _))
+            {
+                float overlap = ProjectedRadius(headBounds.extents, up) * overlapRatio; // 모자 종류별로 지정한 작은 겹침만 허용해 챙은 머리에 붙고 눈·귀 쪽으로는 내려가지 않게 한다.
+                float desiredBottom = headTop - overlap; // 모자 챙의 최저면이 눈 높이까지 내려가지 않고 머리 꼭대기에만 걸리도록 목표 높이를 만든다.
+                accessory.transform.position += up * (desiredBottom - accessoryMin); // 회전이 끝난 실제 모자 최저면을 목표 높이에 정확히 맞춘다.
+            }
+
+            if (trackedPart != null)
+            {
+                MushDogAccessoryFollower follower = accessory.AddComponent<MushDogAccessoryFollower>(); // 고개를 돌리거나 갸웃해도 새로 맞춘 모자 위치가 머리를 따라가도록 추적기를 붙인다.
+                follower.Configure(trackedPart); // 현재 최종 위치/회전을 머리 로컬 오프셋으로 저장한다.
+            }
+        }
+
+        private static void PositionNeckAccessory(
+            GameObject accessory,
+            Transform trackedPart,
+            Vector3 neckWorld,
+            Bounds neckBounds,
+            bool hasNeckBounds,
+            Vector3 forward,
+            Vector3 up,
+            Quaternion localRotationOffset)
+        {
+            if (accessory == null)
+                return; // 목 액세서리 프리팹을 읽지 못했다면 추가 위치 계산을 하지 않는다.
+
+            if (forward.sqrMagnitude < 0.000001f)
+                forward = Vector3.forward; // 해부학적 앞 방향이 유효하지 않은 예외 상황에서는 Unity 기본 앞 방향을 사용한다.
+            if (up.sqrMagnitude < 0.000001f)
+                up = Vector3.up; // 해부학적 위 방향을 못 얻었을 때는 월드 위 방향으로 안전하게 대체한다.
+            forward.Normalize(); // LookRotation과 Bounds 투영이 같은 기준을 사용하도록 앞 방향을 정규화한다.
+            up.Normalize(); // 스카프 윗면과 목 윗면 높이를 정확히 비교하기 위해 위 방향도 정규화한다.
+
+            Quaternion neckAlignedRotation = Quaternion.LookRotation(forward, up); // 개 목의 앞/위 방향을 기준으로 액세서리 기본 자세를 만든다.
+            accessory.transform.SetPositionAndRotation(neckWorld, neckAlignedRotation * localRotationOffset); // FBX -90도 축을 상쇄한 최종 회전을 먼저 적용해 실제 보이는 Bounds를 얻는다.
+
+            if (TryGetProjectedRange(accessory, up, out _, out float accessoryTop))
+            {
+                float desiredTop = Vector3.Dot(neckWorld, up); // 목 Bounds를 못 찾은 경우에는 스카프의 윗부분이 목 중심을 기준으로 걸리도록 한다.
+                if (hasNeckBounds)
+                {
+                    float neckRadius = ProjectedRadius(neckBounds.extents, up); // 목 파츠가 위 방향으로 차지하는 반경을 계산한다.
+                    desiredTop = Vector3.Dot(neckBounds.center, up) + neckRadius * 0.72f; // 스카프 윗단을 목 최상단보다 조금 아래에 넣어 털 위에 떠 보이지 않으면서 턱까지 올라오지 않게 한다.
+                }
+                accessory.transform.position += up * (desiredTop - accessoryTop); // 빨간 반다나와 보라 스카프의 실제 윗면을 목표 목 높이에 맞춘다.
+            }
+
+            if (trackedPart != null)
+            {
+                MushDogAccessoryFollower follower = accessory.AddComponent<MushDogAccessoryFollower>(); // 개가 고개와 목을 움직여도 현재 스카프 위치가 함께 따라가도록 추적기를 추가한다.
+                follower.Configure(trackedPart); // 회전과 높이 보정이 끝난 최종 상태를 목 파츠 기준 로컬 오프셋으로 저장한다.
+            }
+        }
+
+        private static bool TryGetProjectedRange(
+            GameObject root,
+            Vector3 axis,
+            out float minimum,
+            out float maximum)
+        {
+            minimum = float.PositiveInfinity; // 아직 어떤 모자 Renderer도 읽지 않았으므로 최소 투영값을 가장 큰 값에서 시작한다.
+            maximum = float.NegativeInfinity; // 최대 투영값은 가장 작은 값에서 시작한다.
+            bool found = false; // 최소 하나의 활성 Renderer Bounds를 읽었는지 기록한다.
+
+            foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer == null || !renderer.enabled)
+                    continue; // 꺼진 장식 파츠는 실제 보이는 모자 크기 계산에서 제외한다.
+
+                Bounds bounds = renderer.bounds; // 최종 90도 회전까지 적용된 월드 Bounds를 가져온다.
+                Vector3 min = bounds.min; // Bounds 여덟 꼭짓점을 만들기 위한 최소 좌표를 저장한다.
+                Vector3 max = bounds.max; // Bounds 여덟 꼭짓점을 만들기 위한 최대 좌표를 저장한다.
+                for (int x = 0; x <= 1; x++)
+                for (int y = 0; y <= 1; y++)
+                for (int z = 0; z <= 1; z++)
+                {
+                    Vector3 corner = new(
+                        x == 0 ? min.x : max.x,
+                        y == 0 ? min.y : max.y,
+                        z == 0 ? min.z : max.z); // 현재 Bounds의 한 꼭짓점을 만든다.
+                    float projected = Vector3.Dot(corner, axis); // 이 꼭짓점이 개 머리의 위 방향 축에서 어느 높이에 있는지 계산한다.
+                    minimum = Mathf.Min(minimum, projected); // 모자의 가장 낮은 투영 좌표를 누적한다.
+                    maximum = Mathf.Max(maximum, projected); // 모자의 가장 높은 투영 좌표도 함께 누적한다.
+                    found = true; // 실제 Bounds 값을 하나 이상 읽었다.
+                }
+            }
+
+            return found; // Renderer가 하나라도 있었다면 유효한 투영 범위를 반환한다.
+        }
+
         private static void PositionDogAccessory(
             GameObject accessory,
             Transform trackedPart,
             Vector3 worldPosition,
             Vector3 forward,
-            Vector3 up)
+            Vector3 up,
+            Quaternion localRotationOffset)
         {
             if (accessory == null)
                 return;
@@ -359,7 +494,8 @@ namespace Mush.Customization
                 forward = Vector3.forward;
             if (up.sqrMagnitude < 0.000001f)
                 up = Vector3.up;
-            accessory.transform.SetPositionAndRotation(worldPosition, Quaternion.LookRotation(forward, up));
+            Quaternion headAlignedRotation = Quaternion.LookRotation(forward, up); // 개 머리의 해부학적 앞/위 방향으로 액세서리 기준 자세를 먼저 만든다.
+            accessory.transform.SetPositionAndRotation(worldPosition, headAlignedRotation * localRotationOffset); // 모자별 FBX 축 차이는 기준 자세 뒤의 로컬 오프셋으로만 보정한다.
 
             if (trackedPart != null)
             {

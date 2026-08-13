@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Mush.Quest;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.XR;
 
 namespace Mush.Customization
 {
@@ -32,6 +34,8 @@ namespace Mush.Customization
         private int selectedDog;
         private string storePreviewItem = MushCustomizationIds.SledNatural;
         private string transientStatus = string.Empty;
+        private MushQuestTrackedInputRig questRig;
+        private bool questUiConfigured;
 
         private static readonly Color PanelColor = new(0.055f, 0.075f, 0.105f, 0.93f);
         private static readonly Color ButtonColor = new(0.16f, 0.23f, 0.31f, 0.96f);
@@ -53,9 +57,21 @@ namespace Mush.Customization
 
         private void Update()
         {
+            EnsureQuestUi();
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
                 SaveAndReturnToLobby();
+        }
+
+        private void EnsureQuestUi()
+        {
+            if (questUiConfigured || !XRSettings.isDeviceActive || previewCamera == null || canvas == null)
+                return;
+
+            questUiConfigured = true;
+            questRig = MushQuestTrackedInputRig.InstallForCamera(previewCamera);
+            MushQuestTrackedInputRig.ConfigureWorldCanvas(canvas, previewCamera);
+            questRig?.SetRayEnabled(true);
         }
 
         private void BuildPreviewStage()
@@ -528,6 +544,8 @@ namespace Mush.Customization
             rect.sizeDelta = size;
             Image image = buttonObject.AddComponent<Image>();
             image.color = color;
+            BoxCollider collider = buttonObject.AddComponent<BoxCollider>();
+            collider.size = new Vector3(size.x, size.y, 12f);
 
             Text text = CreateText(buttonObject.transform, "Label", Vector2.zero, size - new Vector2(18f, 8f),
                 label.Contains("\n") ? 20 : 23, Color.white, label);
@@ -575,12 +593,13 @@ namespace Mush.Customization
         }
     }
 
-    public sealed class MushStoreUiButton : MonoBehaviour
+    public sealed class MushStoreUiButton : MonoBehaviour, IMushQuestRayTarget
     {
         private RectTransform rect;
         private Image image;
         private Action callback;
         private Color normalColor;
+        private bool questHovered;
 
         public void Configure(RectTransform newRect, Image newImage, Action newCallback, Color newNormalColor)
         {
@@ -593,14 +612,25 @@ namespace Mush.Customization
         private void Update()
         {
             Mouse mouse = Mouse.current;
-            if (mouse == null || rect == null)
+            if (rect == null)
                 return;
 
-            bool hovered = RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), null);
+            bool hovered = mouse != null &&
+                           RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), null);
             if (image != null)
-                image.color = hovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
-            if (hovered && mouse.leftButton.wasPressedThisFrame)
+                image.color = hovered || questHovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
+            if (hovered && mouse != null && mouse.leftButton.wasPressedThisFrame)
                 callback?.Invoke();
+        }
+
+        public void SetQuestRayHovered(bool hovered)
+        {
+            questHovered = hovered;
+        }
+
+        public void SelectWithQuestRay()
+        {
+            callback?.Invoke();
         }
     }
 }

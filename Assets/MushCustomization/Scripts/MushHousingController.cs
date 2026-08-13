@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Mush.Quest;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.XR;
 
 namespace Mush.Customization
 {
@@ -19,8 +21,11 @@ namespace Mush.Customization
         private Transform previewEnvironment;
         private Transform furnitureRoot;
         private Canvas canvas;
+        private Camera previewCamera;
         private RectTransform dynamicUi;
         private Text statusText;
+        private MushQuestTrackedInputRig questRig;
+        private bool questUiConfigured;
 
         private static readonly Color HeaderColor = new(0.045f, 0.065f, 0.09f, 0.96f);
         private static readonly Color InventoryColor = new(0.05f, 0.075f, 0.10f, 0.96f);
@@ -43,9 +48,21 @@ namespace Mush.Customization
 
         private void Update()
         {
+            EnsureQuestUi();
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
                 SaveAndReturnToLobby();
+        }
+
+        private void EnsureQuestUi()
+        {
+            if (questUiConfigured || !XRSettings.isDeviceActive || previewCamera == null || canvas == null)
+                return;
+
+            questUiConfigured = true;
+            questRig = MushQuestTrackedInputRig.InstallForCamera(previewCamera);
+            MushQuestTrackedInputRig.ConfigureWorldCanvas(canvas, previewCamera);
+            questRig?.SetRayEnabled(true);
         }
 
         private void BuildLobbyPreview()
@@ -82,6 +99,7 @@ namespace Mush.Customization
 
             GameObject cameraObject = new("Housing Preview Camera");
             Camera camera = cameraObject.AddComponent<Camera>();
+            previewCamera = camera;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.12f, 0.10f, 0.11f);
             camera.fieldOfView = 53f;
@@ -353,6 +371,8 @@ namespace Mush.Customization
             rect.sizeDelta = size;
             Image image = buttonObject.AddComponent<Image>();
             image.color = color;
+            BoxCollider collider = buttonObject.AddComponent<BoxCollider>();
+            collider.size = new Vector3(size.x, size.y, 12f);
 
             Text text = CreateText(buttonObject.transform, "Label", Vector2.zero, size - new Vector2(18f, 8f),
                 label.Contains("\n") ? 21 : 24, Color.white, label);
@@ -400,12 +420,13 @@ namespace Mush.Customization
         }
     }
 
-    public sealed class MushHousingUiButton : MonoBehaviour
+    public sealed class MushHousingUiButton : MonoBehaviour, IMushQuestRayTarget
     {
         private RectTransform rect;
         private Image image;
         private Action callback;
         private Color normalColor;
+        private bool questHovered;
 
         public void Configure(RectTransform newRect, Image newImage, Action newCallback, Color newNormalColor)
         {
@@ -418,14 +439,25 @@ namespace Mush.Customization
         private void Update()
         {
             Mouse mouse = Mouse.current;
-            if (mouse == null || rect == null)
+            if (rect == null)
                 return;
 
-            bool hovered = RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), null);
+            bool hovered = mouse != null &&
+                           RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), null);
             if (image != null)
-                image.color = hovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
-            if (hovered && mouse.leftButton.wasPressedThisFrame)
+                image.color = hovered || questHovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
+            if (hovered && mouse != null && mouse.leftButton.wasPressedThisFrame)
                 callback?.Invoke();
+        }
+
+        public void SetQuestRayHovered(bool hovered)
+        {
+            questHovered = hovered;
+        }
+
+        public void SelectWithQuestRay()
+        {
+            callback?.Invoke();
         }
     }
 }

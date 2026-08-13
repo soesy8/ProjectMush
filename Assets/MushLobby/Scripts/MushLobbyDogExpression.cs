@@ -27,7 +27,6 @@ namespace Mush.Lobby
         private GameObject tongue;
         private TextMesh[] hearts;
         private TextMesh petHint;
-        private bool hasBeenPet;
 
         public void Configure(
             MushLobbyDogRoamer newRoamer,
@@ -94,7 +93,6 @@ namespace Mush.Lobby
 
         public void ShowPetEnjoyment()
         {
-            hasBeenPet = true;
             if (petHint != null)
                 petHint.gameObject.SetActive(false);
             petTimer = Mathf.Max(petTimer, 1.35f);
@@ -103,7 +101,6 @@ namespace Mush.Lobby
 
         public void ShowLoveCelebration()
         {
-            hasBeenPet = true;
             if (petHint != null)
                 petHint.gameObject.SetActive(false);
             petTimer = Mathf.Max(petTimer, 2.8f);
@@ -215,47 +212,18 @@ namespace Mush.Lobby
 
         private void EnsurePetHint()
         {
-            if (petHint != null || head == null)
-                return;
-
-            GameObject hintObject = new GameObject("Pet Head Hint");
-            hintObject.transform.SetParent(transform, true);
-            petHint = hintObject.AddComponent<TextMesh>();
-            petHint.text = "쓰다듬기\n▼";
-            petHint.anchor = TextAnchor.LowerCenter;
-            petHint.alignment = TextAlignment.Center;
-            petHint.fontSize = 48;
-            petHint.characterSize = 0.04f;
-            petHint.color = new Color(1f, 0.78f, 0.25f, 1f);
-
-            Font font = MushLobbyController.ActiveKoreanFont ??
-                        Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "맑은 고딕" }, 48);
-            if (font != null)
+            // VR에서는 손을 실제로 머리 쪽에 가져가 쓰다듬는 행동 자체가 안내가 되므로,
+            // 개 머리 위에 떠 있던 "쓰다듬기" 글자는 더 이상 생성하지 않는다.
+            if (petHint != null)
             {
-                petHint.font = font;
-                MeshRenderer meshRenderer = hintObject.GetComponent<MeshRenderer>();
-                meshRenderer.sharedMaterial = font.material;
-                meshRenderer.shadowCastingMode = ShadowCastingMode.Off;
-                meshRenderer.receiveShadows = false;
+                Destroy(petHint.gameObject); // 이전 플레이 상태나 핫 리로드로 남아 있는 안내가 있으면 즉시 제거한다.
+                petHint = null; // 제거된 TextMesh 참조를 비워 이후 업데이트가 다시 사용하지 않게 한다.
             }
         }
 
         private void UpdatePetHint()
         {
-            EnsurePetHint();
-            if (petHint == null || head == null || hasBeenPet)
-                return;
-
-            petHint.gameObject.SetActive(true);
-            Transform hintTransform = petHint.transform;
-            hintTransform.position = head.position + Vector3.up * 0.24f;
-
-            Camera camera = viewerCamera != null ? viewerCamera : Camera.main;
-            if (camera != null)
-                hintTransform.rotation = Quaternion.LookRotation(hintTransform.position - camera.transform.position);
-
-            float pulse = 1f + Mathf.Sin(Time.time * 4f) * 0.06f;
-            hintTransform.localScale = Vector3.one * pulse;
+            EnsurePetHint(); // 안내 생성은 하지 않고 혹시 남아 있는 구형 안내만 정리한다.
         }
 
         private void UpdateHearts()
