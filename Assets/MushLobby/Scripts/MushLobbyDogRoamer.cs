@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace Mush.Lobby
 {
@@ -59,6 +60,17 @@ namespace Mush.Lobby
         private float playTimer; // 현재 장난 행동의 남은 시간이다.
         private float fallbackLocomotionSpeed; // Animator가 없는 현재 프로토타입 모델에서 절차식 다리 속도를 걷기/달리기에 맞춘다.
         private Renderer[] groundSurfaceRenderers; // 바닥 판재와 러그의 실제 Renderer Bounds를 저장해 현재 위치의 정확한 접지 높이를 계산한다.
+        private NavMeshAgent navAgent; // 가구와 다른 개를 실제 경로 수준에서 피하면서 이동할 Unity NavMeshAgent다.
+        private Vector3 lastNavDestination; // 같은 목적지를 매 프레임 다시 SetDestination하지 않도록 마지막 내비메시 목적지를 저장한다.
+        private bool hasNavDestination; // lastNavDestination에 유효한 값이 들어 있는지 나타낸다.
+        private MushLobbyDogBedSpot reservedBed; // 이번 수면 행동에서 이 개가 예약한 개 침대다.
+        private bool walkingToBed; // 내비메시를 따라 침대 앞 접근 지점으로 이동 중인지 나타낸다.
+        private bool enteringBed; // NavMeshObstacle 바깥 접근 지점에서 침대 중심까지 짧게 들어가는 중인지 나타낸다.
+        private bool leavingBed; // 수면 후 침대 중심에서 다시 내비메시 접근 지점으로 나오는 중인지 나타낸다.
+        private Vector3 bedApproachWorld; // NavMeshAgent가 정상적으로 도착할 수 있는 침대 바깥 접근 지점이다.
+        private Vector3 bedSleepWorld; // 실제로 누울 침대 중심의 월드 XZ 지점이다.
+        private Quaternion bedSleepRotation = Quaternion.identity; // 침대 위에서 누웠을 때 바라볼 방향이다.
+        private float sleepSurfaceLift; // 바닥이 아니라 침대 윗면에 몸이 올라가 보이도록 비주얼 루트를 들어 올리는 높이다.
 
         private static readonly List<MushLobbyDogRoamer> ActiveDogs = new(); // 로비에 살아 있는 개들을 모아 두 마리 상호작용에 사용한다.
 
@@ -121,6 +133,7 @@ namespace Mush.Lobby
                 tailRestRotation = tail.localRotation;
             FitInteractionCollider();
             EnsureAnimatorForAmbientLife(); // 현재 FBX에 이미 사용 가능한 Animator가 있으면 활용하고, 없으면 절차식 생활 동작을 사용한다.
+            EnsureNavMeshAgent(); // 로비 전용 내비메시가 준비되어 있으면 이 개를 Agent에 올려 가구와 다른 개를 실제 경로로 피하게 한다.
             PickTarget();
             pauseTimer = 0f; // 시작 직후 이유 없이 멀뚱히 서 있지 않고 첫 안전 지점으로 바로 이동한다.
             nextIdleActionTime = Time.time + Random.Range(3.5f, 7f);
@@ -129,6 +142,7 @@ namespace Mush.Lobby
         private void OnDestroy()
         {
             ActiveDogs.Remove(this); // 씬을 나가거나 개가 제거될 때 정적 목록에 죽은 참조가 남지 않게 정리한다.
+            ReleaseReservedBed(); // 씬 전환 중 침대를 예약한 채 사라져 다른 개가 영원히 못 쓰는 상태를 막는다.
             BreakPlayPair(false); // 장난 중 삭제되면 상대 개도 정상 배회 상태로 돌려놓는다.
         }
 
@@ -357,9 +371,21 @@ namespace Mush.Lobby
                 return;
             }
 
+            if (enteringBed || leavingBed)
+            {
+                UpdateBedTransition(); // 침대 장애물 안팎을 드나드는 마지막 짧은 구간은 Agent를 끄고 직접 이동한다.
+                return;
+            }
+
             if (called && callTarget != null)
             {
-                UpdateCalledMovement(); // 호출은 잠자기/장난/배회보다 항상 우선한다.
+                UpdateCalledMovement(); // 일반 배회나 놀이보다 호출을 우선하되, 침대에서 나오는 중이면 먼저 안전하게 밖으로 나온다.
+                return;
+            }
+
+            if (walkingToBed)
+            {
+                UpdateWalkToBed(); // 잠자기를 선택한 개는 다른 경유지를 고르지 않고 예약한 침대 접근 지점까지 내비메시로 이동한다.
                 return;
             }
 
@@ -372,9 +398,17 @@ namespace Mush.Lobby
                 Animate(false);
                 if (sleepTimer <= 0f)
                 {
-                    WakeFromSleep();
-                    pauseTimer = 0f; // 잠에서 깬 뒤에도 서서 기다리지 않고 바로 다음 생활 지점으로 움직인다.
-                    PickTarget(); // 잠에서 깨면 다시 안전 경로의 다음 지점으로 이동한다.
+                    WakeFromSleep(); // Animator와 절차식 수면 자세를 정상 상태로 되돌린다.
+                    pauseTimer = 0f; // 잠에서 깬 뒤에도 의미 없는 대기시간은 두지 않는다.
+                    if (reservedBed != null)
+                    {
+                        leavingBed = true; // 침대에서 잤다면 바로 경로를 잡지 말고 먼저 침대 바깥 접근 지점으로 걸어나온다.
+                        StopNavAgent(true); // 침대 자체는 carving 장애물이므로 마지막 퇴장 구간 동안 Agent를 잠시 끈다.
+                    }
+                    else
+                    {
+                        PickTarget(); // 침대가 사라진 예외 상황이라면 바로 일반 배회 경로로 복귀한다.
+                    }
                 }
                 return;
             }
@@ -402,7 +436,20 @@ namespace Mush.Lobby
 
         private void MoveTowardCurrentTarget(float moveSpeed, float animatorSpeed, bool playing)
         {
-            if (TryEscapeFurniture(moveSpeed)) // 이미 가구 금지 반경 안에 들어간 경우에는 목표를 계속 바꾸지 말고 먼저 한 방향으로 빠져나온다.
+            Vector3 worldTarget = transform.parent != null ? transform.parent.TransformPoint(target) : target; // 기존 안전 경로의 로컬 좌표를 실제 NavMesh 목적지 월드 좌표로 바꾼다.
+            if (TryNavigateToWorld(worldTarget, moveSpeed, animatorSpeed, 0.18f, out bool navArrived))
+            {
+                if (navArrived)
+                {
+                    if (playing)
+                        PickTarget(true); // 장난 중에는 도착 즉시 다음 추격 경유지로 이어 간다.
+                    else
+                        ChooseAmbientActionAtWaypoint(); // 일반 배회에서는 도착한 순간 잠/놀이/다음 이동 중 하나를 선택한다.
+                }
+                return; // NavMeshAgent가 정상 작동하면 예전 수동 회피 이동은 전혀 섞지 않는다.
+            }
+
+            if (TryEscapeFurniture(moveSpeed)) // NavMesh가 없는 예외 상황에서만 기존 프로토타입 회피를 안전망으로 남긴다.
                 return; // 탈출 중인 프레임에는 일반 경로 이동을 섞지 않아 좌우로 덜덜 떠는 현상을 막는다.
 
             Vector3 flatPosition = transform.localPosition;
@@ -490,11 +537,8 @@ namespace Mush.Lobby
             Animate(false);
 
             float choice = Random.value;
-            if (choice < sleepChance)
-            {
-                BeginSleep();
-                return;
-            }
+            if (choice < sleepChance && TryStartBedSleepJourney())
+                return; // 잠은 아무 길바닥에서 시작하지 않고 장착된 개 침대를 예약할 수 있을 때만 선택한다.
             if (choice < sleepChance + playChance && TryBeginPlayTogether())
                 return;
 
@@ -538,6 +582,7 @@ namespace Mush.Lobby
             foreach (MushLobbyDogRoamer other in ActiveDogs)
             {
                 if (other == null || other == this || other.called || other.sleepTimer > 0f ||
+                    other.walkingToBed || other.enteringBed || other.leavingBed || other.reservedBed != null ||
                     other.playPartner != null || other.reactionTimer > 0f || other.socialCooldown > 0f)
                     continue;
 
@@ -617,10 +662,8 @@ namespace Mush.Lobby
                 OrientVisualFromGeometry();
                 poseCorrectionFrames--;
             }
-            bool animatorReady = animator != null && animator.isActiveAndEnabled &&
-                                 animator.runtimeAnimatorController != null && animator.avatar != null;
-            if (sleepTimer <= 0f || animatorReady)
-                SnapPawsToFloor(); // 절차식 수면 중에는 몸을 낮춘 자세를 바닥 보정이 다시 들어 올리지 않게 한다.
+            if (sleepTimer <= 0f && !enteringBed && !leavingBed)
+                SnapPawsToFloor(); // 침대 위 수면/진입/퇴장 중에는 바닥 접지가 비주얼을 침대 아래로 끌어내리지 않게 한다.
             if (poseCorrectionFrames > 0 && visualRoot != null)
             {
                 visualRestPosition = visualRoot.localPosition;
@@ -631,7 +674,26 @@ namespace Mush.Lobby
         public void CallTo(Transform newTarget)
         {
             if (playPartner != null) BreakPlayPair(false); // 장난 중 호출되면 둘의 놀이를 즉시 끝낸다.
-            if (sleepTimer > 0f || sleepPoseFrozen) WakeFromSleep(); // 자는 중이라도 호출은 바로 깨운다.
+            if (walkingToBed)
+            {
+                walkingToBed = false; // 침대로 가던 중 호출되면 수면 계획을 취소한다.
+                ReleaseReservedBed(); // 다른 개가 침대를 사용할 수 있게 예약도 즉시 푼다.
+            }
+            if (sleepTimer > 0f || sleepPoseFrozen)
+            {
+                WakeFromSleep(); // 침대에서 자고 있어도 호출을 받으면 바로 깬다.
+                if (reservedBed != null)
+                {
+                    leavingBed = true; // 다만 침대 안에서 바로 NavMeshAgent를 켜지 않고 먼저 입구까지 빠져나오게 한다.
+                    StopNavAgent(true); // carving 영역 내부에서 Agent가 생성되며 튀는 문제를 막는다.
+                }
+            }
+            if (enteringBed)
+            {
+                enteringBed = false; // 침대에 들어가는 도중 호출되면 방향을 되돌린다.
+                leavingBed = reservedBed != null; // 예약한 침대가 남아 있으면 접근 지점까지 먼저 빠져나온다.
+                StopNavAgent(true); // 수동 퇴장 구간 동안 Agent는 꺼 둔다.
+            }
             if (newTarget != null)
                 callTarget = newTarget;
             called = callTarget != null;
@@ -665,8 +727,10 @@ namespace Mush.Lobby
             sleepTimer = 0f;
             reachedCallPoint = false;
             callWaitTimer = 0f;
+            ReleaseReservedBed(); // 호출 종료가 침대 행동과 겹친 예외 상황에서도 예약을 남기지 않는다.
+            EnsureNavMeshAgentOnCurrentPosition(); // 현재 위치를 가까운 NavMesh에 다시 붙여 이후 경로가 안정적으로 이어지게 한다.
             PickTarget();
-            pauseTimer = Random.Range(0.25f, 0.7f);
+            pauseTimer = 0f; // 호출이 끝난 뒤에도 이유 없는 멀뚱한 정지를 만들지 않는다.
         }
 
         public void MarkPetted()
@@ -756,18 +820,19 @@ namespace Mush.Lobby
         {
             bool animatorReady = animator != null && animator.isActiveAndEnabled &&
                                  animator.runtimeAnimatorController != null && animator.avatar != null;
-            if (animatorReady)
-                return;
-
             bool proceduralSleeping = sleepTimer > 0f;
             if (visualRoot != null)
             {
-                Vector3 desiredPosition = proceduralSleeping
-                    ? visualRestPosition + Vector3.down * proceduralSleepBodyDrop // 수면 때만 몸을 낮추되 발이 바닥 아래로 잠길 정도로 과하게 내리지 않는다.
-                    : visualRestPosition; // 걷기/달리기/대기 중에는 Awake에서 확보한 정상 접지 높이를 그대로 사용한다.
+                float bedLift = (sleepTimer > 0f || enteringBed || leavingBed) ? sleepSurfaceLift : 0f; // 침대 행동 동안만 바닥보다 높은 침대 윗면 오프셋을 적용한다.
+                Vector3 desiredPosition = proceduralSleeping && !animatorReady
+                    ? visualRestPosition + Vector3.up * bedLift + Vector3.down * proceduralSleepBodyDrop // 전용 Animator가 없으면 침대 위 높이를 유지하면서 절차식 눕기 자세만큼 몸을 낮춘다.
+                    : visualRestPosition + Vector3.up * bedLift; // 실제 LieDown 애니메이션이 있으면 애니메이션 자세는 그대로 두고 전체 모델 높이만 침대 윗면으로 올린다.
                 visualRoot.localPosition = Vector3.Lerp(visualRoot.localPosition, desiredPosition, Time.deltaTime * 5f); // 수면과 기상 사이를 갑자기 튀지 않게 부드럽게 보간한다.
                 visualRoot.localRotation = Quaternion.Slerp(visualRoot.localRotation, visualRestRotation, Time.deltaTime * 7f);
             }
+
+            if (animatorReady)
+                return; // 실제 Animator가 준비된 모델은 여기까지의 침대 높이 보정만 받고 다리 절차 애니메이션은 건드리지 않는다.
 
             if (tail != null)
             {
@@ -879,7 +944,8 @@ namespace Mush.Lobby
                 if (renderer == null) continue; // 파괴 중인 Renderer 같은 예외 참조는 건너뛴다.
 
                 string surfaceName = renderer.gameObject.name; // FBX 파츠 이름으로 바닥, 판재, 러그를 구분한다.
-                bool isFloor = surfaceName == "ENV_FloorBase" || surfaceName.StartsWith("ENV_FloorPlank_"); // 오두막 기본 바닥과 개별 판재를 접지 대상으로 인정한다.
+                bool isFloor = surfaceName == "ENV_FloorBase" || surfaceName.StartsWith("ENV_FloorPlank_") ||
+                               surfaceName == "Cabin Floor Base" || surfaceName.StartsWith("Cabin Floor Plank "); // 구형 FBX 바닥뿐 아니라 새 절차 산장의 바닥/판재도 실제 접지 표면으로 인정한다.
                 bool isRug = surfaceName == "PROP_CenterRug"; // 러그는 바닥보다 조금 높으므로 별도 표면으로 반드시 포함한다.
                 if (isFloor || isRug)
                     surfaces.Add(renderer); // 현재 개가 올라설 수 있는 표면만 캐시에 추가한다.
@@ -951,10 +1017,23 @@ namespace Mush.Lobby
 
         private void UpdateCalledMovement()
         {
-            if (TryEscapeFurniture(runSpeed)) // 호출 직전에 가구 옆에 끼어 있었어도 B 호출 방향과 회피 방향을 번갈아 선택하며 진동하지 않게 먼저 빠져나온다.
+            Vector3 currentWorld = transform.position;
+            float navDistanceToPlayer = Vector3.ProjectOnPlane(calledDestinationWorld - currentWorld, Vector3.up).magnitude; // 호출 목적지까지 남은 수평 거리를 계산해 달리기/걷기 속도를 고른다.
+            float navCallSpeed = navDistanceToPlayer > 2.1f ? runSpeed : walkSpeed * 1.35f; // 멀면 달리고 가까우면 속도를 낮춰 주인님 앞에서 급정지하지 않게 한다.
+            float navAnimatorSpeed = navDistanceToPlayer > 2.1f ? 1f : 0.58f; // 실제 이동 속도와 절차식/Animator 보폭도 같은 단계로 맞춘다.
+            if (!reachedCallPoint && TryNavigateToWorld(calledDestinationWorld, navCallSpeed, navAnimatorSpeed, 0.26f, out bool navArrived))
+            {
+                if (!navArrived)
+                    return; // NavMeshAgent가 경로를 따라오는 중이면 가구 회피 수동 이동을 섞지 않는다.
+                reachedCallPoint = true; // 내비메시 목적지에 도착했으면 기존 호출 대기 상태로 넘어간다.
+                callWaitTimer = unpettedCallWait; // 쓰다듬지 않으면 이 시간 뒤 다시 배회한다.
+                StopNavAgent(false); // 주인님 앞에서 기다리는 동안 Agent 이동만 정지하고 컴포넌트는 유지한다.
+            }
+
+            if (!reachedCallPoint && TryEscapeFurniture(runSpeed)) // 내비메시를 사용할 수 없는 예외 환경에서만 기존 탈출 로직을 사용한다.
                 return; // 가구에서 벗어난 다음 프레임부터 다시 플레이어 호출 지점으로 이동한다.
 
-            Vector3 currentWorld = transform.position;
+            currentWorld = transform.position;
             Vector3 difference = Vector3.ProjectOnPlane(calledDestinationWorld - currentWorld, Vector3.up);
 
             if (!reachedCallPoint && difference.sqrMagnitude > 0.075f)
@@ -1005,6 +1084,244 @@ namespace Mush.Lobby
             callWaitTimer -= Time.deltaTime;
             if (callWaitTimer <= 0f)
                 ResumeRoaming();
+        }
+
+        private void EnsureNavMeshAgent()
+        {
+            if (!MushLobbyNavMeshRuntime.IsReady)
+                return; // 로비 내비메시가 아직 준비되지 않았다면 기존 수동 이동을 안전망으로 사용한다.
+
+            if (!NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 1.5f, NavMesh.AllAreas))
+                return; // 현재 시작점 근처에 내비메시가 없으면 Agent를 억지로 켜서 오류를 만들지 않는다.
+
+            transform.position = hit.position; // Agent를 추가하기 전에 먼저 실제 내비메시 위 좌표로 루트를 맞춘다.
+            navAgent = GetComponent<NavMeshAgent>(); // 이미 붙어 있는 Agent가 있다면 중복 생성하지 않고 재사용한다.
+            if (navAgent == null)
+                navAgent = gameObject.AddComponent<NavMeshAgent>(); // 로비 개에게 Unity 내비메시 이동/회피 기능을 실제로 추가한다.
+
+            navAgent.agentTypeID = 0; // 런타임 바닥 내비메시가 사용하는 기본 Agent Type과 일치시킨다.
+            navAgent.radius = 0.28f; // 두 개와 가구 사이에 실제 몸통 여유가 생기도록 개 크기에 맞춘 반지름을 사용한다.
+            navAgent.height = 0.90f; // 개 높이에 맞춰 Agent 캡슐을 설정한다.
+            navAgent.baseOffset = 0f; // 개 루트와 바닥 내비메시 높이를 직접 일치시키므로 별도 수직 오프셋을 두지 않는다.
+            navAgent.speed = walkSpeed; // 기본 배회 속도는 기존 걷기 속도와 일치시킨다.
+            navAgent.angularSpeed = 540f; // 좁은 실내에서 코너를 부드럽지만 답답하지 않게 돌 수 있는 회전 속도다.
+            navAgent.acceleration = 4.5f; // 출발/정지 때 순간이동처럼 보이지 않도록 적당한 가속을 사용한다.
+            navAgent.stoppingDistance = 0.18f; // 생활 경유지에서 너무 멀리 떨어져 멈추지 않게 작은 정지 거리를 사용한다.
+            navAgent.autoBraking = true; // 단일 목표마다 자연스럽게 감속해 가구에 박히는 느낌을 줄인다.
+            navAgent.autoRepath = true; // 하우징 교체로 carving 영역이 바뀌면 자동으로 새 경로를 찾게 한다.
+            navAgent.updateRotation = false; // 개 방향은 기존 스크립트가 desiredVelocity 기준으로 부드럽게 회전시켜 비주얼과 일치시킨다.
+            navAgent.updateUpAxis = false; // 평평한 로비에서 Agent가 모델의 해부학 축을 건드리지 않게 한다.
+            navAgent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance; // 두 마리가 마주칠 때 서로 통과하지 않고 적극적으로 피하게 한다.
+            navAgent.avoidancePriority = name.IndexOf("Mochi", System.StringComparison.OrdinalIgnoreCase) >= 0 ? 45 : 55; // 두 개가 정면에서 만났을 때 우선순위가 완전히 같아 교착되는 것을 줄인다.
+            navAgent.Warp(hit.position); // 설정이 끝난 Agent의 내부 시뮬레이션 위치도 현재 NavMesh 위치와 정확히 맞춘다.
+            navAgent.isStopped = false; // 첫 배회 목적지를 바로 따라갈 수 있게 이동 가능 상태로 둔다.
+            hasNavDestination = false; // 아직 목적지를 전달하지 않았으므로 다음 이동에서 SetDestination을 실행하게 한다.
+        }
+
+        private void EnsureNavMeshAgentOnCurrentPosition()
+        {
+            if (navAgent == null)
+                EnsureNavMeshAgent(); // 아직 Agent가 없으면 로비 내비메시 준비 상태를 확인해 새로 만든다.
+            if (navAgent == null)
+                return; // 내비메시 자체가 없으면 기존 수동 이동으로 계속 동작한다.
+
+            if (!NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 1.5f, NavMesh.AllAreas))
+                return; // 현재 위치 근처에 유효한 NavMesh가 없으면 Agent를 억지로 켜서 "Failed to create agent"류 경고를 만들지 않는다.
+
+            transform.position = hit.position; // Agent를 켜기 전에 개 루트를 실제 NavMesh 위로 먼저 옮긴다.
+            if (!navAgent.enabled)
+                navAgent.enabled = true; // 침대 안에서는 Agent를 꺼두므로, 안전한 NavMesh 좌표로 나온 뒤에만 다시 켠다.
+            navAgent.Warp(hit.position); // Agent 내부 위치도 같은 지점으로 동기화한다.
+            navAgent.isStopped = false; // 이후 SetDestination이 즉시 동작하도록 정지를 해제한다.
+            hasNavDestination = false; // 이전 침대/호출 목적지는 버리고 새 목적지를 받게 한다.
+        }
+
+        private bool TryNavigateToWorld(Vector3 worldDestination, float moveSpeed, float animatorSpeed, float stoppingDistance, out bool arrived)
+        {
+            arrived = false; // 기본값은 아직 목적지에 도착하지 않은 상태다.
+            if (navAgent == null || !navAgent.enabled || !navAgent.isOnNavMesh)
+            {
+                EnsureNavMeshAgentOnCurrentPosition(); // 씬 시작 직후나 침대 퇴장 직후라면 현재 위치를 내비메시에 다시 붙인다.
+                if (navAgent == null || !navAgent.enabled || !navAgent.isOnNavMesh)
+                    return false; // 그래도 사용할 수 없으면 호출 측이 기존 수동 이동을 사용하게 한다.
+            }
+
+            if (!NavMesh.SamplePosition(worldDestination, out NavMeshHit destinationHit, 0.85f, NavMesh.AllAreas))
+                return false; // 목표가 벽/가구 carving 안쪽이라 유효한 내비메시 위치를 찾지 못하면 잘못된 경로를 요청하지 않는다.
+
+            Vector3 sampledDestination = destinationHit.position; // 실제 걸을 수 있는 가장 가까운 내비메시 좌표를 목적지로 사용한다.
+            navAgent.speed = moveSpeed; // 걷기/달리기/호출 상황에 맞게 Agent의 최대 속도를 즉시 바꾼다.
+            navAgent.stoppingDistance = stoppingDistance; // 행동별로 필요한 도착 여유를 적용한다.
+            navAgent.isStopped = false; // 이전 대기/반응에서 멈춰 있었더라도 이번 이동은 다시 시작한다.
+
+            if (!hasNavDestination || (lastNavDestination - sampledDestination).sqrMagnitude > 0.03f * 0.03f)
+            {
+                navAgent.SetDestination(sampledDestination); // 목적지가 실제로 바뀌었을 때만 새 경로를 계산한다.
+                lastNavDestination = sampledDestination; // 다음 프레임의 중복 경로 요청을 막기 위해 저장한다.
+                hasNavDestination = true; // 현재 유효한 목적지가 있다는 것을 표시한다.
+            }
+
+            if (!navAgent.pathPending && navAgent.pathStatus == NavMeshPathStatus.PathInvalid)
+                return false; // 경로가 완전히 불가능하면 기존 안전망 로직이 다른 목표를 선택하게 한다.
+
+            if (!navAgent.pathPending && navAgent.remainingDistance <= stoppingDistance + 0.06f)
+            {
+                arrived = true; // Agent가 목적지 허용 범위에 들어오면 도착으로 판정한다.
+                StopNavAgent(false); // 다음 행동을 결정할 동안 경로를 따라 미세하게 흔들리지 않도록 이동을 정지한다.
+                IsMoving = false; // 절차식 다리도 정지시킨다.
+                SetAnimatorSpeed(0f); // 실제 Animator가 있다면 Locomotion 블렌드도 0으로 내린다.
+                Animate(false); // Animator가 없는 모델의 다리도 중립 자세로 복귀시킨다.
+                return true; // NavMeshAgent가 정상적으로 이 이동을 처리했음을 반환한다.
+            }
+
+            Vector3 velocity = Vector3.ProjectOnPlane(navAgent.desiredVelocity, Vector3.up); // Unity 회피까지 반영된 실제 희망 속도를 가져온다.
+            if (velocity.sqrMagnitude > 0.001f)
+            {
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    Quaternion.LookRotation(velocity.normalized, Vector3.up),
+                    turnSpeed * Time.deltaTime); // 경로 코너와 다른 개 회피 방향을 따라 몸을 자연스럽게 돌린다.
+            }
+
+            IsMoving = velocity.sqrMagnitude > 0.0025f; // Agent가 실제로 움직일 때만 걷기/달리기 애니메이션을 재생한다.
+            SetAnimatorSpeed(IsMoving ? animatorSpeed : 0f); // 경로 계산 대기나 순간 정지 때 다리가 헛돌지 않게 한다.
+            Animate(IsMoving); // 현재 모델 방식에 맞춰 실제 다리/꼬리 움직임을 갱신한다.
+            return true; // 현재 이동은 NavMeshAgent가 담당했다.
+        }
+
+        private void StopNavAgent(bool disableAgent)
+        {
+            if (navAgent == null)
+                return; // Agent가 없는 fallback 환경에서는 아무것도 할 필요가 없다.
+
+            if (navAgent.enabled && navAgent.isOnNavMesh)
+            {
+                navAgent.isStopped = true; // 대기/수면/침대 진입 중에는 현재 경로 이동을 확실히 멈춘다.
+                navAgent.ResetPath(); // carving이 바뀐 뒤 예전 경로가 다시 살아나는 일을 막기 위해 현재 경로를 비운다.
+            }
+            hasNavDestination = false; // 다음 이동 시 새 목적지를 강제로 계산하게 한다.
+            if (disableAgent)
+                navAgent.enabled = false; // 침대 중심처럼 NavMesh 바깥으로 직접 이동할 때만 컴포넌트를 잠시 끈다.
+        }
+
+        private bool TryStartBedSleepJourney()
+        {
+            if (!MushLobbyDogBedSpot.TryReserveNearest(this, out reservedBed, out bedApproachWorld, out bedSleepWorld, out bedSleepRotation))
+                return false; // 장착된 개 침대가 없거나 다른 개가 이미 쓰고 있으면 이번에는 잠 대신 다른 생활 행동을 고른다.
+
+            walkingToBed = true; // 먼저 침대 바깥 접근 지점까지 내비메시로 이동한다.
+            enteringBed = false; // 아직 침대 안으로 들어가는 단계는 아니다.
+            leavingBed = false; // 수면 전이므로 퇴장 상태도 아니다.
+            runningToTarget = false; // 침대에는 뛰어들지 않고 걷기로 접근한다.
+            sleepSurfaceLift = 0f; // 실제 침대 윗면 높이는 들어가기 직전에 다시 계산한다.
+            return true; // 이번 생활 행동이 침대 수면 루틴으로 전환되었음을 알린다.
+        }
+
+        private void UpdateWalkToBed()
+        {
+            if (reservedBed == null || !reservedBed.isActiveAndEnabled)
+            {
+                walkingToBed = false; // 하우징 교체 등으로 침대가 사라졌다면 수면 루틴을 즉시 취소한다.
+                ReleaseReservedBed(); // 혹시 남은 예약 정보도 정리한다.
+                PickTarget(); // 일반 생활 경로로 돌아간다.
+                return;
+            }
+
+            if (TryNavigateToWorld(bedApproachWorld, walkSpeed, 0.48f, 0.16f, out bool arrived))
+            {
+                if (!arrived)
+                    return; // 침대 앞까지는 Unity NavMesh가 가구/다른 개를 피해 안전하게 이동시킨다.
+
+                walkingToBed = false; // 내비메시 구간이 끝났음을 표시한다.
+                enteringBed = true; // 이제 짧은 마지막 진입 구간으로 전환한다.
+                StopNavAgent(true); // 침대는 carving 장애물이므로 중심으로 들어가는 동안 Agent를 잠시 끈다.
+                sleepSurfaceLift = Mathf.Max(0f, reservedBed.SurfaceY - ResolveGroundY()); // 현재 바닥과 침대 윗면 높이 차이를 계산해 비주얼을 침대 위에 올린다.
+                return;
+            }
+
+            // 내비메시를 사용할 수 없는 아주 예외적인 상태에서도 침대 기능 자체가 멈추지는 않게 기존 직접 이동을 최소 안전망으로 사용한다.
+            MoveDirectlyToWorld(bedApproachWorld, walkSpeed, 0.48f, 0.16f, out bool fallbackArrived);
+            if (fallbackArrived)
+            {
+                walkingToBed = false; // 접근점에 도착했으므로 수동 진입 단계로 넘어간다.
+                enteringBed = true; // 침대 중심으로 들어갈 준비를 한다.
+                StopNavAgent(true); // 혹시 Agent가 반쯤 활성화돼 있다면 확실히 끈다.
+                sleepSurfaceLift = Mathf.Max(0f, reservedBed.SurfaceY - ResolveGroundY()); // 침대 높이를 동일하게 계산한다.
+            }
+        }
+
+        private void UpdateBedTransition()
+        {
+            Vector3 destination = leavingBed ? bedApproachWorld : bedSleepWorld; // 들어갈 때는 침대 중심, 나올 때는 내비메시 접근 지점을 목표로 한다.
+            Quaternion desiredRotation = enteringBed ? bedSleepRotation : transform.rotation; // 침대에 들어갈 때만 누울 방향으로 천천히 몸을 돌린다.
+            float transitionSpeed = walkSpeed * 0.78f; // 침대에 오르내리는 짧은 구간은 일반 걷기보다 조금 천천히 움직인다.
+
+            Vector3 flatDifference = Vector3.ProjectOnPlane(destination - transform.position, Vector3.up); // 루트의 Y는 바닥 기준으로 유지하고 XZ만 움직인다.
+            if (flatDifference.sqrMagnitude > 0.015f * 0.015f)
+            {
+                Vector3 direction = flatDifference.normalized; // 침대 중심/접근점으로 향하는 수평 방향을 구한다.
+                transform.position += direction * (transitionSpeed * Time.deltaTime); // carving 영역 안팎의 마지막 짧은 거리만 직접 이동한다.
+                Quaternion facing = enteringBed ? desiredRotation : Quaternion.LookRotation(direction, Vector3.up); // 진입 시에는 눕는 방향, 퇴장 시에는 나가는 방향을 바라본다.
+                transform.rotation = Quaternion.Slerp(transform.rotation, facing, turnSpeed * Time.deltaTime); // 갑자기 방향이 튀지 않게 회전한다.
+                IsMoving = true; // 짧은 진입/퇴장도 걷기 동작으로 보이게 한다.
+                SetAnimatorSpeed(0.42f); // 천천히 발을 옮기는 정도의 Locomotion 속도를 사용한다.
+                Animate(true); // 절차식 모델도 발이 멈춘 채 미끄러지지 않게 한다.
+                return;
+            }
+
+            transform.position = new Vector3(destination.x, transform.position.y, destination.z); // 도착 순간 XZ를 정확히 고정해 침대 가장자리에서 미세하게 떨지 않게 한다.
+            IsMoving = false; // 진입/퇴장 이동이 끝났다.
+            SetAnimatorSpeed(0f); // 다리 동작을 멈춘다.
+
+            if (enteringBed)
+            {
+                enteringBed = false; // 침대 중심 진입을 마쳤다.
+                transform.rotation = bedSleepRotation; // 수면 시작 자세가 매번 같은 방향으로 놓이게 한다.
+                BeginSleep(); // 이제서야 실제 LieDown/수면 타이머를 시작한다.
+                return;
+            }
+
+            if (leavingBed)
+            {
+                leavingBed = false; // 침대 바깥 접근점까지 안전하게 나왔다.
+                sleepSurfaceLift = 0f; // 비주얼 높이를 다시 일반 바닥 기준으로 되돌린다.
+                ReleaseReservedBed(); // 다른 개가 이 침대를 사용할 수 있도록 예약을 해제한다.
+                EnsureNavMeshAgentOnCurrentPosition(); // 접근점의 실제 NavMesh 위치에 Agent를 다시 올린다.
+                if (called && callTarget != null)
+                    return; // B 호출 때문에 깬 경우 다음 프레임부터 기존 호출 목적지로 바로 간다.
+                PickTarget(); // 자연 수면 종료라면 일반 생활 경로를 다시 선택한다.
+            }
+        }
+
+        private void MoveDirectlyToWorld(Vector3 worldDestination, float speed, float animatorSpeed, float stoppingDistance, out bool arrived)
+        {
+            Vector3 difference = Vector3.ProjectOnPlane(worldDestination - transform.position, Vector3.up); // fallback 직접 이동에서도 높이는 건드리지 않는다.
+            arrived = difference.sqrMagnitude <= stoppingDistance * stoppingDistance; // 지정한 정지 거리 안이면 도착으로 판정한다.
+            if (arrived)
+            {
+                IsMoving = false; // 도착한 프레임에는 이동 애니메이션을 정지한다.
+                SetAnimatorSpeed(0f); // Animator 이동 블렌드를 끈다.
+                Animate(false); // 절차식 다리도 중립으로 되돌린다.
+                return;
+            }
+
+            Vector3 direction = difference.normalized; // 목표까지의 수평 방향을 구한다.
+            transform.position += direction * (speed * Time.deltaTime); // NavMesh가 없는 예외 환경에서만 직접 이동한다.
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction, Vector3.up), turnSpeed * Time.deltaTime); // 이동 방향으로 몸을 돌린다.
+            IsMoving = true; // 실제 이동 중임을 기록한다.
+            SetAnimatorSpeed(animatorSpeed); // 걷기/달리기 단계에 맞춘 애니메이터 값을 넣는다.
+            Animate(true); // 절차식 다리 움직임도 재생한다.
+        }
+
+        private void ReleaseReservedBed()
+        {
+            if (reservedBed != null)
+                reservedBed.Release(this); // 이 개가 예약한 침대만 안전하게 해제한다.
+            reservedBed = null; // 이후 상태 검사에서 이전 침대를 다시 참조하지 않게 비운다.
+            walkingToBed = false; // 남아 있는 수면 접근 상태도 함께 초기화한다.
+            enteringBed = false; // 남아 있는 진입 상태도 초기화한다.
+            leavingBed = false; // 남아 있는 퇴장 상태도 초기화한다.
+            sleepSurfaceLift = 0f; // 침대 높이 보정도 일반 바닥 기준으로 되돌린다.
         }
 
         private void TryPlayIdleAction()

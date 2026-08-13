@@ -525,10 +525,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         rideCamera.targetDisplay = 0;
         rideCamera.useOcclusionCulling = false;
         rideCamera.enabled = true;
-        if (!XRSettings.isDeviceActive)
-            rideCamera.stereoTargetEye = StereoTargetEyeMask.None;
-        else
-            rideCamera.stereoTargetEye = StereoTargetEyeMask.Both;
+        // URP/OpenXR가 양안 렌더링 대상을 직접 관리하므로 Camera.stereoTargetEye를 설정하지 않는다.
+        // 이 프로퍼티는 Built-in Render Pipeline 전용이라 URP에서 설정하면 매 씬 시작마다 경고가 발생한다.
     }
 
     private void ConfigureQuestRide(Transform team, Transform leftGrip, Transform rightGrip)

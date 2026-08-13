@@ -23,7 +23,12 @@ namespace Mush.Lobby.Editor
         private const string XrRigPath = "Assets/VRTemplateAssets/Prefabs/Setup/Complete XR Origin Set Up Variant.prefab";
         private const string LeftHandPath = "Assets/Oculus Hands/Prefabs/Left Hand Model.prefab";
         private const string RightHandPath = "Assets/Oculus Hands/Prefabs/Right Hand Model.prefab";
-        private const string AxisRevisionMarker = "Mush Lobby Revision 12 - Narrower Deeper Seated Layout";
+        private const string AxisRevisionMarker = "Mush Lobby Revision 15 - Housing Preview And Slot Cleanup";
+        private const float ProceduralCabinWidth = 8.80f; // 마지막 좌식 배치에서 확정한 가로 폭이다. 기존 FBX를 늘리지 않고 새 골격을 이 절대 치수로 만든다.
+        private const float ProceduralCabinDepth = 9.00f; // 줄인 가로 공간을 정면 깊이로 넘긴 최종 프로토타입 깊이다.
+        private const float ProceduralCabinCenterZ = -1.75f; // 정면 벽 z=-6.25, 뒤벽 z=+2.75가 되도록 방 중심을 고정한다.
+        private const float ProceduralCabinWallHeight = 2.62f; // 기존 산장의 벽-박공 접합 높이를 유지해 소품 높이와 어울리게 한다.
+        private const float ProceduralCabinRidgeHeight = 4.34f; // 기존 산장 지붕 꼭대기 높이를 유지해 VR에서 천장이 과하게 높아지지 않게 한다.
         private static int stableEditFrames;
 
         private struct PanelButtonSpec
@@ -129,12 +134,13 @@ namespace Mush.Lobby.Editor
             {
                 GameObject cabin = FindInScene(targetScene, "Mush Lobby Cabin"); // 현재 씬에 이미 들어 있는 오두막 루트를 찾아, 이전 패치의 비율을 다시 곱하지 않고 정확한 최종 좌표로 덮어쓴다.
                 if (cabin != null)
-                    ApplyDeepSeatedCabinLayout(cabin.transform); // 파란 표시만큼 좌우 폭을 줄이고 그만큼 정면 깊이를 늘려 좌식 VR에 맞는 거실 비율로 다시 만든다.
+                    RebuildProceduralCabinShell(cabin.transform); // 기존 FBX 골격을 고무줄처럼 늘리지 않고, 기존 재질만 재사용해 최종 치수의 산장 골격을 처음부터 다시 만든다.
 
                 SetTransform(targetScene, "Seated XR Player - No Locomotion", new Vector3(0f, 0f, 2.00f), new Vector3(0f, 180f, 0f)); // 좌석은 뒤쪽 벽 가까이에 유지하되, 넓어진 앞 공간 전체가 정면 시야에 들어오게 한다.
                 GameObject seatedRig = FindInScene(targetScene, "Seated XR Player - No Locomotion");
                 if (seatedRig != null)
                 {
+                    DisableUnusedGazeFeatures(seatedRig); // 컨트롤러 레이만 사용하는 게임이므로 스타터 에셋의 눈 추적 Gaze Interactor를 비활성화해 장치 없음 경고를 없앤다.
                     MushDesktopSeatedLook desktopLook = seatedRig.GetComponent<MushDesktopSeatedLook>(); // 에디터 테스트에서도 실제 좌식 VR처럼 고개만 좌우로 돌려 배치를 확인할 수 있게 한다.
                     if (desktopLook == null)
                         desktopLook = seatedRig.AddComponent<MushDesktopSeatedLook>(); // 구형 씬에 컴포넌트가 빠졌다면 자동으로 보충한다.
@@ -166,9 +172,12 @@ namespace Mush.Lobby.Editor
                 SetTransform(targetScene, "Bori - Brown Husky", new Vector3(0.63f, 0f, -0.55f), Vector3.zero); // 구형 프로토타입 말라뮤트 이름도 같은 기준으로 맞춘다.
                 SetTransform(targetScene, "Mochi - Husky", new Vector3(-0.72f, 0f, 0.35f), Vector3.zero); // 현재 로비에서 실제 사용하는 허스키 루트도 중앙 안전 통로에서 시작한다.
                 SetTransform(targetScene, "Bori - Malamute", new Vector3(0.63f, 0f, -0.55f), Vector3.zero); // 현재 말라뮤트 루트도 가구 바깥 중앙 통로에서 시작한다.
-                SetTransform(targetScene, "Housing Slot 1 - Stool", MushHousingLayout.Position(MushHousingLayout.ChairPlacement), MushHousingLayout.Rotation(MushHousingLayout.ChairPlacement).eulerAngles); // 의자 슬롯을 왼쪽 생활 코너의 새 실제 배치와 일치시킨다.
-                SetTransform(targetScene, "Housing Slot 2 - Plant", MushHousingLayout.Position(MushHousingLayout.TablePlacement), MushHousingLayout.Rotation(MushHousingLayout.TablePlacement).eulerAngles); // 탁자 슬롯은 의자 바로 옆 같은 코너에 놓아 한 세트처럼 보이게 한다.
-                SetTransform(targetScene, "Housing Slot 3 - Side Table", MushHousingLayout.Position(MushHousingLayout.DogRestPlacement), MushHousingLayout.Rotation(MushHousingLayout.DogRestPlacement).eulerAngles); // 개 침대/돌보기 슬롯은 반대편 오른쪽 개 생활 구역으로 분리한다.
+                SetTransform(targetScene, "Housing Slot 1 - Stool", MushHousingLayout.Position(MushHousingLayout.ChairPlacement), MushHousingLayout.Rotation(MushHousingLayout.ChairPlacement).eulerAngles); // 의자 슬롯을 실제 하우징 배치 좌표와 일치시킨다.
+                SetTransform(targetScene, "Housing Slot 2 - Plant", MushHousingLayout.Position(MushHousingLayout.TablePlacement), MushHousingLayout.Rotation(MushHousingLayout.TablePlacement).eulerAngles); // 탁자 슬롯도 실제 하우징 배치 좌표와 일치시킨다.
+                SetTransform(targetScene, "Housing Slot 3 - Side Table", MushHousingLayout.Position(MushHousingLayout.DogRestPlacement), MushHousingLayout.Rotation(MushHousingLayout.DogRestPlacement).eulerAngles); // 세 번째 슬롯은 개 침대의 고정 위치만 유지한다.
+                DisableLegacyHousingSlotChildren(FindInScene(targetScene, "Housing Slot 1 - Stool")); // 예전 프로토타입 스툴이 실제 의자 아래 받침처럼 남지 않도록 슬롯 자식 시각물을 꺼 둔다.
+                DisableLegacyHousingSlotChildren(FindInScene(targetScene, "Housing Slot 2 - Plant")); // 예전 화분 슬롯 시각물도 실제 탁자 모델과 겹치지 않게 꺼 둔다.
+                DisableLegacyHousingSlotChildren(FindInScene(targetScene, "Housing Slot 3 - Side Table")); // 예전 사이드테이블 시각물도 개 침대 아래에 남지 않게 꺼 둔다.
 
                 SetTransform(targetScene, "PROP_FireplaceRoot", new Vector3(-2.80f, 0f, -6.05f), Vector3.zero); // 벽난로는 깊어진 정면 벽 왼쪽에 붙여 실제로 방 앞쪽이 확장됐다는 기준점을 만든다.
                 SetTransform(targetScene, "PROP_WindowRoot", new Vector3(0f, 2.08f, -6.20f), Vector3.zero); // 창문도 새 정면 벽으로 이동해 예전 벽 위치에 떠 있는 현상을 막는다.
@@ -178,7 +187,9 @@ namespace Mush.Lobby.Editor
                     centerRug.SetActive(false); // 기능이 없는 장식인데 좌식 시점에서 거대한 판처럼 보이므로 완전히 숨겨 바닥과 개 시야를 열어 둔다.
 
                 Material darkWood = AssetDatabase.LoadAssetAtPath<Material>(MaterialRoot + "/CabinDarkWood.mat"); // 지도판을 벽에서 떼었으므로 기존 오두막 재질로 간단한 독립 스탠드를 만든다.
-                GameObject sceneRoot = FindInScene(targetScene, "Mush Lobby Prototype"); // 새 스탠드를 오두막 FBX가 아니라 로비 씬 루트에 두어 향후 모델 교체와 분리한다.
+                GameObject sceneRoot = FindInScene(targetScene, "Mush Lobby Prototype"); // 새 스탠드와 개 전용 내비메시 런타임을 오두막 FBX와 분리된 씬 루트에서 관리한다.
+                if (sceneRoot != null)
+                    EnsureDogNavMeshRuntime(sceneRoot); // 산장 내부 치수에 맞는 개 전용 런타임 NavMesh를 씬 시작 전에 만들도록 컴포넌트를 보장한다.
                 if (sceneRoot != null && darkWood != null)
                 {
                     GameObject mapStand = EnsureNearMapStand(sceneRoot.transform, darkWood); // 지도판 아래 두 기둥과 받침을 만들어 공중에 떠 보이지 않게 한다.
@@ -210,13 +221,6 @@ namespace Mush.Lobby.Editor
                     if (roamer != null)
                         roamer.Configure(FindChild(dog.transform, "Dog Visual"), FindChild(dog.transform, "Tail"), new Vector2(-3.25f, -5.20f), new Vector2(3.25f, 0.85f)); // 넓어진 앞쪽 영역을 허용하되 실제 이동은 스크립트의 중앙 안전 경로만 사용한다.
                 }
-
-                GameObject oldGable = FindInScene(targetScene, "Back Gable Fill - Scene Fix"); // 이전 정면 벽 위치에 남아 있는 삼각 지붕 막음을 찾는다.
-                if (oldGable != null)
-                    Object.DestroyImmediate(oldGable); // 새 정면 벽이 더 멀어졌으므로 구형 막음은 제거한다.
-                Material wall = AssetDatabase.LoadAssetAtPath<Material>(MaterialRoot + "/CabinWall.mat"); // 새 정면 박공을 기존 벽 재질과 동일하게 만들 재질을 불러온다.
-                if (cabin != null && wall != null)
-                    CreateGableFill(cabin.transform, wall); // 새 정면 벽 z=-6.25 위치에 맞춘 박공을 다시 만들어 빨간 표시처럼 지붕 아래가 비는 띠를 없앤다.
 
                 GameObject marker = new GameObject(AxisRevisionMarker);
                 marker.hideFlags = HideFlags.HideInHierarchy;
@@ -293,8 +297,7 @@ namespace Mush.Lobby.Editor
                 GroupAndOffset(model.transform, "PROP_MoneyBagStool", new Vector3(3.55f, 0f, -0.91f)); // 상점 받침도 주머니와 같은 위치 보정을 적용해 따로 떨어지지 않게 한다.
                 GroupAndOffset(model.transform, "INT_DogBowl", new Vector3(2.30f, 0f, -3.55f)); // 기본 개 돌보기 그릇은 개 침대 교체 슬롯과 같은 오른쪽 생활 구역으로 이동한다.
                 AddEnvironmentColliders(model.transform);
-                ExpandCabinForDogLifePrototype(model.transform); // 좌우 폭은 줄이고 정면 깊이는 늘려 뒤쪽/양옆 사각지대 없이 좌식 VR에서 보기 좋은 거실 비율을 만든다.
-                CreateGableFill(model.transform, wall); // 멀어진 정면 벽의 삼각 박공까지 같은 깊이로 막아 지붕 아래가 비지 않게 한다.
+                RebuildProceduralCabinShell(model.transform); // 새 씬도 완성형 FBX 골격을 늘리지 않고 같은 절대 치수의 산장 껍데기를 새로 만든다.
                 SetChildTransform(model.transform, "INT_HousingChest", new Vector3(-1.90f, 0.39f, -1.35f), Vector3.zero); // 집 꾸미기 상자 실물을 좌석 가까운 왼쪽으로 옮긴다.
                 SetChildTransform(model.transform, "INT_MapBoard", new Vector3(0.00f, 1.55f, -2.05f), Vector3.zero); // 지도판 실물은 가까운 독립 스탠드 위치로 옮긴다.
                 SetChildTransform(model.transform, "PROP_WindowRoot", new Vector3(0f, 2.08f, -6.20f), Vector3.zero); // 창문은 새 정면 벽으로 옮겨 깊이 확장이 구조적으로 보이게 한다.
@@ -611,6 +614,208 @@ namespace Mush.Lobby.Editor
             }
         }
 
+        private static void RebuildProceduralCabinShell(Transform cabinRoot)
+        {
+            if (cabinRoot == null)
+                return; // 오두막 루트가 없는 임시 씬에서는 구조를 만들지 않는다.
+
+            // 기존 FBX의 완성형 건물 골격은 원래 작은 산장 치수에 맞춰진 메시다.
+            // 이 조각들을 Transform으로 늘리면 벽/지붕/보의 로컬 축과 경사가 서로 달라 접합부가 벌어지므로,
+            // 구조 파츠만 숨기고 원래 재질과 소품을 재사용한 새 골격을 절대 치수로 만든다.
+            foreach (Transform child in cabinRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (child == cabinRoot)
+                    continue;
+                if (child.name.StartsWith("ENV_", System.StringComparison.Ordinal))
+                    child.gameObject.SetActive(false); // 원본 바닥/벽/기둥/보/지붕은 렌더러와 콜라이더를 함께 끈다.
+            }
+
+            Transform oldShell = FindChild(cabinRoot, "Mush Procedural Cabin Shell");
+            if (oldShell != null)
+                Object.DestroyImmediate(oldShell.gameObject); // 이전 Revision에서 만든 껍데기가 있으면 중복 생성되지 않게 먼저 제거한다.
+
+            Transform oldGable = FindChild(cabinRoot, "Back Gable Fill - Scene Fix");
+            if (oldGable != null)
+                Object.DestroyImmediate(oldGable.gameObject); // 기존 FBX 치수에 맞춘 임시 박공도 새 골격과 겹치므로 제거한다.
+
+            Material wallMaterial = AssetDatabase.LoadAssetAtPath<Material>(MaterialRoot + "/CabinWall.mat");
+            Material darkWoodMaterial = AssetDatabase.LoadAssetAtPath<Material>(MaterialRoot + "/CabinDarkWood.mat");
+            Material floorMaterial = AssetDatabase.LoadAssetAtPath<Material>(MaterialRoot + "/CabinFloor.mat");
+            if (wallMaterial == null || darkWoodMaterial == null || floorMaterial == null)
+                return; // 기존 산장 재질이 없으면 회색 기본 큐브를 남기지 않고 안전하게 중단한다.
+
+            GameObject shell = new("Mush Procedural Cabin Shell");
+            shell.transform.SetParent(cabinRoot, false); // 창문/벽난로/지도 같은 기존 소품과 같은 오두막 로컬 좌표계를 사용한다.
+
+            float halfWidth = ProceduralCabinWidth * 0.5f;
+            float halfDepth = ProceduralCabinDepth * 0.5f;
+            float frontZ = ProceduralCabinCenterZ - halfDepth; // -6.25 : 플레이어 정면의 먼 벽이다.
+            float backZ = ProceduralCabinCenterZ + halfDepth;  // +2.75 : 플레이어 바로 뒤쪽의 닫힌 벽이다.
+            const float floorThickness = 0.16f;
+            const float wallThickness = 0.16f;
+            const float beamThickness = 0.18f;
+            const float roofThickness = 0.14f;
+            const float roofOverhang = 0.28f;
+
+            CreatePrimitive("Cabin Floor Base", PrimitiveType.Cube, shell.transform,
+                new Vector3(0f, -floorThickness * 0.75f, ProceduralCabinCenterZ),
+                new Vector3(ProceduralCabinWidth, floorThickness, ProceduralCabinDepth),
+                Vector3.zero, darkWoodMaterial, true); // 바닥 아래 받침은 하나의 연속 면으로 만들어 판재 사이로 바깥이 보이지 않게 한다.
+
+            const int plankCount = 12;
+            float plankGap = 0.018f;
+            float plankWidth = (ProceduralCabinWidth - plankGap * (plankCount - 1)) / plankCount;
+            for (int index = 0; index < plankCount; index++)
+            {
+                float x = -halfWidth + plankWidth * 0.5f + index * (plankWidth + plankGap);
+                CreatePrimitive("Cabin Floor Plank " + (index + 1).ToString("00"), PrimitiveType.Cube, shell.transform,
+                    new Vector3(x, -0.02f, ProceduralCabinCenterZ),
+                    new Vector3(plankWidth, 0.08f, ProceduralCabinDepth),
+                    Vector3.zero, floorMaterial, true); // 기존 마루 느낌은 유지하되 새 방 전체를 정확히 덮는 12장의 판재로 다시 만든다.
+            }
+
+            CreatePrimitive("Cabin Left Wall", PrimitiveType.Cube, shell.transform,
+                new Vector3(-halfWidth, ProceduralCabinWallHeight * 0.5f, ProceduralCabinCenterZ),
+                new Vector3(wallThickness, ProceduralCabinWallHeight, ProceduralCabinDepth),
+                Vector3.zero, wallMaterial, true); // 왼쪽 벽은 바닥 깊이와 완전히 같은 길이로 이어져 중간 빈 띠가 생기지 않는다.
+            CreatePrimitive("Cabin Right Wall", PrimitiveType.Cube, shell.transform,
+                new Vector3(halfWidth, ProceduralCabinWallHeight * 0.5f, ProceduralCabinCenterZ),
+                new Vector3(wallThickness, ProceduralCabinWallHeight, ProceduralCabinDepth),
+                Vector3.zero, wallMaterial, true); // 오른쪽 벽도 동일한 절대 치수로 만든다.
+            CreatePrimitive("Cabin Front Wall", PrimitiveType.Cube, shell.transform,
+                new Vector3(0f, ProceduralCabinWallHeight * 0.5f, frontZ),
+                new Vector3(ProceduralCabinWidth, ProceduralCabinWallHeight, wallThickness),
+                Vector3.zero, wallMaterial, true); // 벽난로/창문 뒤의 정면 벽을 한 장으로 완전히 막아 뜯긴 건물처럼 보이지 않게 한다.
+            CreatePrimitive("Cabin Back Wall", PrimitiveType.Cube, shell.transform,
+                new Vector3(0f, ProceduralCabinWallHeight * 0.5f, backZ),
+                new Vector3(ProceduralCabinWidth, ProceduralCabinWallHeight, wallThickness),
+                Vector3.zero, wallMaterial, true); // 좌석 뒤쪽도 닫힌 벽으로 만들어 산장 외피를 완결한다.
+
+            Vector3[] postPositions =
+            {
+                new(-halfWidth + 0.10f, ProceduralCabinWallHeight * 0.5f, frontZ + 0.10f),
+                new( halfWidth - 0.10f, ProceduralCabinWallHeight * 0.5f, frontZ + 0.10f),
+                new(-halfWidth + 0.10f, ProceduralCabinWallHeight * 0.5f, backZ - 0.10f),
+                new( halfWidth - 0.10f, ProceduralCabinWallHeight * 0.5f, backZ - 0.10f),
+            };
+            for (int index = 0; index < postPositions.Length; index++)
+                CreatePrimitive("Cabin Corner Post " + (index + 1), PrimitiveType.Cube, shell.transform,
+                    postPositions[index], new Vector3(0.22f, ProceduralCabinWallHeight, 0.22f),
+                    Vector3.zero, darkWoodMaterial, false); // 네 모서리 기둥이 벽과 지붕의 접합 위치를 시각적으로 묶어 준다.
+
+            CreatePrimitive("Cabin Left Top Beam", PrimitiveType.Cube, shell.transform,
+                new Vector3(-halfWidth + 0.05f, ProceduralCabinWallHeight - 0.09f, ProceduralCabinCenterZ),
+                new Vector3(beamThickness, beamThickness, ProceduralCabinDepth),
+                Vector3.zero, darkWoodMaterial, false); // 옆벽 윗선을 하나의 긴 보로 연결해 지붕 아래 빈 틈처럼 보이는 경계를 없앤다.
+            CreatePrimitive("Cabin Right Top Beam", PrimitiveType.Cube, shell.transform,
+                new Vector3(halfWidth - 0.05f, ProceduralCabinWallHeight - 0.09f, ProceduralCabinCenterZ),
+                new Vector3(beamThickness, beamThickness, ProceduralCabinDepth),
+                Vector3.zero, darkWoodMaterial, false);
+
+            float[] crossBeamZ = { backZ - 0.72f, ProceduralCabinCenterZ, frontZ + 0.72f };
+            for (int index = 0; index < crossBeamZ.Length; index++)
+                CreatePrimitive("Cabin Ceiling Beam " + (index + 1), PrimitiveType.Cube, shell.transform,
+                    new Vector3(0f, ProceduralCabinWallHeight - 0.10f, crossBeamZ[index]),
+                    new Vector3(ProceduralCabinWidth, beamThickness, beamThickness),
+                    Vector3.zero, darkWoodMaterial, false); // 앞/중앙/뒤 세 가로보를 새 폭으로 정확히 맞춰 깊어진 공간도 구조적으로 이어 보이게 한다.
+
+            float roofRun = halfWidth + roofOverhang;
+            float roofRise = ProceduralCabinRidgeHeight - ProceduralCabinWallHeight;
+            float roofSlopeLength = Mathf.Sqrt(roofRun * roofRun + roofRise * roofRise);
+            float roofAngle = Mathf.Atan2(roofRise, roofRun) * Mathf.Rad2Deg;
+            float roofCenterY = ProceduralCabinWallHeight + roofRise * 0.5f;
+            float roofCenterX = roofRun * 0.5f;
+            float roofDepth = ProceduralCabinDepth + roofOverhang * 2f;
+
+            CreatePrimitive("Cabin Roof Left", PrimitiveType.Cube, shell.transform,
+                new Vector3(-roofCenterX, roofCenterY, ProceduralCabinCenterZ),
+                new Vector3(roofSlopeLength, roofThickness, roofDepth),
+                new Vector3(0f, 0f, roofAngle), darkWoodMaterial, false); // 왼쪽 경사 지붕은 벽 폭과 ridge 높이에서 직접 계산해 벽과 항상 맞물리게 한다.
+            CreatePrimitive("Cabin Roof Right", PrimitiveType.Cube, shell.transform,
+                new Vector3(roofCenterX, roofCenterY, ProceduralCabinCenterZ),
+                new Vector3(roofSlopeLength, roofThickness, roofDepth),
+                new Vector3(0f, 0f, -roofAngle), darkWoodMaterial, false); // 오른쪽 지붕도 같은 계산식의 대칭값을 사용해 두 장 사이가 벌어지지 않는다.
+            CreatePrimitive("Cabin Roof Ridge", PrimitiveType.Cube, shell.transform,
+                new Vector3(0f, ProceduralCabinRidgeHeight, ProceduralCabinCenterZ),
+                new Vector3(0.22f, 0.22f, roofDepth),
+                Vector3.zero, darkWoodMaterial, false); // 마룻대는 두 지붕의 계산된 꼭대기를 한 줄로 덮어 중앙 틈을 가린다.
+
+            CreateProceduralGable(shell.transform, "Cabin Front Gable", frontZ + wallThickness * 0.25f, wallMaterial, false); // 정면 벽 위 삼각형을 같은 폭/높이에서 만들어 지붕 아래가 비지 않게 한다.
+            CreateProceduralGable(shell.transform, "Cabin Back Gable", backZ - wallThickness * 0.25f, wallMaterial, true); // 좌석 뒤쪽 박공도 닫아 외부에서 봐도 완성된 산장 형태를 유지한다.
+        }
+
+        private static void CreateProceduralGable(Transform parent, string name, float z, Material material, bool reverseWinding)
+        {
+            Mesh sourceMesh = GetProceduralGableMesh(); // 씬 저장 후에도 참조가 유지되도록 프로젝트 에셋으로 저장된 공용 박공 메시를 사용한다.
+            if (sourceMesh == null)
+                return;
+
+            GameObject gable = new(name);
+            gable.transform.SetParent(parent, false);
+            gable.transform.localPosition = new Vector3(0f, ProceduralCabinWallHeight, z);
+            gable.transform.localRotation = reverseWinding ? Quaternion.Euler(0f, 180f, 0f) : Quaternion.identity; // 같은 양면 두께 메시를 뒤쪽에서도 같은 방향으로 재사용한다.
+            MeshFilter filter = gable.AddComponent<MeshFilter>();
+            filter.sharedMesh = sourceMesh;
+            MeshRenderer renderer = gable.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+        }
+
+        private static Mesh GetProceduralGableMesh()
+        {
+            const string path = MaterialRoot + "/ProceduralCabinGable.asset";
+            Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (mesh == null)
+            {
+                mesh = new Mesh { name = "Mush Procedural Cabin Gable" };
+                AssetDatabase.CreateAsset(mesh, path); // 에디터에서 만든 Mesh를 씬 임시 객체로 두지 않고 Assets에 저장해 씬 재로드 후에도 사라지지 않게 한다.
+            }
+
+            float halfWidth = ProceduralCabinWidth * 0.5f;
+            float peakHeight = ProceduralCabinRidgeHeight - ProceduralCabinWallHeight;
+            const float halfThickness = 0.05f;
+            mesh.Clear();
+            mesh.vertices = new[]
+            {
+                new Vector3(-halfWidth, 0f, -halfThickness), new Vector3(0f, peakHeight, -halfThickness), new Vector3(halfWidth, 0f, -halfThickness),
+                new Vector3(-halfWidth, 0f,  halfThickness), new Vector3(0f, peakHeight,  halfThickness), new Vector3(halfWidth, 0f,  halfThickness),
+            };
+            mesh.triangles = new[]
+            {
+                0, 1, 2, 3, 5, 4,
+                0, 3, 4, 0, 4, 1,
+                1, 4, 5, 1, 5, 2,
+                2, 5, 3, 2, 3, 0,
+            };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            EditorUtility.SetDirty(mesh); // Revision에서 치수가 바뀌어도 저장된 박공 메시가 새 절대 치수로 갱신되게 한다.
+            return mesh;
+        }
+
+        private static void DisableUnusedGazeFeatures(GameObject rig)
+        {
+            if (rig == null)
+                return;
+
+            foreach (MonoBehaviour behaviour in rig.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (behaviour == null)
+                    continue;
+                if (behaviour.GetType().Name == "GazeInputManager")
+                {
+                    behaviour.enabled = false; // 인스펙터에서도 눈 추적 관리자가 사용되지 않는 상태임을 명확히 남긴다.
+                    behaviour.gameObject.SetActive(false); // Awake는 비활성 컴포넌트에도 호출될 수 있으므로 GameObject 자체를 꺼 장치 없음 경고가 플레이 시작 때 발생하지 않게 한다.
+                    EditorUtility.SetDirty(behaviour);
+                }
+            }
+
+            foreach (Transform child in rig.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name == "Gaze Interactor")
+                    child.gameObject.SetActive(false); // 눈 추적 인터랙터 자체도 꺼서 컨트롤러 레이와 불필요하게 공존하지 않게 한다.
+            }
+        }
+
         private static void SetChildTransform(Transform root, string childName, Vector3 localPosition, Vector3 localEuler)
         {
             Transform child = FindChild(root, childName); // 새 씬 생성 중 이미 존재하는 FBX 자식 파츠를 이름으로 찾는다.
@@ -637,6 +842,21 @@ namespace Mush.Lobby.Editor
             CreatePrimitive("Map Stand Bottom Brace", PrimitiveType.Cube, stand.transform,
                 new Vector3(0.00f, 0.08f, -2.13f), new Vector3(1.38f, 0.12f, 0.36f), Vector3.zero, material, false); // 두 기둥이 공중에 떠 보이지 않도록 바닥 받침을 연결한다.
             return stand; // 호출 측에서 이 스탠드를 개 회피 장애물로도 등록할 수 있도록 생성한 루트를 반환한다.
+        }
+
+        private static void EnsureDogNavMeshRuntime(GameObject sceneRoot)
+        {
+            if (sceneRoot == null)
+                return; // 로비 씬 루트가 없는 임시 편집 상태에서는 내비메시 런타임을 만들지 않는다.
+
+            MushLobbyNavMeshRuntime navigation = sceneRoot.GetComponent<MushLobbyNavMeshRuntime>(); // 이미 이번 씬에 개 전용 런타임 내비메시가 붙어 있는지 확인한다.
+            if (navigation == null)
+                navigation = sceneRoot.AddComponent<MushLobbyNavMeshRuntime>(); // 없으면 UnityEngine.AI NavMeshBuilder를 사용하는 로비 전용 컴포넌트를 추가한다.
+
+            navigation.Configure(
+                new Vector3(0f, -0.06f, ProceduralCabinCenterZ), // 내비메시 박스의 윗면이 실제 마루 높이 Y=0에 오도록 절반 두께만 아래로 둔다.
+                new Vector3(ProceduralCabinWidth - 0.70f, 0.12f, ProceduralCabinDepth - 0.65f)); // 벽 안쪽에서 개 반지름만큼 여유를 남긴 실내 전용 보행 범위를 사용한다.
+            EditorUtility.SetDirty(navigation); // 설정값이 현재 MushLobby 씬에 저장되게 변경 상태를 표시한다.
         }
 
         private static void EnsureFurnitureObstacle(GameObject target)
@@ -737,6 +957,8 @@ namespace Mush.Lobby.Editor
             Transform locomotion = FindChild(rig.transform, "Locomotion");
             if (locomotion != null)
                 locomotion.gameObject.SetActive(false);
+
+            DisableUnusedGazeFeatures(rig); // 새로 만드는 로비에서도 눈 추적용 Gaze Interactor를 처음부터 꺼 컨트롤러 레이만 남긴다.
 
             Transform leftController = FindChild(rig.transform, "Left Controller");
             Transform rightController = FindChild(rig.transform, "Right Controller");
@@ -929,36 +1151,35 @@ namespace Mush.Lobby.Editor
 
         private static GameObject[] BuildHousingFurniture(Transform parent)
         {
-            Material wood = GetMaterial("HousingWood", new Color(0.36f, 0.16f, 0.055f), 0.22f);
-            Material green = GetMaterial("HousingGreen", new Color(0.10f, 0.36f, 0.18f), 0.18f);
-            Material blue = GetMaterial("HousingBlue", new Color(0.10f, 0.30f, 0.55f), 0.26f);
+            GameObject chairSlot = new GameObject("Housing Slot 1 - Stool"); // 이름은 기존 씬 참조 호환을 위해 유지하지만 실제 시각물은 만들지 않는 의자 전용 슬롯 루트다.
+            chairSlot.transform.SetParent(parent, false); // 로비 루트와 함께 움직이도록 같은 부모 아래에 둔다.
+            chairSlot.transform.SetLocalPositionAndRotation(MushHousingLayout.Position(MushHousingLayout.ChairPlacement), MushHousingLayout.Rotation(MushHousingLayout.ChairPlacement)); // 의자 모델은 이 고정 위치에서 교체만 된다.
 
-            GameObject stool = new GameObject("Housing Slot 1 - Stool");
-            stool.transform.SetParent(parent, false);
-            stool.transform.SetLocalPositionAndRotation(MushHousingLayout.Position(MushHousingLayout.ChairPlacement), MushHousingLayout.Rotation(MushHousingLayout.ChairPlacement)); // 의자 슬롯의 실제 하우징 배치 좌표를 그대로 사용한다.
-            CreatePrimitive("Seat", PrimitiveType.Cylinder, stool.transform,
-                new Vector3(0f, 0.38f, 0f), new Vector3(0.40f, 0.09f, 0.40f), Vector3.zero, wood, false);
-            for (int side = -1; side <= 1; side += 2)
-                CreatePrimitive("Leg", PrimitiveType.Cube, stool.transform,
-                    new Vector3(side * 0.22f, 0.19f, 0f), new Vector3(0.09f, 0.38f, 0.09f), Vector3.zero, wood, false);
+            GameObject tableSlot = new GameObject("Housing Slot 2 - Plant"); // 예전 화분 모형 대신 아무것도 없는 탁자 전용 슬롯 루트만 만든다.
+            tableSlot.transform.SetParent(parent, false); // 다른 하우징 슬롯과 같은 부모 계층을 사용한다.
+            tableSlot.transform.SetLocalPositionAndRotation(MushHousingLayout.Position(MushHousingLayout.TablePlacement), MushHousingLayout.Rotation(MushHousingLayout.TablePlacement)); // 탁자 모델은 이 위치에서만 교체된다.
 
-            GameObject plant = new GameObject("Housing Slot 2 - Plant");
-            plant.transform.SetParent(parent, false);
-            plant.transform.SetLocalPositionAndRotation(MushHousingLayout.Position(MushHousingLayout.TablePlacement), MushHousingLayout.Rotation(MushHousingLayout.TablePlacement)); // 탁자 슬롯은 의자 바로 옆의 같은 왼쪽 생활 코너 실제 위치와 맞춘다.
-            CreatePrimitive("Pot", PrimitiveType.Cylinder, plant.transform,
-                new Vector3(0f, 0.22f, 0f), new Vector3(0.30f, 0.23f, 0.30f), Vector3.zero, blue, false);
-            CreatePrimitive("Leaves", PrimitiveType.Sphere, plant.transform,
-                new Vector3(0f, 0.63f, 0f), new Vector3(0.43f, 0.50f, 0.43f), Vector3.zero, green, false);
+            GameObject dogBedSlot = new GameObject("Housing Slot 3 - Side Table"); // 예전 사이드테이블 모형 대신 개 침대 전용 빈 슬롯 루트만 만든다.
+            dogBedSlot.transform.SetParent(parent, false); // 로비 루트 아래에서 고정 위치를 유지한다.
+            dogBedSlot.transform.SetLocalPositionAndRotation(MushHousingLayout.Position(MushHousingLayout.DogRestPlacement), MushHousingLayout.Rotation(MushHousingLayout.DogRestPlacement)); // 개 침대 모델이 장착될 때만 이 슬롯 아래에 실제 모델이 생긴다.
 
-            GameObject table = new GameObject("Housing Slot 3 - Side Table");
-            table.transform.SetParent(parent, false);
-            table.transform.SetLocalPositionAndRotation(MushHousingLayout.Position(MushHousingLayout.DogRestPlacement), MushHousingLayout.Rotation(MushHousingLayout.DogRestPlacement)); // 개 침대 슬롯은 오른쪽 개 생활 구역의 실제 교체 위치와 동일하게 맞춘다.
-            CreatePrimitive("Top", PrimitiveType.Cube, table.transform,
-                new Vector3(0f, 0.48f, 0f), new Vector3(0.65f, 0.12f, 0.48f), Vector3.zero, wood, false);
-            CreatePrimitive("Base", PrimitiveType.Cube, table.transform,
-                new Vector3(0f, 0.23f, 0f), new Vector3(0.16f, 0.46f, 0.16f), Vector3.zero, wood, false);
+            return new[] { chairSlot, tableSlot, dogBedSlot }; // 컨트롤러에는 의자→탁자→개 침대 순서의 빈 슬롯 세 개만 전달한다.
+        }
 
-            return new[] { stool, plant, table };
+        private static void DisableLegacyHousingSlotChildren(GameObject slot)
+        {
+            if (slot == null)
+                return; // 구형 씬에 해당 슬롯이 없으면 수정 작업을 건너뛴다.
+
+            for (int index = 0; index < slot.transform.childCount; index++)
+            {
+                Transform child = slot.transform.GetChild(index); // 예전 씬에 저장돼 있는 스툴·화분·사이드테이블 프로토타입 자식을 확인한다.
+                if (child == null || child.name == "Mush Housing Model")
+                    continue; // 런타임에 장착되는 실제 가구 모델 루트는 비활성화하지 않는다.
+                child.gameObject.SetActive(false); // 슬롯 위치 표시에 쓰던 임시 시각물을 통째로 꺼 실제 가구 아래 받침처럼 보이지 않게 한다.
+            }
+
+            EditorUtility.SetDirty(slot); // 자식 활성 상태 변경이 MushLobby.unity에 저장되도록 슬롯 오브젝트를 변경 상태로 표시한다.
         }
 
         private static void AddHand(Transform controller, string path, string name)

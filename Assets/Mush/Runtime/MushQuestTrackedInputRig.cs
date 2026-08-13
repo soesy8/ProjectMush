@@ -79,7 +79,6 @@ namespace Mush.Quest
                 trackedCamera.transform.SetParent(coordinateRoot, false);
                 trackedCamera.transform.localPosition = desiredCameraLocalPosition;
                 trackedCamera.transform.localRotation = desiredCameraLocalRotation;
-                trackedCamera.stereoTargetEye = StereoTargetEyeMask.Both;
             }
 
             leftController = existingLeftController ?? CreateControllerAnchor("Quest Left Controller");

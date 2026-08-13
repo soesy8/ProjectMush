@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace Mush.Lobby
 {
@@ -11,6 +12,7 @@ namespace Mush.Lobby
         private Vector2 center;
         private float radius = 0.5f;
         private bool hasBounds;
+        private NavMeshObstacle navMeshObstacle; // 개의 실제 NavMesh 경로에서 이 가구 공간을 잘라내는 Unity 내비메시 장애물이다.
 
         private void OnEnable()
         {
@@ -46,13 +48,44 @@ namespace Mush.Lobby
 
             if (!initialized)
             {
-                hasBounds = false;
+                hasBounds = false; // 현재 장착 모델에 보이는 렌더러가 없으면 기존 원형 회피 정보도 무효화한다.
+                if (navMeshObstacle == null)
+                    navMeshObstacle = GetComponent<NavMeshObstacle>(); // 이전 장착 모델이 만들어 둔 장애물이 남아 있는지 찾는다.
+                if (navMeshObstacle != null)
+                    navMeshObstacle.enabled = false; // 모델이 사라진 슬롯의 옛 carving 구멍이 NavMesh에 남지 않게 장애물을 끈다.
                 return;
             }
 
             center = new Vector2(bounds.center.x, bounds.center.z);
             radius = Mathf.Max(0.28f, Mathf.Max(bounds.extents.x, bounds.extents.z));
             hasBounds = true;
+            RefreshNavMeshObstacle(bounds); // 기존 원형 회피 정보뿐 아니라 NavMesh에도 실제 가구 크기를 반영해 길 자체가 가구를 통과하지 않게 한다.
+        }
+
+        private void RefreshNavMeshObstacle(Bounds worldBounds)
+        {
+            if (navMeshObstacle == null)
+                navMeshObstacle = GetComponent<NavMeshObstacle>(); // 이전 패치에서 이미 만들어진 장애물이 있으면 재사용한다.
+            if (navMeshObstacle == null)
+                navMeshObstacle = gameObject.AddComponent<NavMeshObstacle>(); // 없으면 같은 가구 루트에 Unity NavMeshObstacle을 추가한다.
+
+            navMeshObstacle.shape = NavMeshObstacleShape.Box; // 의자/탁자/상점/상자처럼 대부분 직사각형인 가구를 보수적으로 감싸는 박스 장애물을 사용한다.
+            navMeshObstacle.carving = true; // 단순 회피 힘만 주는 게 아니라 내비메시 경로에서 이 영역을 실제로 잘라낸다.
+            navMeshObstacle.carveOnlyStationary = false; // 장착/교체 직후에도 새 가구 크기를 바로 carving에 반영해 잠깐 가구를 가로지르는 프레임이 생기지 않게 한다.
+
+            Vector3 localCenter = transform.InverseTransformPoint(worldBounds.center); // 월드 Bounds 중심을 이 가구 루트의 로컬 좌표로 변환한다.
+            Vector3 scale = transform.lossyScale; // 월드 크기를 NavMeshObstacle의 로컬 size로 되돌릴 때 현재 부모 스케일까지 고려한다.
+            Vector3 localSize = new(
+                worldBounds.size.x / Mathf.Max(0.0001f, Mathf.Abs(scale.x)), // 가로 크기를 로컬 단위로 환산한다.
+                worldBounds.size.y / Mathf.Max(0.0001f, Mathf.Abs(scale.y)), // 높이 크기를 로컬 단위로 환산한다.
+                worldBounds.size.z / Mathf.Max(0.0001f, Mathf.Abs(scale.z))); // 깊이 크기를 로컬 단위로 환산한다.
+
+            navMeshObstacle.center = localCenter; // 실제 렌더러 중심과 장애물 중심을 일치시킨다.
+            navMeshObstacle.size = new Vector3(
+                Mathf.Max(0.30f, localSize.x + 0.12f), // 개가 가구에 털이 닿을 듯 바짝 붙지 않게 아주 작은 여유를 더한다.
+                Mathf.Max(0.30f, localSize.y), // 낮은 가구도 정상적인 장애물로 남도록 최소 높이를 확보한다.
+                Mathf.Max(0.30f, localSize.z + 0.12f)); // 깊이에도 같은 여유를 추가한다.
+            navMeshObstacle.enabled = true; // RefreshBounds가 불린 시점의 활성 가구를 즉시 carving 대상으로 만든다.
         }
 
         public static bool IsBlocked(Vector3 worldPosition, float padding)

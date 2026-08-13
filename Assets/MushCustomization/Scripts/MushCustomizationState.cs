@@ -153,7 +153,7 @@ namespace Mush.Customization
         public int housingSaveVersion;
         public string housingChairItem = string.Empty;
         public string housingTableItem = string.Empty;
-        public string housingDogRestItem = MushCustomizationIds.HousingDefaultDogCare;
+        public string housingDogRestItem = string.Empty; // 개 침대 슬롯은 실제 가구만 저장하며 옛 "기본 개 돌보기" 가상 항목은 더 이상 기본값으로 사용하지 않는다.
 
         public bool Owns(string itemId)
         {
@@ -244,20 +244,21 @@ namespace Mush.Customization
                     : string.Empty;
                 housingDogRestItem = furnitureDogBedPlaced && Owns(MushCustomizationIds.FurnitureDogBed)
                     ? MushCustomizationIds.FurnitureDogBed
-                    : MushCustomizationIds.HousingDefaultDogCare;
+                    : string.Empty; // 구형 저장의 개 침대가 없었다면 세 번째 슬롯은 그냥 빈 상태로 이관한다.
                 housingSaveVersion = 1;
             }
 
             housingChairItem ??= string.Empty;
             housingTableItem ??= string.Empty;
-            housingDogRestItem ??= MushCustomizationIds.HousingDefaultDogCare;
+            housingDogRestItem ??= string.Empty; // 세 번째 슬롯의 null 값도 가상 기본 아이템이 아니라 빈 슬롯으로 정규화한다.
+            if (housingDogRestItem == MushCustomizationIds.HousingDefaultDogCare)
+                housingDogRestItem = string.Empty; // 이전 버전에서 저장된 "기본 개 돌보기" 값은 로드 즉시 제거해 밥그릇과 하우징 슬롯을 분리한다.
             if (housingChairItem != MushCustomizationIds.FurnitureChair || !Owns(housingChairItem))
                 housingChairItem = string.Empty;
             if (housingTableItem != MushCustomizationIds.FurnitureTable || !Owns(housingTableItem))
                 housingTableItem = string.Empty;
-            if (housingDogRestItem != MushCustomizationIds.HousingDefaultDogCare &&
-                (housingDogRestItem != MushCustomizationIds.FurnitureDogBed || !Owns(housingDogRestItem)))
-                housingDogRestItem = string.Empty;
+            if (housingDogRestItem != MushCustomizationIds.FurnitureDogBed || !Owns(housingDogRestItem))
+                housingDogRestItem = string.Empty; // 세 번째 슬롯에는 실제로 보유한 개 침대 모델 외의 값이 남지 않게 한다.
             SyncLegacyHousingFlags();
 
             if (string.IsNullOrEmpty(equippedSledBody) || !Owns(equippedSledBody))

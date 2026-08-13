@@ -130,11 +130,11 @@ namespace Mush.Customization
                         : new Vector3(dogBounds.center.x, dogBounds.min.y + height * 0.67f, dogBounds.center.z); // 해부학 정보 자체가 없으면 전체 Bounds 높이 비율로 마지막 대체 위치를 만든다.
                 Bounds neckBounds = default; // 빨간 반다나와 보라 스카프를 목 윗부분에 정확히 걸기 위한 실제 목 Bounds를 저장한다.
                 bool hasNeckBounds = neck != null && TryGetPartWorldBounds(neck, out neckBounds); // 목 Renderer가 있으면 품종별 목 크기를 직접 읽고, 없으면 아래의 안전한 추정값을 사용한다.
-                float fittedNeckSize = Mathf.Max(localWidth * 0.62f, localHeight * 0.28f); // 기존 0.78배보다 줄여 목 장식이 가슴 전체를 감싸거나 어깨를 뚫는 현상을 완화한다.
+                float fittedNeckSize = Mathf.Max(localWidth * 0.52f, localHeight * 0.24f); // 목 장식 전체 크기를 한 단계 더 줄여 굵은 링처럼 목 바깥에 떠 보이지 않게 한다.
                 if (hasDogFrame && hasNeckBounds)
                 {
                     float neckWidth = ProjectedRadius(neckBounds.extents, anatomicalRight) * 2f; // 실제 목 좌우 폭을 계산한다.
-                    fittedNeckSize = Mathf.Clamp(neckWidth * 1.22f, width * 0.42f, width * 0.68f) / parentScale; // 목 털을 살짝 감싸되 몸통 전체 크기로 커지지 않도록 액세서리 크기를 제한한다.
+                    fittedNeckSize = Mathf.Clamp(neckWidth * 1.06f, width * 0.36f, width * 0.58f) / parentScale; // 실제 목 폭에 거의 맞는 크기로 줄여 스카프 고리 부분이 목보다 과하게 크게 보이지 않게 한다.
                 }
 
                 GameObject neckAccessory = CreateFittedModel(
@@ -146,7 +146,7 @@ namespace Mush.Customization
                     false); // 스카프도 회전 전 Bounds 정렬을 하지 않아 -90도 가져오기 축 때문에 위치 오프셋이 앞뒤로 돌아가는 문제를 막는다.
                 Quaternion accessoryAxisFix = Quaternion.Euler(90f, 0f, 0f); // 빨간 반다나와 보라 스카프도 모자와 같은 FBX -90도 회전을 상쇄한다.
                 if (hasDogFrame)
-                    PositionNeckAccessory(neckAccessory, neck != null ? neck : head, neckWorld, hasNeckBounds ? neckBounds : default, hasNeckBounds, anatomicalForward, anatomicalUp, accessoryAxisFix); // 회전한 뒤 스카프의 실제 윗면을 목 윗부분에 맞춰 목을 관통하거나 턱까지 올라오는 현상을 줄인다.
+                    PositionNeckAccessory(neckAccessory, neck != null ? neck : head, neckWorld, hasNeckBounds ? neckBounds : default, hasNeckBounds, anatomicalForward, anatomicalUp, accessoryAxisFix, neckId); // 회전한 뒤 목 아래·앞쪽으로 다시 맞춰 고리보다 스카프/반다나 꼬리가 눈에 들어오게 한다.
                 else
                     PositionDogAccessory(neckAccessory, neck != null ? neck : head, neckWorld, anatomicalForward, anatomicalUp, accessoryAxisFix); // 해부학 프레임이 없는 경우에도 축 보정과 추적은 유지한다.
             }
@@ -192,17 +192,19 @@ namespace Mush.Customization
             float targetLargestSize = 1.05f)
         {
             if (slotRoot == null || prefab == null)
-                return null;
+                return null; // 슬롯이나 실제 가구 프리팹이 없으면 장착 처리를 진행하지 않는다.
 
-            foreach (Renderer renderer in slotRoot.GetComponentsInChildren<Renderer>(true))
+            RemoveGeneratedChildren(slotRoot, HousingModelName); // 이전에 장착했던 실제 가구 모델을 먼저 제거해 새 모델과 겹치지 않게 한다.
+
+            for (int index = 0; index < slotRoot.childCount; index++)
             {
-                if (!renderer.transform.IsChildOf(slotRoot) || renderer.transform == slotRoot)
-                    continue;
-                renderer.enabled = false;
+                Transform child = slotRoot.GetChild(index); // 예전 프로토타입 슬롯에 남아 있는 스툴·화분·사이드테이블 같은 임시 자식을 하나씩 확인한다.
+                if (child == null || child.name == HousingModelName)
+                    continue; // 지금 막 생성할 실제 가구 모델 루트는 비활성화 대상에서 제외한다.
+                child.gameObject.SetActive(false); // 렌더러만 숨기는 대신 임시 슬롯 오브젝트 자체를 꺼서 의자가 받침대 위에 올라간 것처럼 보이는 잔재를 완전히 없앤다.
             }
 
-            RemoveGeneratedChildren(slotRoot, HousingModelName);
-            return CreateFittedModel(prefab, slotRoot, HousingModelName, targetLargestSize, Vector3.zero, true);
+            return CreateFittedModel(prefab, slotRoot, HousingModelName, targetLargestSize, Vector3.zero, true); // 깨끗해진 고정 슬롯에 선택한 실제 FBX 모델 하나만 바닥 정렬해 장착한다.
         }
 
         public static bool TryCalculateWorldBounds(GameObject root, out Bounds result)
@@ -410,7 +412,8 @@ namespace Mush.Customization
             bool hasNeckBounds,
             Vector3 forward,
             Vector3 up,
-            Quaternion localRotationOffset)
+            Quaternion localRotationOffset,
+            string accessoryId)
         {
             if (accessory == null)
                 return; // 목 액세서리 프리팹을 읽지 못했다면 추가 위치 계산을 하지 않는다.
@@ -423,18 +426,29 @@ namespace Mush.Customization
             up.Normalize(); // 스카프 윗면과 목 윗면 높이를 정확히 비교하기 위해 위 방향도 정규화한다.
 
             Quaternion neckAlignedRotation = Quaternion.LookRotation(forward, up); // 개 목의 앞/위 방향을 기준으로 액세서리 기본 자세를 만든다.
-            accessory.transform.SetPositionAndRotation(neckWorld, neckAlignedRotation * localRotationOffset); // FBX -90도 축을 상쇄한 최종 회전을 먼저 적용해 실제 보이는 Bounds를 얻는다.
+            float yawOffset = accessoryId == MushCustomizationIds.DogPurpleScarf ? -22f : 0f; // 보라 스카프는 작은 꼬리 파츠가 몸 안쪽에 숨지 않도록 목 둘레에서 살짝 돌려 앞옆으로 보이게 한다.
+            Quaternion visibleTailRotation = Quaternion.AngleAxis(yawOffset, up) * neckAlignedRotation * localRotationOffset; // FBX 축 보정 뒤에도 스카프 꼬리가 보이는 방향을 유지하도록 최종 회전을 만든다.
+            accessory.transform.SetPositionAndRotation(neckWorld, visibleTailRotation); // 먼저 목 중심에 회전을 적용한 뒤 실제 렌더러 Bounds를 이용해 높이와 앞뒤 위치를 다시 맞춘다.
+
+            float forwardOffset = 0f; // 목 Bounds를 못 찾은 경우에는 불필요하게 액세서리를 앞으로 밀지 않는다.
+            if (hasNeckBounds)
+            {
+                float neckForwardRadius = ProjectedRadius(neckBounds.extents, forward); // 목이 앞뒤 방향으로 차지하는 실제 반경을 계산한다.
+                forwardOffset = neckForwardRadius * (accessoryId == MushCustomizationIds.DogPurpleScarf ? 0.22f : 0.16f); // 고리 부분은 목에 남기되 천 꼬리가 턱 아래에서 몸통 밖으로 보일 정도만 앞으로 당긴다.
+            }
 
             if (TryGetProjectedRange(accessory, up, out _, out float accessoryTop))
             {
-                float desiredTop = Vector3.Dot(neckWorld, up); // 목 Bounds를 못 찾은 경우에는 스카프의 윗부분이 목 중심을 기준으로 걸리도록 한다.
+                float desiredTop = Vector3.Dot(neckWorld, up) - 0.01f; // 목 Bounds를 못 찾은 경우에도 액세서리를 목 중심보다 위로 치켜올리지 않는다.
                 if (hasNeckBounds)
                 {
-                    float neckRadius = ProjectedRadius(neckBounds.extents, up); // 목 파츠가 위 방향으로 차지하는 반경을 계산한다.
-                    desiredTop = Vector3.Dot(neckBounds.center, up) + neckRadius * 0.72f; // 스카프 윗단을 목 최상단보다 조금 아래에 넣어 털 위에 떠 보이지 않으면서 턱까지 올라오지 않게 한다.
+                    float neckRadius = ProjectedRadius(neckBounds.extents, up); // 목 파츠가 위 방향으로 차지하는 실제 반경을 계산한다.
+                    float topRatio = accessoryId == MushCustomizationIds.DogPurpleScarf ? 0.34f : 0.42f; // 보라 스카프는 더 아래에, 반다나는 턱 바로 아래에 걸리도록 종류별 높이를 나눈다.
+                    desiredTop = Vector3.Dot(neckBounds.center, up) + neckRadius * topRatio; // 예전 0.72배보다 훨씬 낮춰 목 위의 링처럼 떠 있는 느낌을 없앤다.
                 }
-                accessory.transform.position += up * (desiredTop - accessoryTop); // 빨간 반다나와 보라 스카프의 실제 윗면을 목표 목 높이에 맞춘다.
+                accessory.transform.position += up * (desiredTop - accessoryTop); // 회전된 실제 액세서리 윗면이 목표 목 높이에 오도록 상하 위치를 맞춘다.
             }
+            accessory.transform.position += forward * forwardOffset; // 마지막에 목 앞쪽으로 조금 이동시켜 스카프/반다나의 천 부분이 몸통 내부에 묻히지 않게 한다.
 
             if (trackedPart != null)
             {

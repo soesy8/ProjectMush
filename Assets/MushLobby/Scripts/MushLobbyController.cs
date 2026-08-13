@@ -467,25 +467,34 @@ namespace Mush.Lobby
                     MushHousingLayout.TablePlacement => "Placed Housing Table",
                     _ => "Placed Housing Dog Bed",
                 };
-                holder.transform.localPosition = MushHousingLayout.Position(index);
-                holder.transform.localRotation = MushHousingLayout.Rotation(index);
-                holder.SetActive(occupiedHousingSlots[index]);
+                holder.transform.localPosition = MushHousingLayout.Position(index); // 하우징 종류가 바뀌어도 슬롯 자체의 위치는 항상 같은 고정 좌표를 사용한다.
+                holder.transform.localRotation = MushHousingLayout.Rotation(index); // 슬롯별 고정 회전도 모델 교체와 무관하게 유지한다.
+                holder.SetActive(occupiedHousingSlots[index]); // 현재 저장 상태에서 실제로 장착된 가구 슬롯만 로비에 보이게 한다.
+
+                MushLobbyDogBedSpot bedSpot = holder.GetComponent<MushLobbyDogBedSpot>(); // 개 침대 슬롯에는 수면 접근/예약 지점 컴포넌트가 이미 있는지 확인한다.
+                bool activeDogBed = index == MushHousingLayout.DogRestPlacement && occupiedHousingSlots[index] &&
+                                    placedItem == MushCustomizationIds.FurnitureDogBed; // 세 번째 슬롯에 실제 개 침대가 장착된 경우만 수면 대상으로 인정한다.
+                if (activeDogBed && bedSpot == null)
+                    bedSpot = holder.AddComponent<MushLobbyDogBedSpot>(); // 장착된 침대 모델을 개 AI가 찾을 수 있도록 수면 슬롯 컴포넌트를 추가한다.
+                if (bedSpot != null)
+                    bedSpot.enabled = activeDogBed; // 침대 제거/교체 시 즉시 수면 후보 목록에서 빠지도록 컴포넌트를 함께 끈다.
+
                 if (!occupiedHousingSlots[index] || catalog == null)
-                    continue;
+                    continue; // 장착되지 않은 슬롯은 모델/장애물 갱신을 하지 않는다.
 
                 MushCustomizationVisuals.PrepareHousingSlot(
                     holder.transform,
                     catalog.GetPrefab(placedItem),
-                    MushHousingLayout.PreviewSize(index));
-                MushLobbyFurnitureObstacle obstacle = holder.GetComponent<MushLobbyFurnitureObstacle>();
+                    MushHousingLayout.PreviewSize(index)); // 해당 슬롯에 선택된 실제 FBX 모델을 고정 위치에 교체 장착한다.
+                MushLobbyFurnitureObstacle obstacle = holder.GetComponent<MushLobbyFurnitureObstacle>(); // 장착된 가구가 내비메시에서 실제 장애물로 등록되어 있는지 확인한다.
                 if (obstacle == null)
-                    obstacle = holder.AddComponent<MushLobbyFurnitureObstacle>();
-                obstacle.RefreshBounds();
+                    obstacle = holder.AddComponent<MushLobbyFurnitureObstacle>(); // 없으면 NavMeshObstacle carving까지 관리하는 가구 장애물 컴포넌트를 추가한다.
+                obstacle.RefreshBounds(); // 새로 장착된 모델의 실제 Renderer 크기로 회피/내비메시 장애물 범위를 다시 계산한다.
+                if (bedSpot != null && activeDogBed)
+                    bedSpot.RefreshBounds(); // 개 침대라면 모델 교체가 끝난 뒤 실제 침대 크기로 접근점과 수면 높이도 다시 계산한다.
             }
 
-            SetDefaultDogCareVisible(
-                customization.GetHousingPlacement(MushHousingLayout.DogRestPlacement) ==
-                MushCustomizationIds.HousingDefaultDogCare);
+            SetDefaultDogCareVisible(true); // 기본 밥그릇은 하우징 슬롯이 아니라 로비 기본 소품이므로 개 침대 장착 여부와 상관없이 항상 보이게 한다.
 
             if (dogs == null)
                 return;
@@ -499,9 +508,9 @@ namespace Mush.Lobby
         {
             return index switch
             {
-                0 => MushCustomizationIds.FurnitureTable,
-                1 => MushCustomizationIds.FurnitureChair,
-                2 => MushCustomizationIds.FurnitureDogBed,
+                MushHousingLayout.ChairPlacement => MushCustomizationIds.FurnitureChair, // 슬롯 0은 실제 레이아웃 정의와 동일하게 의자 아이템을 가리킨다.
+                MushHousingLayout.TablePlacement => MushCustomizationIds.FurnitureTable, // 슬롯 1은 탁자 아이템을 가리켜 예전 table/chair 순서 뒤바뀜을 없앤다.
+                MushHousingLayout.DogRestPlacement => MushCustomizationIds.FurnitureDogBed, // 슬롯 2는 개 침대 전용이다.
                 _ => string.Empty,
             };
         }
