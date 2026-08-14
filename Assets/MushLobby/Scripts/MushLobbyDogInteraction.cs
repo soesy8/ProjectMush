@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.XR;
-using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace Mush.Lobby
@@ -16,7 +15,6 @@ namespace Mush.Lobby
         [SerializeField] private float petRadius = 0.30f;
         [SerializeField] private float minimumStrokeSpeed = 0.22f;
 
-        private XRSimpleInteractable interactable;
         private Vector3 previousLeftPosition;
         private Vector3 previousRightPosition;
         private float petCooldown;
@@ -50,20 +48,14 @@ namespace Mush.Lobby
 
         private void Awake()
         {
-            petRadius = Mathf.Max(petRadius, 0.42f);
-            minimumStrokeSpeed = Mathf.Min(minimumStrokeSpeed, 0.12f);
+            petRadius = Mathf.Clamp(petRadius, 0.18f, 0.24f); // 손바닥이 실제 머리 가까이에 들어와야 하도록 기존 42cm 원거리 판정을 줄인다.
+            minimumStrokeSpeed = Mathf.Clamp(minimumStrokeSpeed, 0.12f, 0.50f); // 추적 미세 떨림은 쓰다듬기로 세지 않고 의도적인 손 움직임만 받는다.
             if (expression == null)
                 expression = GetComponent<MushLobbyDogExpression>();
-            interactable = GetComponent<XRSimpleInteractable>();
-            if (interactable != null)
-                interactable.selectEntered.AddListener(OnSelected);
+            XRSimpleInteractable rayInteractable = GetComponent<XRSimpleInteractable>();
+            if (rayInteractable != null)
+                rayInteractable.enabled = false; // 개만 VR 레이 선택 대상에서 제외한다. 지도·상점·하우징 레이는 그대로 유지된다.
             CaptureHandPositions();
-        }
-
-        private void OnDestroy()
-        {
-            if (interactable != null)
-                interactable.selectEntered.RemoveListener(OnSelected);
         }
 
         private void Update()
@@ -88,10 +80,7 @@ namespace Mush.Lobby
             bool near = CheckHand(leftHand, ref previousLeftPosition) |
                         CheckHand(rightHand, ref previousRightPosition);
             if (near && !handWasNear)
-            {
                 roamer.PlayHeadTilt();
-                Pet();
-            }
             handWasNear = near;
             positionsReady = true;
         }
@@ -140,11 +129,6 @@ namespace Mush.Lobby
             if (rightHand != null)
                 previousRightPosition = rightHand.position;
             positionsReady = true;
-        }
-
-        private void OnSelected(SelectEnterEventArgs args)
-        {
-            Pet();
         }
     }
 }

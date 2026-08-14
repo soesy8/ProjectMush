@@ -86,6 +86,7 @@ namespace Mush.Prototype
         public bool IsBoosting => rideStarted && speedLevel == 2;
         public float FirstLevelSpeed => firstLevelSpeed;
         public float SecondLevelSpeed => secondLevelSpeed;
+        public float RideHeight => rideHeight;
         public bool TerrainSpeedLimited => terrainSpeedLimited;
         public float CourseSpeedMultiplier => courseSpeedMultiplier;
         public MushDogRideEffect ActiveDogEffect => activeDogEffect;
@@ -252,6 +253,17 @@ namespace Mush.Prototype
         public void SetCourseSurface(MushCurvedMapRuntime surface)
         {
             courseSurface = surface;
+        }
+
+        public void ResetMotionForCourseRecovery()
+        {
+            commandBoostHeld = false;
+            speedLevel = rideStarted ? 1 : 0;
+            currentSpeed = 0f;
+            currentSteering = 0f;
+            externalSteeringInput = 0f;
+            terrainSpeedLimited = false;
+            UpdateSteeringVisuals(0f, 0f);
         }
 
         public void ToggleDogBuff()

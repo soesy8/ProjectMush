@@ -798,6 +798,47 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Returns an exact pose on the generated road centreline. Course recovery
+    /// uses this instead of restoring a raw world position near an edge.
+    /// </summary>
+    public bool TryGetRoutePose(
+        float progress,
+        out Vector3 surfacePoint,
+        out Vector3 surfaceNormal,
+        out Vector3 surfaceForward)
+    {
+        if (!built)
+            BuildWorld();
+
+        surfacePoint = transform.position;
+        surfaceNormal = transform.up;
+        surfaceForward = transform.forward;
+        if (routePoints.Count < 2)
+            return false;
+
+        float routeIndex = Mathf.Clamp01(progress) * (routePoints.Count - 1f);
+        int segmentIndex = Mathf.Min(Mathf.FloorToInt(routeIndex), routePoints.Count - 2);
+        float segmentT = Mathf.Clamp01(routeIndex - segmentIndex);
+        Vector3 startPoint = routePoints[segmentIndex];
+        Vector3 endPoint = routePoints[segmentIndex + 1];
+        Vector3 routeCenter = Vector3.Lerp(startPoint, endPoint, segmentT);
+
+        Vector3 localForward = (endPoint - startPoint).normalized;
+        Vector3 flatForward = Vector3.ProjectOnPlane(localForward, Vector3.up).normalized;
+        if (flatForward.sqrMagnitude < 0.0001f)
+            flatForward = Vector3.back;
+        Vector3 localRight = Vector3.Cross(Vector3.up, flatForward).normalized;
+        Vector3 localNormal = Vector3.Cross(localForward, localRight).normalized;
+        if (localNormal.y < 0f)
+            localNormal = -localNormal;
+
+        surfacePoint = transform.TransformPoint(routeCenter + Vector3.up * 0.10f);
+        surfaceNormal = transform.TransformDirection(localNormal).normalized;
+        surfaceForward = transform.TransformDirection(localForward).normalized;
+        return true;
+    }
+
     private void Update()
     {
         if (!built || !isSharpCurve)

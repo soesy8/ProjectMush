@@ -355,6 +355,12 @@ namespace Mush.Customization
             if (resetting || keyboard == null || !keyboard.rKey.wasPressedThisFrame)
                 return;
 
+            // Ride maps reserve plain R for returning the complete sled team
+            // to its last safe course checkpoint. Keep the prototype data
+            // reset shortcut available in lobby/customization scenes only.
+            if (FindFirstObjectByType<MushMapRideBootstrap>() != null)
+                return;
+
             resetting = true;
             MushCustomizationSave.Reset();
             Debug.Log("[Mush] 커스터마이징과 상점 보유 목록을 기본 상태로 초기화했습니다.", this);

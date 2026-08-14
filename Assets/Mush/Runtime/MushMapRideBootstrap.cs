@@ -37,6 +37,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField] private bool showKeyboardHelp = true;
     [SerializeField, Range(70f, 100f)] private float normalFieldOfView = 82f;
     [SerializeField, Range(75f, 110f)] private float boostFieldOfView = 90f;
+    [SerializeField, Min(1f)] private float vrControlHintSeconds = 5f;
 
     [Header("Course Completion")]
     [SerializeField] private string lobbySceneName = "MushLobby";
@@ -54,9 +55,16 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, Min(0f)] private float roadExitMargin = 0.12f;
     [SerializeField, Min(0f)] private float roadReturnInset = 0.45f;
 
+    [Header("Course Recovery")]
+    [SerializeField, Min(0.1f)] private float recoveryCheckpointInterval = 0.30f;
+    [SerializeField, Min(0.1f)] private float recoveryRoadInset = 1.50f;
+    [SerializeField, Min(0.1f)] private float recoveryGroundTolerance = 0.65f;
+    [SerializeField, Min(0f)] private float recoveryRollbackMeters = 8f;
+
     [Header("Quest 2 Reins")]
     [SerializeField, Min(0.05f)] private float questReinPullForFullTurn = 0.24f;
     [SerializeField, Min(0f)] private float questReinDeadZone = 0.035f;
+    [SerializeField, Min(0.3f)] private float questRecalibrationHoldSeconds = 1.0f;
 
     private readonly List<DogRuntime> dogs = new();
     private readonly Dictionary<string, Material> runtimeMaterials = new(StringComparer.Ordinal);
@@ -74,6 +82,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private GUIStyle lobbyButtonStyle;
     private GameObject missionTimerRoot;
     private TextMesh missionTimerText;
+    private GameObject vrControlHintRoot;
     private GameObject resultPanel;
     private GameObject resultButtonsRoot;
     private Mesh resultStarMesh;
@@ -93,6 +102,15 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private bool questReinsCalibrated;
     private float questLeftNeutralZ;
     private float questRightNeutralZ;
+    private float questRecalibrationHoldTime;
+    private float questRecalibrationFeedbackUntil;
+    private bool questRecalibrationArmed;
+    private bool questRecalibrationInProgress;
+    private bool hasRecoveryCheckpoint;
+    private float recoveryRouteProgress;
+    private float nextRecoveryCheckpointTime;
+    private Vector3 recoveryFallbackPosition;
+    private Vector3 recoveryFallbackForward;
     private GameObject questPauseMenu;
     private MushCustomizationState customization;
     private bool missionTimerStarted;
@@ -204,6 +222,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         rideController = teamObject.AddComponent<MushSledKeyboardController>();
         rideController.Configure(reinsVisual, leftMitten, rightMitten, null, null, false);
         rideController.SetCourseSurface(curvedWorld);
+        InitializeCourseRecoveryCheckpoint();
 
         ConfigureRideCamera(rideSeatAnchor);
         ConfigureQuestRide(rideSeatAnchor, leftGrip, rightGrip);
@@ -237,6 +256,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             SetRidePaused(!ridePaused);
         if (questRig != null && questRig.BButtonPressedThisFrame)
             SetRidePaused(!ridePaused);
+        if (keyboard != null && keyboard.rKey.wasPressedThisFrame)
+            RecoverToCourse();
 
         UpdateQuestRideControls();
         UpdateMissionTimer();
@@ -592,6 +613,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         if (ridePaused)
         {
+            questRecalibrationHoldTime = 0f;
+            questRecalibrationInProgress = false;
             rideController.SetBoost(false);
             rideController.SetExternalSteering(0f);
             return;
@@ -599,9 +622,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         if (!rideController.RideStarted && questRig.LeftGripHeld && questRig.RightGripHeld)
         {
-            questLeftNeutralZ = questRig.LeftController.localPosition.z;
-            questRightNeutralZ = questRig.RightController.localPosition.z;
-            questReinsCalibrated = true;
+            CaptureQuestNeutralPosition();
+            questRecalibrationArmed = false; // 처음 출발에 쓴 그립을 계속 누르고 있어도 곧바로 재보정되지 않게 한다.
             rideController.StartRide();
         }
 
@@ -615,10 +637,30 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         rideController.SetBoost(questRig.LeftTriggerHeld || questRig.RightTriggerHeld);
         if (!questReinsCalibrated)
+            CaptureQuestNeutralPosition();
+
+        bool bothGripsHeld = questRig.LeftGripHeld && questRig.RightGripHeld;
+        if (!bothGripsHeld)
         {
-            questLeftNeutralZ = questRig.LeftController.localPosition.z;
-            questRightNeutralZ = questRig.RightController.localPosition.z;
-            questReinsCalibrated = true;
+            questRecalibrationHoldTime = 0f;
+            questRecalibrationInProgress = false;
+            questRecalibrationArmed = true; // 양손을 한 번 놓은 뒤부터 다음 동시 길게 누르기를 받을 수 있다.
+        }
+        else if (questRecalibrationArmed)
+        {
+            questRecalibrationInProgress = true;
+            questRecalibrationHoldTime += Time.unscaledDeltaTime;
+            rideController.SetExternalSteering(0f); // 재보정 자세를 잡는 동안 기존 기준점으로 갑자기 꺾이지 않게 직진 입력으로 둔다.
+            if (questRecalibrationHoldTime >= questRecalibrationHoldSeconds)
+            {
+                CaptureQuestNeutralPosition();
+                questRecalibrationHoldTime = 0f;
+                questRecalibrationInProgress = false;
+                questRecalibrationArmed = false; // 완료 뒤 양손을 놓기 전까지 중복 재보정을 막는다.
+                questRecalibrationFeedbackUntil = Time.unscaledTime + 1.0f;
+                Debug.Log("[Mush] Quest N Pos recalibrated.", this);
+            }
+            return;
         }
 
         float leftPull = Mathf.Max(0f, questLeftNeutralZ - questRig.LeftController.localPosition.z - questReinDeadZone);
@@ -628,6 +670,16 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             -1f,
             1f);
         rideController.SetExternalSteering(steering);
+    }
+
+    private void CaptureQuestNeutralPosition()
+    {
+        if (questRig?.LeftController == null || questRig.RightController == null)
+            return;
+
+        questLeftNeutralZ = questRig.LeftController.localPosition.z;
+        questRightNeutralZ = questRig.RightController.localPosition.z;
+        questReinsCalibrated = true;
     }
 
     private void SetRidePaused(bool paused)
@@ -666,15 +718,18 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         questPauseMenu = new GameObject("Quest Pause Menu");
         Material panelMaterial = GetRuntimeMaterial("QuestPausePanel", new Color(0.035f, 0.055f, 0.085f), 0.18f);
         Material buttonMaterial = GetRuntimeMaterial("QuestPauseButton", new Color(0.14f, 0.27f, 0.43f), 0.24f);
+        Material recoveryMaterial = GetRuntimeMaterial("QuestPauseRecoveryButton", new Color(0.11f, 0.48f, 0.36f), 0.24f);
         Material lobbyMaterial = GetRuntimeMaterial("QuestPauseLobbyButton", new Color(0.78f, 0.31f, 0.055f), 0.26f);
 
         CreatePrimitive("Pause Back", PrimitiveType.Cube, questPauseMenu.transform,
-            Vector3.zero, new Vector3(2.55f, 1.42f, 0.06f), panelMaterial);
-        CreatePauseText("일시정지", questPauseMenu.transform, new Vector3(0f, 0.43f, -0.07f),
+            Vector3.zero, new Vector3(2.55f, 1.62f, 0.06f), panelMaterial);
+        CreatePauseText("일시정지", questPauseMenu.transform, new Vector3(0f, 0.52f, -0.07f),
             0.10f, 2.05f, 0.26f);
-        CreatePauseButton("계속하기", questPauseMenu.transform, new Vector3(-0.62f, -0.20f, -0.08f),
+        CreatePauseButton("코스 복귀", questPauseMenu.transform, new Vector3(0f, 0.10f, -0.08f),
+            recoveryMaterial, RecoverToCourse);
+        CreatePauseButton("계속하기", questPauseMenu.transform, new Vector3(-0.62f, -0.38f, -0.08f),
             buttonMaterial, () => SetRidePaused(false));
-        CreatePauseButton("로비로", questPauseMenu.transform, new Vector3(0.62f, -0.20f, -0.08f),
+        CreatePauseButton("로비로", questPauseMenu.transform, new Vector3(0.62f, -0.38f, -0.08f),
             lobbyMaterial, ReturnToLobby);
         questPauseMenu.SetActive(false);
     }
@@ -744,6 +799,25 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         missionTimerText = CreateWorldText("02:00", missionTimerRoot.transform,
             new Vector3(0f, 0f, -0.030f), 0.022f, Color.white);
         missionTimerText.transform.localRotation = Quaternion.identity;
+
+        vrControlHintRoot = new GameObject("Quest Driving Control Hint");
+        vrControlHintRoot.transform.SetParent(missionTimerRoot.transform, false);
+        vrControlHintRoot.transform.localPosition = new Vector3(0f, -0.125f, 0f);
+        vrControlHintRoot.transform.localRotation = Quaternion.identity;
+        Material hintBack = GetRuntimeMaterial(
+            "QuestDrivingHintBack",
+            new Color(0.025f, 0.040f, 0.060f),
+            0.14f);
+        CreatePrimitive("Quest Hint Back", PrimitiveType.Cube, vrControlHintRoot.transform,
+            Vector3.zero, new Vector3(0.74f, 0.078f, 0.022f), hintBack);
+        CreatePauseText(
+            "X 버프   Y 페널티   B 일시정지",
+            vrControlHintRoot.transform,
+            new Vector3(0f, 0f, -0.026f),
+            0.009f,
+            0.68f,
+            0.042f);
+        vrControlHintRoot.SetActive(false);
         UpdateMissionTimerText();
     }
 
@@ -757,7 +831,27 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             missionTimerStarted = true;
             missionElapsedSeconds += Time.deltaTime;
         }
+        UpdateVrControlHint();
         UpdateMissionTimerText();
+    }
+
+    private void UpdateVrControlHint()
+    {
+        if (vrControlHintRoot == null)
+            return;
+
+        bool visible = IsVrRideActive() &&
+                       missionTimerStarted &&
+                       !ridePaused &&
+                       !resultVisible &&
+                       missionElapsedSeconds <= vrControlHintSeconds;
+        if (vrControlHintRoot.activeSelf != visible)
+            vrControlHintRoot.SetActive(visible);
+    }
+
+    private bool IsVrRideActive()
+    {
+        return XRSettings.isDeviceActive || (questRig != null && questRig.IsTracking);
     }
 
     private void UpdateMissionTimerText()
@@ -765,13 +859,41 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (missionTimerText == null)
             return;
 
+        if (questRecalibrationInProgress)
+        {
+            float progress = Mathf.Clamp01(questRecalibrationHoldTime / Mathf.Max(0.3f, questRecalibrationHoldSeconds));
+            missionTimerText.text = $"N {Mathf.RoundToInt(progress * 100f):00}%";
+            missionTimerText.color = new Color(0.32f, 0.88f, 1f);
+            return;
+        }
+        if (Time.unscaledTime < questRecalibrationFeedbackUntil)
+        {
+            missionTimerText.text = "N POS OK";
+            missionTimerText.color = new Color(0.35f, 1f, 0.55f);
+            return;
+        }
+
         float remaining = missionTimerStarted
             ? Mathf.Max(0f, deliveryTimeLimitSeconds - missionElapsedSeconds)
             : deliveryTimeLimitSeconds;
         missionTimerText.text = FormatRemaining(remaining);
-        missionTimerText.color = remaining <= 0f
-            ? new Color(1f, 0.22f, 0.12f)
-            : remaining <= 20f ? new Color(1f, 0.72f, 0.10f) : Color.white;
+        if (remaining <= 10f)
+        {
+            // Mission time stops while paused, so using it for the blink phase
+            // also freezes the warning instead of flashing behind the pause UI.
+            bool brightFrame = Mathf.FloorToInt(missionElapsedSeconds * 4f) % 2 == 0;
+            missionTimerText.color = brightFrame
+                ? new Color(1f, 0.10f, 0.06f)
+                : new Color(0.42f, 0.018f, 0.012f);
+        }
+        else if (remaining <= 30f)
+        {
+            missionTimerText.color = new Color(1f, 0.78f, 0.08f);
+        }
+        else
+        {
+            missionTimerText.color = Color.white;
+        }
     }
 
     private void EnsureResultPanel()
@@ -1325,6 +1447,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         UpdateOffCourseSpeedLimit();
 
         bool running = rideController.RideStarted;
+        UpdateCourseRecoveryCheckpoint(running);
         if (UpdateCourseCompletion(running))
             return;
         float speed01 = Mathf.InverseLerp(0f, rideController.SecondLevelSpeed, rideController.CurrentSpeed);
@@ -1410,6 +1533,138 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             ? 1.5f
             : 1f;
         rideController.SetCourseSpeedMultiplier(multiplier);
+    }
+
+    private void InitializeCourseRecoveryCheckpoint()
+    {
+        if (rideTeam == null)
+            return;
+
+        hasRecoveryCheckpoint = true;
+        recoveryRouteProgress = 0f;
+        recoveryFallbackPosition = rideTeam.position;
+        recoveryFallbackForward = rideTeam.forward;
+        nextRecoveryCheckpointTime = Time.unscaledTime + recoveryCheckpointInterval;
+
+        if (curvedWorld == null ||
+            !curvedWorld.TryGetRouteProgress(rideTeam.position, out float progress) ||
+            !curvedWorld.TryGetRoutePose(progress, out Vector3 surfacePoint, out _, out Vector3 surfaceForward))
+            return;
+
+        recoveryRouteProgress = progress;
+        recoveryFallbackPosition = surfacePoint + Vector3.up * rideController.RideHeight;
+        recoveryFallbackForward = surfaceForward;
+    }
+
+    private void UpdateCourseRecoveryCheckpoint(bool running)
+    {
+        if (!running || ridePaused || curvedWorld == null || rideTeam == null || rideController == null ||
+            Time.unscaledTime < nextRecoveryCheckpointTime)
+            return;
+
+        nextRecoveryCheckpointTime = Time.unscaledTime + recoveryCheckpointInterval;
+        if (!curvedWorld.TryGetCourseSurface(
+                rideTeam.position,
+                out Vector3 surfacePoint,
+                out _,
+                out _,
+                out float signedLateralDistance))
+            return;
+
+        float safeHalfWidth = Mathf.Max(0.50f, curvedWorld.RoadHalfWidthMeters - recoveryRoadInset);
+        float expectedHeight = surfacePoint.y + rideController.RideHeight;
+        if (Mathf.Abs(signedLateralDistance) > safeHalfWidth ||
+            Mathf.Abs(rideTeam.position.y - expectedHeight) > recoveryGroundTolerance ||
+            !curvedWorld.TryGetRouteProgress(rideTeam.position, out float routeProgress) ||
+            !curvedWorld.TryGetRoutePose(routeProgress, out Vector3 routePoint, out _, out Vector3 routeForward))
+            return;
+
+        hasRecoveryCheckpoint = true;
+        recoveryRouteProgress = routeProgress;
+        recoveryFallbackPosition = routePoint + Vector3.up * rideController.RideHeight;
+        recoveryFallbackForward = routeForward;
+    }
+
+    private void RecoverToCourse()
+    {
+        if (returningToLobby || resultVisible || rideTeam == null || rideController == null)
+            return;
+        if (!hasRecoveryCheckpoint)
+            InitializeCourseRecoveryCheckpoint();
+        if (!hasRecoveryCheckpoint)
+            return;
+
+        Vector3 recoveryPosition = recoveryFallbackPosition;
+        Vector3 recoveryForward = recoveryFallbackForward;
+        Vector3 recoveryNormal = Vector3.up;
+        float restoredRouteProgress = recoveryRouteProgress;
+        if (curvedWorld != null)
+        {
+            float rollbackProgress = recoveryRollbackMeters / Mathf.Max(1f, curvedWorld.LengthMeters);
+            float targetProgress = Mathf.Clamp01(recoveryRouteProgress - rollbackProgress);
+            if (curvedWorld.TryGetRoutePose(
+                    targetProgress,
+                    out Vector3 routePoint,
+                    out Vector3 routeNormal,
+                    out Vector3 routeForward))
+            {
+                recoveryPosition = routePoint + Vector3.up * rideController.RideHeight;
+                recoveryForward = routeForward;
+                recoveryNormal = routeNormal;
+                restoredRouteProgress = targetProgress;
+            }
+        }
+
+        Vector3 uprightForward = Vector3.ProjectOnPlane(recoveryForward, Vector3.up).normalized;
+        if (uprightForward.sqrMagnitude < 0.0001f)
+            uprightForward = Vector3.ProjectOnPlane(rideTeam.forward, Vector3.up).normalized;
+        if (uprightForward.sqrMagnitude < 0.0001f)
+            uprightForward = Vector3.forward;
+
+        rideTeam.SetPositionAndRotation(
+            recoveryPosition,
+            Quaternion.LookRotation(uprightForward, Vector3.up));
+        rideController.ResetMotionForCourseRecovery();
+        offCourse = false;
+        rideController.SetTerrainSpeedLimit(false, offCourseSpeed, offCourseBoostSpeed);
+        lastRidePosition = recoveryPosition;
+        ridePositionInitialized = true;
+        nextRecoveryCheckpointTime = Time.unscaledTime + recoveryCheckpointInterval;
+        SnapRideVisualsToRecoverySurface(recoveryNormal);
+
+        if (speedParticles != null)
+        {
+            ParticleSystem.EmissionModule emission = speedParticles.emission;
+            emission.rateOverTime = 0f;
+            speedParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            speedParticles.Clear(true);
+            speedParticles.Play(true);
+        }
+        snowController?.SetRideSpeedStrength(0f);
+
+        bool resumeFromPause = ridePaused;
+        if (resumeFromPause)
+            SetRidePaused(false);
+        Debug.Log($"[Mush] 코스 복귀: 진행도 {restoredRouteProgress * 100f:0.0}%", this);
+    }
+
+    private void SnapRideVisualsToRecoverySurface(Vector3 surfaceNormal)
+    {
+        if (rideSeatAnchor != null)
+        {
+            Vector3 slopeForward = Vector3.ProjectOnPlane(rideTeam.forward, surfaceNormal).normalized;
+            rideSeatAnchor.localRotation = slopeForward.sqrMagnitude > 0.0001f
+                ? Quaternion.Inverse(rideTeam.rotation) * Quaternion.LookRotation(slopeForward, surfaceNormal)
+                : Quaternion.identity;
+        }
+        if (sledHolder != null)
+            sledHolder.localRotation = Quaternion.identity;
+
+        foreach (DogRuntime dog in dogs)
+        {
+            if (dog?.holder != null)
+                UpdateDogSurfacePose(dog, 1f);
+        }
     }
 
     private bool UpdateCourseCompletion(bool running)
@@ -1657,17 +1912,26 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (resultVisible)
             return; // 결과는 데스크톱과 VR이 같은 3D 패널을 사용하므로 기존 키보드 도움말을 뒤에 겹쳐 그리지 않는다.
 
+        // Quest uses the small world-space hint beside the sled timer and its
+        // own 3D pause panel. IMGUI is desktop-only so keyboard text and the
+        // desktop pause box never appear in the headset or XR mirror view.
+        if (IsVrRideActive())
+            return;
+
         lobbyButtonStyle ??= CreateLobbyButtonStyle();
 
         if (ridePaused)
         {
-            GUI.Box(new Rect(Screen.width * 0.5f - 220f, Screen.height * 0.5f - 115f, 440f, 230f), "일시정지");
-            if (GUI.Button(new Rect(Screen.width * 0.5f - 180f, Screen.height * 0.5f - 40f, 170f, 62f),
+            GUI.Box(new Rect(Screen.width * 0.5f - 220f, Screen.height * 0.5f - 150f, 440f, 300f), "일시정지");
+            if (GUI.Button(new Rect(Screen.width * 0.5f - 180f, Screen.height * 0.5f - 55f, 170f, 62f),
                     "계속하기", lobbyButtonStyle))
                 SetRidePaused(false);
-            if (GUI.Button(new Rect(Screen.width * 0.5f + 10f, Screen.height * 0.5f - 40f, 170f, 62f),
+            if (GUI.Button(new Rect(Screen.width * 0.5f + 10f, Screen.height * 0.5f - 55f, 170f, 62f),
                     "로비로", lobbyButtonStyle))
                 ReturnToLobby();
+            if (GUI.Button(new Rect(Screen.width * 0.5f - 180f, Screen.height * 0.5f + 30f, 360f, 62f),
+                    "코스 복귀", lobbyButtonStyle))
+                RecoverToCourse();
             return;
         }
 
@@ -1685,9 +1949,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         string state = rideController.RideStarted
             ? $"RUNNING  SPEED {rideController.SpeedLevel}/2  {rideController.CurrentSpeed:0.0} m/s"
             : "DOGS WAITING - PRESS SPACE TO GRAB THE REINS";
-        GUI.Box(new Rect(18f, 78f, 525f, 112f),
+        GUI.Box(new Rect(18f, 78f, 525f, 138f),
             state + $"\nDOG EFFECT: {rideController.ActiveDogEffectLabel}" +
-            "\nA/D: STEER    HOLD W: SPEED 2    Q: BUFF    E: PENALTY", helpStyle);
+            "\nA/D: STEER    HOLD W: SPEED 2    Q: BUFF    E: PENALTY" +
+            "\nR: RETURN TO COURSE", helpStyle);
     }
 
     private static GUIStyle CreateLobbyButtonStyle()
