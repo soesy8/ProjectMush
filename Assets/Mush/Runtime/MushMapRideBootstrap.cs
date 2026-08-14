@@ -1083,7 +1083,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         GameObject particleObject = new("Mush Speed Snow");
         particleObject.transform.SetParent(rideCamera.transform, false);
-        particleObject.transform.localPosition = new Vector3(0f, 0f, 7f);
+        const float effectDistance = 9f;
+        particleObject.transform.localPosition = new Vector3(0f, 0f, effectDistance);
 
         speedParticles = particleObject.AddComponent<ParticleSystem>();
         ParticleSystem.MainModule main = speedParticles.main;
@@ -1101,8 +1102,14 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         ParticleSystem.EmissionModule emission = speedParticles.emission;
         emission.rateOverTime = 0f;
         ParticleSystem.ShapeModule shape = speedParticles.shape;
-        shape.shapeType = ParticleSystemShapeType.Box;
-        shape.scale = new Vector3(8f, 4.5f, 1.2f);
+        shape.shapeType = ParticleSystemShapeType.BoxShell;
+        float effectFov = Mathf.Max(normalFieldOfView, boostFieldOfView);
+        float effectHalfHeight = Mathf.Tan(effectFov * 0.5f * Mathf.Deg2Rad) * effectDistance;
+        float effectAspect = Mathf.Clamp(rideCamera.aspect, 1.45f, 1.90f);
+        shape.scale = new Vector3(
+            effectHalfHeight * effectAspect * 2.10f,
+            effectHalfHeight * 2.10f,
+            4.5f); // 카메라 시야보다 조금 큰 직사각형 박스 표면에서 방출해 화면 가장자리까지 속도선이 퍼지게 한다.
         ParticleSystem.VelocityOverLifetimeModule velocity = speedParticles.velocityOverLifetime;
         velocity.enabled = true;
         velocity.space = ParticleSystemSimulationSpace.Local;
