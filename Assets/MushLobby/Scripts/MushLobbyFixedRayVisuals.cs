@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR;
+using UnityEngine.XR.Interaction.Toolkit.Inputs.Readers;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 namespace Mush.Lobby
 {
@@ -70,6 +72,8 @@ namespace Mush.Lobby
             rayOrigins.Clear(); // 이전 XR 리그에서 찾은 조준 Transform 참조를 모두 비운다.
             fixedLines.Clear(); // 이전에 저장했던 LineRenderer 참조도 같이 비운다.
 
+            ConfigureTriggerSelection(); // 상점/하우징과 마찬가지로 로비 광선 선택도 검지 트리거 하나로 통일한다.
+
             foreach (Transform child in GetComponentsInChildren<Transform>(true))
             {
                 if (!IsNearFarInteractor(child.name))
@@ -82,6 +86,29 @@ namespace Mush.Lobby
 
                 rayOrigins.Add(child); // LateUpdate에서 사용할 실제 조준 Transform을 저장한다.
                 fixedLines.Add(fixedLine); // 같은 인덱스에 대응하는 LineRenderer를 저장한다.
+            }
+        }
+
+        private void ConfigureTriggerSelection()
+        {
+            foreach (NearFarInteractor interactor in GetComponentsInChildren<NearFarInteractor>(true))
+            {
+                XRInputButtonReader trigger = interactor.activateInput; // XRI 기본 Activate는 Quest 검지 트리거에 연결되어 있다.
+                if (trigger == null)
+                    continue;
+
+                XRInputButtonReader triggerSelect = new("Lobby Trigger Select")
+                {
+                    inputSourceMode = trigger.inputSourceMode,
+                    inputActionPerformed = trigger.inputActionPerformed,
+                    inputActionValue = trigger.inputActionValue,
+                    inputActionReferencePerformed = trigger.inputActionReferencePerformed,
+                    inputActionReferenceValue = trigger.inputActionReferenceValue
+                };
+                if (trigger.inputSourceMode == XRInputButtonReader.InputSourceMode.ObjectReference)
+                    triggerSelect.SetObjectReference(trigger.GetObjectReference());
+
+                interactor.selectInput = triggerSelect; // 기존 Grip Select를 트리거 입력으로 교체해 모든 로비 선택을 동일하게 만든다.
             }
         }
 

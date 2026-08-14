@@ -966,8 +966,12 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (sharpMeteorShower == null)
             return;
 
-        float descentEndProgress = 620f / CourseLength;
-        if (progress >= descentEndProgress)
+        // The descent ends at 620 m, but stopping there made the shower appear
+        // for only a moment once the sled reached the following flat. Keep it
+        // overhead through that section and cross-fade it into the aurora.
+        const float meteorFadeStartProgress = 0.76f;
+        const float meteorEndProgress = 0.86f;
+        if (progress >= meteorEndProgress)
         {
             if (sharpMeteorShower.isPlaying || sharpMeteorShower.particleCount > 0)
                 sharpMeteorShower.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
@@ -978,7 +982,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         float fadeOut = 1f - Mathf.SmoothStep(
             0f,
             1f,
-            Mathf.InverseLerp(0.60f, descentEndProgress, progress));
+            Mathf.InverseLerp(meteorFadeStartProgress, meteorEndProgress, progress));
         float strength = fadeIn * fadeOut;
         if (sharpCamera != null)
         {
