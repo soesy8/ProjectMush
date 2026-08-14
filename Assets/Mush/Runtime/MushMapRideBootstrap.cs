@@ -670,7 +670,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         CreatePrimitive("Pause Back", PrimitiveType.Cube, questPauseMenu.transform,
             Vector3.zero, new Vector3(2.55f, 1.42f, 0.06f), panelMaterial);
-        CreatePauseText("일시정지", questPauseMenu.transform, new Vector3(0f, 0.43f, -0.07f), 0.13f);
+        CreatePauseText("일시정지", questPauseMenu.transform, new Vector3(0f, 0.43f, -0.07f),
+            0.10f, 2.05f, 0.26f);
         CreatePauseButton("계속하기", questPauseMenu.transform, new Vector3(-0.62f, -0.20f, -0.08f),
             buttonMaterial, () => SetRidePaused(false));
         CreatePauseButton("로비로", questPauseMenu.transform, new Vector3(0.62f, -0.20f, -0.08f),
@@ -692,25 +693,35 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         Renderer renderer = button.GetComponent<Renderer>();
         MushQuestRayAction rayAction = button.AddComponent<MushQuestRayAction>();
         rayAction.Configure(action, renderer, Color.Lerp(renderer.material.color, Color.white, 0.24f));
-        CreatePauseText(label, parent, localPosition + new Vector3(0f, 0f, -0.07f), 0.085f);
+        CreatePauseText(label, parent, localPosition + new Vector3(0f, 0f, -0.07f),
+            0.060f, 0.78f, 0.18f);
     }
 
-    private void CreatePauseText(string text, Transform parent, Vector3 localPosition, float characterSize)
+    private void CreatePauseText(
+        string text,
+        Transform parent,
+        Vector3 localPosition,
+        float characterSize,
+        float maxWidth,
+        float maxHeight)
     {
-        GameObject textObject = new(text + " 글자");
-        textObject.transform.SetParent(parent, false);
-        textObject.transform.localPosition = localPosition;
-        textObject.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-        TextMesh textMesh = textObject.AddComponent<TextMesh>();
-        textMesh.text = text;
-        textMesh.anchor = TextAnchor.MiddleCenter;
-        textMesh.alignment = TextAlignment.Center;
-        textMesh.characterSize = characterSize;
-        textMesh.fontSize = 54;
-        textMesh.color = Color.white;
-        MushCustomizationCatalog catalog = MushCustomizationCatalog.Load();
-        if (catalog != null && catalog.koreanFont != null)
-            textMesh.font = catalog.koreanFont;
+        // Use the same path as the result panel so assigning the Korean font
+        // also assigns its atlas material. A Font with the default Arial
+        // material produced broken or completely missing glyphs in Quest.
+        TextMesh textMesh = CreateWorldText(text, parent, localPosition, characterSize, Color.white);
+        textMesh.transform.localRotation = Quaternion.identity; // 패널 루트가 이미 카메라 방향이므로 추가 180도 회전을 하면 글자가 뒤집힌다.
+        if (textMesh.TryGetComponent(out MeshRenderer renderer))
+        {
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sortingOrder = 20;
+
+            Bounds textBounds = renderer.localBounds;
+            float widthScale = textBounds.size.x > 0.0001f ? maxWidth / textBounds.size.x : 1f;
+            float heightScale = textBounds.size.y > 0.0001f ? maxHeight / textBounds.size.y : 1f;
+            float fitScale = Mathf.Min(1f, widthScale, heightScale);
+            textMesh.transform.localScale = Vector3.one * fitScale; // 지정한 제목/버튼 칸보다 큰 글자는 비율을 유지한 채 자동 축소한다.
+        }
     }
 
     private void BuildMissionTimerDisplay()
