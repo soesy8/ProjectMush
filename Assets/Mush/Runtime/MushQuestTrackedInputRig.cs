@@ -34,6 +34,8 @@ namespace Mush.Quest
         private bool rayEnabled;
         private bool previousLeftTrigger;
         private bool previousRightTrigger;
+        private bool previousLeftPrimary;
+        private bool previousLeftSecondary;
         private bool previousRightSecondary;
         private LineRenderer leftRay;
         private LineRenderer rightRay;
@@ -53,6 +55,8 @@ namespace Mush.Quest
         public bool RightTriggerHeld { get; private set; }
         public bool LeftTriggerPressedThisFrame { get; private set; }
         public bool RightTriggerPressedThisFrame { get; private set; }
+        public bool XButtonPressedThisFrame { get; private set; }
+        public bool YButtonPressedThisFrame { get; private set; }
         public bool BButtonPressedThisFrame { get; private set; }
 
         public void Configure(
@@ -143,6 +147,8 @@ namespace Mush.Quest
         {
             LeftTriggerPressedThisFrame = false;
             RightTriggerPressedThisFrame = false;
+            XButtonPressedThisFrame = false;
+            YButtonPressedThisFrame = false;
             BButtonPressedThisFrame = false;
 
             if (!XRSettings.isDeviceActive)
@@ -186,13 +192,19 @@ namespace Mush.Quest
             RightGripHeld = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.gripButton);
             LeftTriggerHeld = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.triggerButton);
             RightTriggerHeld = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.triggerButton);
+            bool leftPrimary = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.primaryButton);
+            bool leftSecondary = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.secondaryButton);
             bool rightSecondary = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.secondaryButton);
 
             LeftTriggerPressedThisFrame = LeftTriggerHeld && !previousLeftTrigger;
             RightTriggerPressedThisFrame = RightTriggerHeld && !previousRightTrigger;
+            XButtonPressedThisFrame = leftPrimary && !previousLeftPrimary;
+            YButtonPressedThisFrame = leftSecondary && !previousLeftSecondary;
             BButtonPressedThisFrame = rightSecondary && !previousRightSecondary;
             previousLeftTrigger = LeftTriggerHeld;
             previousRightTrigger = RightTriggerHeld;
+            previousLeftPrimary = leftPrimary;
+            previousLeftSecondary = leftSecondary;
             previousRightSecondary = rightSecondary;
         }
 

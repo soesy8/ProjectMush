@@ -5,6 +5,13 @@ using UnityEngine.XR;
 
 namespace Mush.Prototype
 {
+    public enum MushDogRideEffect
+    {
+        None = 0,
+        Buff = 1,
+        Penalty = 2,
+    }
+
     /// <summary>
     /// Keyboard-only prototype controls. Public commands are kept separate so
     /// Quest controller Input Actions can call the same methods later.
@@ -38,6 +45,11 @@ namespace Mush.Prototype
         [SerializeField, Min(0.1f)] private float steeringReleaseRate = 4.5f;
         [SerializeField, Range(0f, 0.5f)] private float maximumHandPull = 0.24f;
 
+        [Header("Temporary Dog Buff / Penalty")]
+        [SerializeField, Min(0f)] private float dogEffectSpeedChange = 5f;
+        [SerializeField, Min(1f)] private float buffSteeringResponseMultiplier = 1.2f;
+        [SerializeField, Range(0.1f, 1f)] private float penaltyAccelerationMultiplier = 0.8f;
+
         [Header("Ground Following")]
         [SerializeField, Min(0.1f)] private float groundProbeHeight = 2.5f;
         [SerializeField, Min(0.1f)] private float groundProbeDistance = 6f;
@@ -61,6 +73,9 @@ namespace Mush.Prototype
         private Vector3 rightMouseTarget;
         private bool mouseTargetsInitialized;
         private bool terrainSpeedLimited;
+        private float courseSpeedMultiplier = 1f;
+        private MushCurvedMapRuntime courseSurface;
+        private MushDogRideEffect activeDogEffect;
         private bool externalSteeringActive;
         private float externalSteeringInput;
 
@@ -72,6 +87,14 @@ namespace Mush.Prototype
         public float FirstLevelSpeed => firstLevelSpeed;
         public float SecondLevelSpeed => secondLevelSpeed;
         public bool TerrainSpeedLimited => terrainSpeedLimited;
+        public float CourseSpeedMultiplier => courseSpeedMultiplier;
+        public MushDogRideEffect ActiveDogEffect => activeDogEffect;
+        public string ActiveDogEffectLabel => activeDogEffect switch
+        {
+            MushDogRideEffect.Buff => "BUFF",
+            MushDogRideEffect.Penalty => "PENALTY",
+            _ => "NONE",
+        };
 
         public void Configure(
             MushReinsVisual newReinsVisual,
@@ -116,6 +139,11 @@ namespace Mush.Prototype
                 return;
             }
 
+            if (keyboard != null && keyboard.qKey.wasPressedThisFrame)
+                ToggleDogBuff();
+            if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
+                ToggleDogPenalty();
+
             SetSpeedLevel((keyboard != null && keyboard.wKey.isPressed) || commandBoostHeld);
 
             float steeringInput = externalSteeringActive ? externalSteeringInput : 0f;
@@ -130,6 +158,8 @@ namespace Mush.Prototype
             float steeringRate = Mathf.Approximately(steeringInput, 0f)
                 ? steeringReleaseRate
                 : steeringBuildRate;
+            if (activeDogEffect == MushDogRideEffect.Buff)
+                steeringRate *= buffSteeringResponseMultiplier;
             currentSteering = Mathf.MoveTowards(currentSteering, steeringInput, steeringRate * Time.deltaTime);
 
             float leftPull = Mathf.Clamp01(-currentSteering);
@@ -137,8 +167,11 @@ namespace Mush.Prototype
             UpdateSteeringVisuals(leftPull, rightPull);
 
             float targetSpeed = GetSpeedForLevel(speedLevel);
+            float effectiveAcceleration = activeDogEffect == MushDogRideEffect.Penalty
+                ? acceleration * penaltyAccelerationMultiplier
+                : acceleration;
             float speedChangeRate = targetSpeed >= currentSpeed
-                ? acceleration
+                ? effectiveAcceleration
                 : terrainSpeedLimited ? Mathf.Max(deceleration, terrainLimitDeceleration) : deceleration;
             currentSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, speedChangeRate * Time.deltaTime);
 
@@ -191,19 +224,93 @@ namespace Mush.Prototype
             terrainSpeedLimited = limited;
         }
 
+        public void SetCourseSpeedMultiplier(float multiplier)
+        {
+            float nextMultiplier = Mathf.Clamp(multiplier, 0.25f, 3f);
+            if (Mathf.Approximately(nextMultiplier, courseSpeedMultiplier))
+                return;
+
+            float previousMultiplier = courseSpeedMultiplier;
+            courseSpeedMultiplier = nextMultiplier;
+            if (!rideStarted)
+                return;
+
+            if (nextMultiplier > previousMultiplier && previousMultiplier > 0.0001f)
+            {
+                // The downhill modifier describes actual travel speed, not
+                // only a target that is reached several seconds later.
+                currentSpeed = Mathf.Min(
+                    currentSpeed * (nextMultiplier / previousMultiplier),
+                    GetSpeedForLevel(speedLevel));
+            }
+            else
+            {
+                currentSpeed = Mathf.Min(currentSpeed, GetSpeedForLevel(speedLevel));
+            }
+        }
+
+        public void SetCourseSurface(MushCurvedMapRuntime surface)
+        {
+            courseSurface = surface;
+        }
+
+        public void ToggleDogBuff()
+        {
+            if (!rideStarted)
+                return;
+            SetDogRideEffect(activeDogEffect == MushDogRideEffect.Buff
+                ? MushDogRideEffect.None
+                : MushDogRideEffect.Buff);
+        }
+
+        public void ToggleDogPenalty()
+        {
+            if (!rideStarted)
+                return;
+            SetDogRideEffect(activeDogEffect == MushDogRideEffect.Penalty
+                ? MushDogRideEffect.None
+                : MushDogRideEffect.Penalty);
+        }
+
+        private void SetDogRideEffect(MushDogRideEffect effect)
+        {
+            if (activeDogEffect == effect)
+                return;
+
+            activeDogEffect = effect;
+            currentSpeed = Mathf.Min(currentSpeed, GetSpeedForLevel(speedLevel));
+            string detail = effect switch
+            {
+                MushDogRideEffect.Buff => "최고속도 +5, 조향 반응성 +20%",
+                MushDogRideEffect.Penalty => "최고속도 -5, 가속력 -20%",
+                _ => "효과 해제",
+            };
+            Debug.Log($"[Mush] Dog ride effect: {ActiveDogEffectLabel} ({detail})", this);
+        }
+
         private float GetSpeedForLevel(int level)
         {
             if (level <= 0)
                 return 0f;
 
+            float levelSpeed;
             if (terrainSpeedLimited)
             {
-                return level >= 2
+                levelSpeed = level >= 2
                     ? terrainLimitedSecondLevelSpeed
                     : terrainLimitedFirstLevelSpeed;
             }
+            else
+            {
+                levelSpeed = level >= 2 ? secondLevelSpeed : firstLevelSpeed;
+            }
 
-            return level >= 2 ? secondLevelSpeed : firstLevelSpeed;
+            float adjustedSpeed = levelSpeed * courseSpeedMultiplier;
+            if (activeDogEffect == MushDogRideEffect.Buff)
+                adjustedSpeed += dogEffectSpeedChange;
+            else if (activeDogEffect == MushDogRideEffect.Penalty)
+                adjustedSpeed -= dogEffectSpeedChange;
+            return Mathf.Max(0.1f, adjustedSpeed);
         }
 
         private void SetSpeedLevel(bool boostHeld)
@@ -221,6 +328,22 @@ namespace Mush.Prototype
             Vector3 nextPosition = transform.position + transform.forward * distance;
             float currentHeight = transform.position.y;
 
+            // Procedural maps can provide their exact surface.  This keeps the
+            // kinematic ride root attached even when a 1.5x descent moves more
+            // vertically in one second than the old ray follower could recover.
+            if (courseSurface != null && courseSurface.TryGetCourseSurface(
+                    nextPosition,
+                    out Vector3 sampledSurface,
+                    out _,
+                    out _,
+                    out _))
+            {
+                nextPosition.y = sampledSurface.y + rideHeight;
+                KeepRootUpright();
+                transform.position = nextPosition;
+                return;
+            }
+
             // Probe only in world-down direction. Using transform.up here allowed
             // steep banks and terrain undersides to turn the probe sideways,
             // after which the complete team could drive below the map.
@@ -228,7 +351,11 @@ namespace Mush.Prototype
                 nextPosition.x,
                 currentHeight + Mathf.Max(groundProbeHeight, 8f),
                 nextPosition.z);
-            float rayDistance = Mathf.Max(groundProbeHeight + groundProbeDistance, 24f);
+            // The hard map drops by more than one hundred metres.  A long
+            // recovery probe lets the sled reacquire the visible road even if
+            // a frame hitch or a previous shallow probe left it above the
+            // descent instead of permanently flying at the crest height.
+            float rayDistance = Mathf.Max(groundProbeHeight + groundProbeDistance, 160f);
             RaycastHit[] hits = Physics.RaycastAll(
                 rayOrigin,
                 Vector3.down,
@@ -261,22 +388,28 @@ namespace Mush.Prototype
             if (foundGround)
             {
                 float targetHeight = bestHit.point.y + rideHeight;
-                // When already below the road, recover above it immediately.
-                // Normal downward movement remains smoothed over small crests.
-                nextPosition.y = targetHeight > currentHeight + 0.3f
-                    ? targetHeight
-                    : Mathf.MoveTowards(currentHeight, targetHeight, 7f * Time.deltaTime);
+                // This controller is kinematic, so keeping a fixed 7 m/s
+                // vertical correction made the 1.5x downhill section outrun
+                // its ground follower.  The generated road is continuous;
+                // matching its sampled height directly prevents both flying
+                // above a descent and clipping through a steep rise.
+                nextPosition.y = targetHeight;
             }
             else
             {
                 nextPosition.y = currentHeight;
             }
 
+            KeepRootUpright();
+
+            transform.position = nextPosition;
+        }
+
+        private void KeepRootUpright()
+        {
             Vector3 uprightForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
             if (uprightForward.sqrMagnitude > 0.0001f)
                 transform.rotation = Quaternion.LookRotation(uprightForward.normalized, Vector3.up);
-
-            transform.position = nextPosition;
         }
 
         private void UpdateSteeringVisuals(float leftPull01, float rightPull01)

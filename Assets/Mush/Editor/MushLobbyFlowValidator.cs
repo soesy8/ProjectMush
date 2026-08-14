@@ -127,13 +127,17 @@ public static class MushLobbyFlowValidator
             return;
 
         FieldInfo controllerField = typeof(MushMapRideBootstrap).GetField("rideController", BindingFlags.Instance | BindingFlags.NonPublic);
-        FieldInfo travelledField = typeof(MushMapRideBootstrap).GetField("travelledCourseDistance", BindingFlags.Instance | BindingFlags.NonPublic);
-        FieldInfo lengthField = typeof(MushMapRideBootstrap).GetField("courseLengthMeters", BindingFlags.Instance | BindingFlags.NonPublic);
+        FieldInfo finishField = typeof(MushMapRideBootstrap).GetField("finishMarker", BindingFlags.Instance | BindingFlags.NonPublic);
+        FieldInfo lastPositionField = typeof(MushMapRideBootstrap).GetField("lastRidePosition", BindingFlags.Instance | BindingFlags.NonPublic);
         MushSledKeyboardController rideController = controllerField?.GetValue(bootstrap) as MushSledKeyboardController;
-        if (rideController == null || travelledField == null || lengthField == null)
+        Transform finish = finishField?.GetValue(bootstrap) as Transform;
+        Transform rideTeam = GameObject.Find("Mush Ride Team")?.transform;
+        if (rideController == null || finish == null || rideTeam == null || lastPositionField == null)
             throw new InvalidOperationException("Snow ride completion fields/controller are unavailable.");
 
-        travelledField.SetValue(bootstrap, (float)lengthField.GetValue(bootstrap));
+        Vector3 finishForward = Vector3.ProjectOnPlane(finish.forward, Vector3.up).normalized;
+        lastPositionField.SetValue(bootstrap, finish.position - finishForward * 0.25f);
+        rideTeam.position = finish.position + finishForward * 0.25f;
         rideController.StartRide();
         SetStage(3);
     }
@@ -180,6 +184,7 @@ public static class MushLobbyFlowValidator
 
         bool snowButton = false;
         bool treeButton = false;
+        bool sharpCurveButton = false;
         FieldInfo actionField = typeof(MushLobbyInteractable).GetField("action", BindingFlags.Instance | BindingFlags.NonPublic);
         if (actionField == null)
             throw new InvalidOperationException("Could not inspect lobby map actions.");
@@ -190,9 +195,10 @@ public static class MushLobbyFlowValidator
             MushLobbyAction action = (MushLobbyAction)actionField.GetValue(interactable);
             snowButton |= action == MushLobbyAction.SelectSnowfield;
             treeButton |= action == MushLobbyAction.SelectForest;
+            sharpCurveButton |= action == MushLobbyAction.SelectSharpCurve;
         }
-        if (!snowButton || !treeButton)
-            throw new InvalidOperationException("The Korean map board is missing a snow or Tree scene button.");
+        if (!snowButton || !treeButton || !sharpCurveButton)
+            throw new InvalidOperationException("The Korean map board is missing a snow, Tree, or SharpCurve scene button.");
 
         foreach (TextMesh text in Resources.FindObjectsOfTypeAll<TextMesh>())
         {

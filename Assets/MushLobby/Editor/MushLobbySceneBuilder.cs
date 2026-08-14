@@ -341,7 +341,8 @@ namespace Mush.Lobby.Editor
                     new[]
                     {
                         new PanelButtonSpec("기본 설원", MushLobbyAction.SelectSnowfield),
-                        new PanelButtonSpec("나무 숲", MushLobbyAction.SelectForest)
+                        new PanelButtonSpec("나무 숲", MushLobbyAction.SelectForest),
+                        new PanelButtonSpec("급커브맵", MushLobbyAction.SelectSharpCurve)
                     }, out TextMesh mapStatus);
 
                 GameObject shopPanel = CreatePanel(

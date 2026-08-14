@@ -11,6 +11,7 @@ namespace Mush.Lobby
         OpenHousing = 2,
         SelectSnowfield = 4,
         SelectForest = 5,
+        SelectSharpCurve = 8,
         BuyScarf = 6,
         BuyForest = 7,
         HousingSlotA = 10,
@@ -39,6 +40,11 @@ namespace Mush.Lobby
             controller = newController;
             action = newAction;
             highlightRenderer = newHighlightRenderer;
+            if (highlightRenderer != null && highlightRenderer.material != null)
+            {
+                restingColor = highlightRenderer.material.color;
+                hasColor = true;
+            }
         }
 
         private void Awake()

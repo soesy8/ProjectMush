@@ -22,16 +22,32 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     private readonly List<Material> runtimeMaterials = new();
     private bool built;
     private bool isSnowfield;
+    private bool isSharpCurve;
     private Transform rebuiltRoot;
     private Mesh pineMesh;
     private Mesh mountainMesh;
     private Renderer roadRenderer;
     private Renderer terrainRenderer;
+    private Transform sharpProgressTarget;
+    private float sharpProgress;
+    private Light sharpSun;
+    private Camera sharpCamera;
+    private Material sharpSky;
+    private Renderer sharpStars;
+    private ParticleSystem sharpMeteorShower;
+    private Transform sharpAuroraRoot;
+    private Renderer sharpAuroraSkyRenderer;
+    private MaterialPropertyBlock sharpEffectBlock;
 
     public Vector3 StartForward { get; private set; } = Vector3.back;
     public Transform AmbientSnowTransform { get; private set; }
     public float LengthMeters => CourseLength;
     public float RoadHalfWidthMeters => RoadHalfWidth;
+    public bool IsSharpCurveMap => isSharpCurve;
+    public float CurrentProgress01 => sharpProgress;
+    public bool SharpDownhillSpeedBoostActive => isSharpCurve && sharpProgress >= 0.35f && sharpProgress <= 0.66f;
+
+    private float ActiveTerrainHalfWidth => isSharpCurve ? 42f : TerrainHalfWidth;
 
     private readonly struct CurveEvent
     {
@@ -66,8 +82,11 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (built)
             return;
 
-        isSnowfield = GetComponent<MushSnowfieldBlizzardController>() != null ||
-                      name.Contains("Snow", StringComparison.OrdinalIgnoreCase);
+        isSharpCurve = name.Contains("SharpCurve", StringComparison.OrdinalIgnoreCase) ||
+                       gameObject.scene.name.Equals("SharpCurve", StringComparison.OrdinalIgnoreCase);
+        isSnowfield = !isSharpCurve &&
+                      (GetComponent<MushSnowfieldBlizzardController>() != null ||
+                       name.Contains("Snow", StringComparison.OrdinalIgnoreCase));
         DisableImportedPresentation();
 
         GameObject rootObject = new(RebuiltRootName);
@@ -86,7 +105,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         Bounds roadBounds = roadRenderer != null ? roadRenderer.bounds : default;
         Bounds terrainBounds = terrainRenderer != null ? terrainRenderer.bounds : default;
         Debug.Log(
-            $"[Mush Map Rebuild] Scene={gameObject.scene.path}, Type={(isSnowfield ? "SNOW" : "TREE")}, " +
+            $"[Mush Map Rebuild] Scene={gameObject.scene.path}, Type={(isSharpCurve ? "SHARP CURVE" : isSnowfield ? "SNOW" : "TREE")}, " +
             $"Length={CourseLength:0}m, Samples={routePoints.Count}, Curves={curveEvents.Count}, " +
             $"RoadBounds={roadBounds.size}, TerrainBounds={terrainBounds.size}, " +
             $"Renderers={rebuiltRoot.GetComponentsInChildren<Renderer>(true).Length}",
@@ -129,6 +148,114 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Samples the same mathematical surface used to build the visible road
+    /// and surrounding terrain.  Ride code uses this instead of trying to
+    /// rediscover a steep procedural course with a single physics ray.
+    /// </summary>
+    public bool TryGetCourseSurface(
+        Vector3 worldPosition,
+        out Vector3 surfacePoint,
+        out Vector3 surfaceNormal,
+        out Vector3 surfaceForward,
+        out float signedLateralDistance)
+    {
+        if (!built)
+            BuildWorld();
+
+        surfacePoint = worldPosition;
+        surfaceNormal = Vector3.up;
+        surfaceForward = transform.forward;
+        signedLateralDistance = 0f;
+        if (routePoints.Count < 2)
+            return false;
+
+        Vector3 localPosition = transform.InverseTransformPoint(worldPosition);
+        Vector2 point = new(localPosition.x, localPosition.z);
+        float nearestSqrDistance = float.PositiveInfinity;
+        int nearestSegment = 0;
+        float nearestT = 0f;
+
+        for (int index = 0; index < routePoints.Count - 1; index++)
+        {
+            Vector2 start = new(routePoints[index].x, routePoints[index].z);
+            Vector2 end = new(routePoints[index + 1].x, routePoints[index + 1].z);
+            Vector2 segment = end - start;
+            float segmentLengthSqr = segment.sqrMagnitude;
+            float t = segmentLengthSqr > 0.0001f
+                ? Mathf.Clamp01(Vector2.Dot(point - start, segment) / segmentLengthSqr)
+                : 0f;
+            float sqrDistance = (point - (start + segment * t)).sqrMagnitude;
+            if (sqrDistance >= nearestSqrDistance)
+                continue;
+
+            nearestSqrDistance = sqrDistance;
+            nearestSegment = index;
+            nearestT = t;
+        }
+
+        Vector3 startPoint = routePoints[nearestSegment];
+        Vector3 endPoint = routePoints[nearestSegment + 1];
+        Vector3 routeCenter = Vector3.Lerp(startPoint, endPoint, nearestT);
+        Vector3 flatForward = Vector3.ProjectOnPlane(endPoint - startPoint, Vector3.up).normalized;
+        if (flatForward.sqrMagnitude < 0.0001f)
+            flatForward = Vector3.back;
+        Vector3 localRight = Vector3.Cross(Vector3.up, flatForward).normalized;
+        signedLateralDistance = Vector3.Dot(localPosition - routeCenter, localRight);
+        if (Mathf.Abs(signedLateralDistance) > ActiveTerrainHalfWidth)
+            return false;
+
+        float routeDistance = (nearestSegment + nearestT) * SampleSpacing;
+        bool onRoad = Mathf.Abs(signedLateralDistance) <= RoadHalfWidth + 0.25f;
+        float surfaceHeight = onRoad
+            ? routeCenter.y + 0.10f
+            : TerrainHeight(routeDistance, signedLateralDistance, routeCenter.y);
+
+        Vector3 localForward;
+        Vector3 localSurfaceRight;
+        if (onRoad)
+        {
+            localForward = (endPoint - startPoint).normalized;
+            localSurfaceRight = localRight;
+        }
+        else
+        {
+            const float derivativeStep = 1f;
+            float beforeDistance = Mathf.Max(0f, routeDistance - derivativeStep);
+            float afterDistance = Mathf.Min(CourseLength, routeDistance + derivativeStep);
+            float beforeHeight = TerrainHeight(
+                beforeDistance,
+                signedLateralDistance,
+                RouteHeight(beforeDistance));
+            float afterHeight = TerrainHeight(
+                afterDistance,
+                signedLateralDistance,
+                RouteHeight(afterDistance));
+            localForward = (flatForward * (afterDistance - beforeDistance) +
+                            Vector3.up * (afterHeight - beforeHeight)).normalized;
+
+            float leftHeight = TerrainHeight(
+                routeDistance,
+                signedLateralDistance - derivativeStep,
+                routeCenter.y);
+            float rightHeight = TerrainHeight(
+                routeDistance,
+                signedLateralDistance + derivativeStep,
+                routeCenter.y);
+            localSurfaceRight = (localRight * (derivativeStep * 2f) +
+                                 Vector3.up * (rightHeight - leftHeight)).normalized;
+        }
+
+        Vector3 localNormal = Vector3.Cross(localForward, localSurfaceRight).normalized;
+        if (localNormal.y < 0f)
+            localNormal = -localNormal;
+
+        surfacePoint = transform.TransformPoint(new Vector3(localPosition.x, surfaceHeight, localPosition.z));
+        surfaceNormal = transform.TransformDirection(localNormal).normalized;
+        surfaceForward = transform.TransformDirection(localForward).normalized;
+        return true;
+    }
+
     private void DisableImportedPresentation()
     {
         foreach (Transform child in transform.GetComponentsInChildren<Transform>(true))
@@ -154,6 +281,18 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private void BuildCurveSchedule()
     {
+        if (isSharpCurve)
+        {
+            // Positive curvature turns left from the initial -Z heading.  The
+            // sine-shaped events keep both ends tangent-continuous while still
+            // accumulating almost ninety degrees across each major bend.
+            curveEvents.Add(new CurveEvent(70f, 82f, -1.69f, false));  // left  ~88 degrees
+            curveEvents.Add(new CurveEvent(180f, 58f, 1.55f, false));  // right ~57 degrees
+            curveEvents.Add(new CurveEvent(246f, 58f, -1.62f, false)); // left  ~60 degrees
+            curveEvents.Add(new CurveEvent(720f, 78f, 1.79f, false));  // right ~89 degrees
+            return;
+        }
+
         System.Random random = new(isSnowfield ? 27183 : 91457);
         float cursor = 48f;
         int direction = random.NextDouble() < 0.5 ? -1 : 1;
@@ -185,7 +324,11 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             float distance = index * SampleSpacing;
             float curvatureDegreesPerMeter = EvaluateCurvature(distance);
             headingRadians += curvatureDegreesPerMeter * SampleSpacing * Mathf.Deg2Rad;
-            headingRadians = Mathf.Clamp(headingRadians, -52f * Mathf.Deg2Rad, 52f * Mathf.Deg2Rad);
+            float headingLimit = isSharpCurve ? 170f : 52f;
+            headingRadians = Mathf.Clamp(
+                headingRadians,
+                -headingLimit * Mathf.Deg2Rad,
+                headingLimit * Mathf.Deg2Rad);
 
             Vector3 forward = new(Mathf.Sin(headingRadians), 0f, -Mathf.Cos(headingRadians));
             position += forward * SampleSpacing;
@@ -213,8 +356,33 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return curvature;
     }
 
-    private static float RouteHeight(float distance)
+    private float RouteHeight(float distance)
     {
+        if (isSharpCurve)
+        {
+            const float plateauHeight = 78f;
+            const float crestHeight = 84f;
+            const float valleyHeight = -42f;
+            if (distance < 320f)
+                return plateauHeight + Mathf.Sin(distance * 0.018f) * 1.25f;
+            if (distance < 350f)
+            {
+                float crest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(320f, 350f, distance));
+                return Mathf.Lerp(plateauHeight, crestHeight, crest);
+            }
+            if (distance < 620f)
+            {
+                // SmoothStep reaches roughly a 35-degree maximum grade here:
+                // dramatic enough to read in VR without creating a vertical
+                // collider wall that the ground follower could miss.
+                float descent = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(350f, 620f, distance));
+                return Mathf.Lerp(crestHeight, valleyHeight, descent);
+            }
+
+            float settle = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(620f, 690f, distance));
+            return valleyHeight + Mathf.Sin(distance * 0.014f) * 0.22f * settle;
+        }
+
         float fadeIn = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 70f, distance));
         return fadeIn * (Mathf.Sin(distance * 0.0105f) * 1.7f + Mathf.Sin(distance * 0.027f) * 0.48f);
     }
@@ -299,7 +467,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             Vector3 right = RouteRight(row);
             for (int column = 0; column < columns; column++)
             {
-                float lateral = Mathf.Lerp(-TerrainHalfWidth, TerrainHalfWidth, column / (float)(columns - 1));
+                float lateral = Mathf.Lerp(-ActiveTerrainHalfWidth, ActiveTerrainHalfWidth, column / (float)(columns - 1));
                 float height = TerrainHeight(distance, lateral, routePoints[row].y);
                 int vertex = row * columns + column;
                 vertices[vertex] = routePoints[row] + right * lateral;
@@ -334,12 +502,14 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return mesh;
     }
 
-    private static float TerrainHeight(float distance, float lateral, float routeHeight)
+    private float TerrainHeight(float distance, float lateral, float routeHeight)
     {
         float outsideRoad = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(RoadHalfWidth + 1.5f, 42f, Mathf.Abs(lateral)));
         float rolling = Mathf.Sin(distance * 0.019f + lateral * 0.043f) * 1.4f +
                         Mathf.Sin(distance * 0.007f - lateral * 0.085f) * 0.75f;
-        float distantRise = Mathf.Pow(Mathf.InverseLerp(24f, TerrainHalfWidth, Mathf.Abs(lateral)), 1.35f) * 8.5f;
+        float distantRise = Mathf.Pow(
+            Mathf.InverseLerp(24f, ActiveTerrainHalfWidth, Mathf.Abs(lateral)),
+            1.35f) * (isSharpCurve ? 15f : 8.5f);
         return routeHeight - 0.18f + outsideRoad * (0.55f + rolling + distantRise);
     }
 
@@ -382,7 +552,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             {
                 float lateral = side * Mathf.Lerp(
                     RoadHalfWidth + 8f + layer * 11f,
-                    TerrainHalfWidth - 14f,
+                    ActiveTerrainHalfWidth - 8f,
                     (float)random.NextDouble());
                 float y = TerrainHeight(distance, lateral, routePoints[index].y);
                 Vector3 position = routePoints[index] + RouteRight(index) * lateral;
@@ -493,7 +663,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         Material sky = skyShader != null ? new Material(skyShader) { name = "Runtime Rebuilt Winter Sky" } : null;
         if (sky != null)
         {
-            SetColor(sky, "_SkyTint", isSnowfield ? new Color(0.52f, 0.72f, 0.93f) : new Color(0.56f, 0.74f, 0.92f));
+            SetColor(sky, "_SkyTint", isSharpCurve
+                ? new Color(0.50f, 0.68f, 0.90f)
+                : isSnowfield ? new Color(0.52f, 0.72f, 0.93f) : new Color(0.56f, 0.74f, 0.92f));
             SetColor(sky, "_GroundColor", new Color(0.46f, 0.54f, 0.62f));
             SetFloat(sky, "_AtmosphereThickness", 0.75f);
             SetFloat(sky, "_Exposure", 1.2f);
@@ -515,10 +687,21 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (sceneCamera != null)
         {
             sceneCamera.clearFlags = CameraClearFlags.Skybox;
-            sceneCamera.backgroundColor = isSnowfield ? new Color(0.52f, 0.72f, 0.93f) : new Color(0.56f, 0.74f, 0.92f);
+            sceneCamera.backgroundColor = isSharpCurve
+                ? new Color(0.50f, 0.68f, 0.90f)
+                : isSnowfield ? new Color(0.52f, 0.72f, 0.93f) : new Color(0.56f, 0.74f, 0.92f);
         }
 
-        if (isSnowfield)
+        if (isSharpCurve)
+        {
+            sharpSun = sun;
+            sharpCamera = sceneCamera;
+            sharpSky = sky;
+            sharpStars = stars;
+            BuildSharpCurveSkyEffects();
+            ApplySharpCurveEnvironment(0f);
+        }
+        else if (isSnowfield)
         {
             MushSnowfieldBlizzardController controller = GetComponent<MushSnowfieldBlizzardController>();
             controller?.ConfigureRuntimeWorld(sun, sceneCamera, sky, null, CourseLength);
@@ -576,6 +759,273 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             MushSnowfieldBlizzardController controller = GetComponent<MushSnowfieldBlizzardController>();
             controller?.SetSnowParticles(particles);
         }
+    }
+
+    public void SetProgressTarget(Transform target)
+    {
+        sharpProgressTarget = target;
+        sharpProgress = 0f;
+    }
+
+    public bool TryGetRouteProgress(Vector3 worldPosition, out float progress)
+    {
+        progress = 0f;
+        if (routePoints.Count < 2)
+            return false;
+
+        Vector3 local = transform.InverseTransformPoint(worldPosition);
+        Vector2 point = new(local.x, local.z);
+        float nearestSqrDistance = float.PositiveInfinity;
+        float nearestProgress = 0f;
+        for (int index = 0; index < routePoints.Count - 1; index++)
+        {
+            Vector2 start = new(routePoints[index].x, routePoints[index].z);
+            Vector2 end = new(routePoints[index + 1].x, routePoints[index + 1].z);
+            Vector2 segment = end - start;
+            float segmentLengthSqr = segment.sqrMagnitude;
+            float t = segmentLengthSqr > 0.0001f
+                ? Mathf.Clamp01(Vector2.Dot(point - start, segment) / segmentLengthSqr)
+                : 0f;
+            float sqrDistance = (point - (start + segment * t)).sqrMagnitude;
+            if (sqrDistance >= nearestSqrDistance)
+                continue;
+
+            nearestSqrDistance = sqrDistance;
+            nearestProgress = (index + t) / (routePoints.Count - 1f);
+        }
+
+        progress = Mathf.Clamp01(nearestProgress);
+        return true;
+    }
+
+    private void Update()
+    {
+        if (!built || !isSharpCurve)
+            return;
+
+        if (sharpProgressTarget != null && TryGetRouteProgress(sharpProgressTarget.position, out float routeProgress))
+            sharpProgress = Mathf.Max(sharpProgress, routeProgress);
+        ApplySharpCurveEnvironment(sharpProgress);
+    }
+
+    private void BuildSharpCurveSkyEffects()
+    {
+        GameObject meteorObject = new("FX_SharpCurve_MeteorShower");
+        meteorObject.transform.SetParent(rebuiltRoot, false);
+        sharpMeteorShower = meteorObject.AddComponent<ParticleSystem>();
+        ParticleSystem.MainModule meteorMain = sharpMeteorShower.main;
+        meteorMain.loop = true;
+        meteorMain.playOnAwake = false;
+        meteorMain.maxParticles = 96;
+        // Keep every streak in the sky.  The old 1.15 second maximum combined
+        // with -24 m/s vertical velocity let low box spawns travel below the
+        // camera and visually spear the flat ground after the descent.
+        meteorMain.startLifetime = new ParticleSystem.MinMaxCurve(0.50f, 0.78f);
+        meteorMain.startSpeed = 0f;
+        meteorMain.startSize = new ParticleSystem.MinMaxCurve(0.045f, 0.095f);
+        meteorMain.startColor = new ParticleSystem.MinMaxGradient(
+            new Color(0.70f, 0.88f, 1f, 0.92f),
+            new Color(1f, 0.76f, 0.42f, 1f));
+        meteorMain.simulationSpace = ParticleSystemSimulationSpace.Local;
+
+        ParticleSystem.EmissionModule meteorEmission = sharpMeteorShower.emission;
+        meteorEmission.rateOverTime = 0f;
+        ParticleSystem.ShapeModule meteorShape = sharpMeteorShower.shape;
+        meteorShape.shapeType = ParticleSystemShapeType.Box;
+        meteorShape.scale = new Vector3(78f, 18f, 14f);
+        ParticleSystem.VelocityOverLifetimeModule meteorVelocity = sharpMeteorShower.velocityOverLifetime;
+        meteorVelocity.enabled = true;
+        meteorVelocity.space = ParticleSystemSimulationSpace.Local;
+        meteorVelocity.x = -29f;
+        meteorVelocity.y = -22f;
+        meteorVelocity.z = -8f;
+
+        ParticleSystemRenderer meteorRenderer = meteorObject.GetComponent<ParticleSystemRenderer>();
+        meteorRenderer.renderMode = ParticleSystemRenderMode.Stretch;
+        meteorRenderer.velocityScale = 0.12f;
+        meteorRenderer.lengthScale = 4.0f;
+        meteorRenderer.shadowCastingMode = ShadowCastingMode.Off;
+        meteorRenderer.receiveShadows = false;
+        meteorRenderer.sharedMaterial = CreateTransparentEffectMaterial(
+            "Sharp Curve Meteors",
+            new Color(0.72f, 0.90f, 1f, 0.92f),
+            true);
+        sharpMeteorShower.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        sharpAuroraRoot = new GameObject("FX_SharpCurve_Aurora").transform;
+        sharpAuroraRoot.SetParent(rebuiltRoot, false);
+        GameObject auroraSky = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        auroraSky.name = "Aurora Sky Dome Renderer";
+        auroraSky.transform.SetParent(sharpAuroraRoot, false);
+        auroraSky.transform.localPosition = Vector3.zero;
+        auroraSky.transform.localRotation = Quaternion.identity;
+        auroraSky.transform.localScale = Vector3.one * 840f;
+        Collider auroraCollider = auroraSky.GetComponent<Collider>();
+        if (auroraCollider != null)
+            Destroy(auroraCollider);
+
+        Shader auroraShader = Resources.Load<Shader>("MushSkyAurora") ?? Shader.Find("Mush/Sky Aurora");
+        if (auroraShader != null)
+        {
+            Material auroraMaterial = new(auroraShader) { name = "Runtime Sky-Wide Aurora" };
+            auroraMaterial.SetFloat("_Visibility", 0f);
+            auroraMaterial.SetFloat("_Intensity", 0.72f);
+            auroraMaterial.SetFloat("_Speed", 0.18f);
+            runtimeMaterials.Add(auroraMaterial);
+            sharpAuroraSkyRenderer = auroraSky.GetComponent<Renderer>();
+            sharpAuroraSkyRenderer.sharedMaterial = auroraMaterial;
+            sharpAuroraSkyRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            sharpAuroraSkyRenderer.receiveShadows = false;
+            sharpAuroraSkyRenderer.lightProbeUsage = LightProbeUsage.Off;
+            sharpAuroraSkyRenderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        }
+        else
+        {
+            Debug.LogError("[Mush] Sky aurora shader could not be loaded.", this);
+            auroraSky.SetActive(false);
+        }
+        sharpAuroraRoot.gameObject.SetActive(false);
+    }
+
+    private void ApplySharpCurveEnvironment(float progress)
+    {
+        sharpCamera ??= Camera.main ?? FindFirstObjectByType<Camera>(FindObjectsInactive.Include);
+        Color daySky = new(0.50f, 0.68f, 0.90f);
+        Color sunsetSky = new(0.52f, 0.22f, 0.30f);
+        Color nightSky = new(0.012f, 0.025f, 0.092f);
+        Color skyColor;
+        if (progress < 0.30f)
+        {
+            float evening = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.06f, 0.30f, progress));
+            skyColor = Color.Lerp(daySky, sunsetSky, evening);
+        }
+        else
+        {
+            float night = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.30f, 0.50f, progress));
+            skyColor = Color.Lerp(sunsetSky, nightSky, night);
+        }
+
+        float nightStrength = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.32f, 0.52f, progress));
+        if (sharpSun != null)
+        {
+            sharpSun.color = Color.Lerp(new Color(1f, 0.95f, 0.82f), new Color(0.28f, 0.38f, 0.62f), nightStrength);
+            sharpSun.intensity = Mathf.Lerp(1.08f, 0.18f, nightStrength);
+            sharpSun.transform.rotation = Quaternion.Euler(
+                Mathf.Lerp(34f, -16f, nightStrength),
+                Mathf.Lerp(-28f, -104f, nightStrength),
+                0f);
+        }
+
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.Linear;
+        RenderSettings.fogStartDistance = 38f;
+        RenderSettings.fogEndDistance = Mathf.Lerp(280f, 190f, nightStrength);
+        RenderSettings.fogColor = Color.Lerp(new Color(0.54f, 0.62f, 0.70f), new Color(0.035f, 0.055f, 0.11f), nightStrength);
+        RenderSettings.ambientMode = AmbientMode.Flat;
+        RenderSettings.ambientLight = Color.Lerp(new Color(0.58f, 0.65f, 0.72f), new Color(0.065f, 0.09f, 0.16f), nightStrength);
+        if (sharpSky != null)
+        {
+            SetColor(sharpSky, "_SkyTint", skyColor);
+            SetColor(sharpSky, "_GroundColor", skyColor * 0.42f);
+            SetFloat(sharpSky, "_Exposure", Mathf.Lerp(1.2f, 0.42f, nightStrength));
+            SetFloat(sharpSky, "_AtmosphereThickness", Mathf.Lerp(0.75f, 1.38f, nightStrength));
+        }
+        if (sharpCamera != null)
+        {
+            sharpCamera.clearFlags = CameraClearFlags.Skybox;
+            sharpCamera.backgroundColor = skyColor;
+        }
+
+        UpdateSharpStars(nightStrength);
+        UpdateMeteorShower(progress);
+        UpdateAurora(progress);
+    }
+
+    private void UpdateSharpStars(float visibility)
+    {
+        if (sharpStars == null)
+            return;
+
+        if (sharpCamera != null)
+            sharpStars.transform.position = sharpCamera.transform.position;
+        sharpStars.enabled = visibility > 0.02f;
+        if (!sharpStars.enabled)
+            return;
+
+        sharpEffectBlock ??= new MaterialPropertyBlock();
+        Color starColor = new Color(0.70f, 0.86f, 1f) * Mathf.Lerp(0.35f, 3.2f, visibility);
+        sharpStars.GetPropertyBlock(sharpEffectBlock);
+        sharpEffectBlock.SetColor("_BaseColor", starColor);
+        sharpEffectBlock.SetColor("_Color", starColor);
+        sharpEffectBlock.SetColor("_EmissionColor", starColor);
+        sharpStars.SetPropertyBlock(sharpEffectBlock);
+    }
+
+    private void UpdateMeteorShower(float progress)
+    {
+        if (sharpMeteorShower == null)
+            return;
+
+        float descentEndProgress = 620f / CourseLength;
+        if (progress >= descentEndProgress)
+        {
+            if (sharpMeteorShower.isPlaying || sharpMeteorShower.particleCount > 0)
+                sharpMeteorShower.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            return;
+        }
+
+        float fadeIn = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.32f, 0.38f, progress));
+        float fadeOut = 1f - Mathf.SmoothStep(
+            0f,
+            1f,
+            Mathf.InverseLerp(0.60f, descentEndProgress, progress));
+        float strength = fadeIn * fadeOut;
+        if (sharpCamera != null)
+        {
+            Vector3 flatForward = Vector3.ProjectOnPlane(sharpCamera.transform.forward, Vector3.up).normalized;
+            if (flatForward.sqrMagnitude < 0.001f)
+                flatForward = Vector3.forward;
+            sharpMeteorShower.transform.position = sharpCamera.transform.position + flatForward * 46f + Vector3.up * 38f;
+            sharpMeteorShower.transform.rotation = Quaternion.LookRotation(flatForward, Vector3.up);
+        }
+
+        ParticleSystem.EmissionModule emission = sharpMeteorShower.emission;
+        emission.rateOverTime = 10f * strength;
+        if (strength > 0.015f)
+        {
+            if (!sharpMeteorShower.isPlaying)
+                sharpMeteorShower.Play();
+        }
+        else if (sharpMeteorShower.isPlaying || sharpMeteorShower.particleCount > 0)
+        {
+            sharpMeteorShower.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+    }
+
+    private void UpdateAurora(float progress)
+    {
+        if (sharpAuroraRoot == null || sharpAuroraSkyRenderer == null)
+            return;
+
+        float visibility = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.83f, 0.89f, progress));
+        bool visible = visibility > 0.01f;
+        sharpAuroraRoot.gameObject.SetActive(visible);
+        if (!visible)
+            return;
+
+        if (sharpCamera != null)
+        {
+            // Keep the dome centred on the viewer but fixed to world axes.
+            // Looking left, right or overhead now reveals a continuous sky
+            // effect instead of a billboard that follows the camera forward.
+            sharpAuroraRoot.position = sharpCamera.transform.position;
+            sharpAuroraRoot.rotation = Quaternion.identity;
+        }
+
+        sharpEffectBlock ??= new MaterialPropertyBlock();
+        sharpAuroraSkyRenderer.GetPropertyBlock(sharpEffectBlock);
+        sharpEffectBlock.SetFloat("_Visibility", visibility);
+        sharpAuroraSkyRenderer.SetPropertyBlock(sharpEffectBlock);
     }
 
     private void PositionRouteMarkers()
@@ -701,6 +1151,26 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         Material material = new(shader) { name = "Runtime White Snow Particles" };
         SetColor(material, "_BaseColor", new Color(0.92f, 0.97f, 1f, 0.82f));
         SetColor(material, "_Color", new Color(0.92f, 0.97f, 1f, 0.82f));
+        runtimeMaterials.Add(material);
+        return material;
+    }
+
+    private Material CreateTransparentEffectMaterial(string materialName, Color color, bool additive)
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit") ??
+                        Shader.Find("Particles/Standard Unlit") ??
+                        Shader.Find("Universal Render Pipeline/Unlit") ??
+                        Shader.Find("Unlit/Color");
+        Material material = new(shader) { name = materialName };
+        SetColor(material, "_BaseColor", color);
+        SetColor(material, "_Color", color);
+        SetFloat(material, "_Surface", 1f);
+        SetFloat(material, "_ZWrite", 0f);
+        SetFloat(material, "_Cull", 0f);
+        SetFloat(material, "_SrcBlend", (float)BlendMode.SrcAlpha);
+        SetFloat(material, "_DstBlend", additive ? (float)BlendMode.One : (float)BlendMode.OneMinusSrcAlpha);
+        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.renderQueue = (int)RenderQueue.Transparent;
         runtimeMaterials.Add(material);
         return material;
     }

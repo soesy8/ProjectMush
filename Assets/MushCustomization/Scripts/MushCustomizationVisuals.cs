@@ -52,6 +52,25 @@ namespace Mush.Customization
             return holder;
         }
 
+        private static GameObject CreateDogAccessoryModel(
+            GameObject prefab,
+            Transform parent,
+            string objectName)
+        {
+            if (prefab == null || parent == null)
+                return null;
+
+            GameObject holder = new GameObject(objectName);
+            holder.transform.SetParent(parent, false);
+
+            GameObject model = UnityEngine.Object.Instantiate(prefab, holder.transform);
+            model.name = objectName + " Model";
+            model.transform.localPosition = Vector3.zero;
+            DisableRuntimeComponents(model);
+            ApplyReadableMaterials(model, prefab.name);
+            return holder;
+        }
+
         public static void ApplyDogLoadout(
             Transform dogRoot,
             bool malamute,
@@ -71,6 +90,10 @@ namespace Mush.Customization
 
             string hatId = state.GetDogHat(dogIndex);
             string neckId = state.GetDogNeck(dogIndex);
+            GameObject neckPrefab = !string.IsNullOrEmpty(neckId)
+                ? catalog.GetPrefab(neckId, malamute)
+                : null;
+            SetDefaultDogCollarVisible(dogRoot, neckPrefab == null); // 커스텀 목 장비가 있을 때는 FBX 본체의 파란 BlueCollar를 숨겨 선택한 디자인이 가려지지 않게 한다.
             float height = Mathf.Max(0.1f, dogBounds.size.y);
             float width = Mathf.Max(0.1f, dogBounds.size.x);
             Vector3 lossyScale = dogRoot.lossyScale;
@@ -121,7 +144,7 @@ namespace Mush.Customization
                     PositionDogAccessory(hat, head, hatWorld, anatomicalForward, anatomicalUp, accessoryAxisFix); // 머리 Bounds가 없는 예외 상황에서도 최소한 축 방향만은 정상적으로 보정한다.
             }
 
-            if (!string.IsNullOrEmpty(neckId))
+            if (neckPrefab != null)
             {
                 Vector3 neckWorld = hasDogFrame && neck != null
                     ? GetPartWorldCenter(neck) // 목 파츠가 있으면 실제 목 중심을 스카프 기준점으로 사용한다.
@@ -130,23 +153,21 @@ namespace Mush.Customization
                         : new Vector3(dogBounds.center.x, dogBounds.min.y + height * 0.67f, dogBounds.center.z); // 해부학 정보 자체가 없으면 전체 Bounds 높이 비율로 마지막 대체 위치를 만든다.
                 Bounds neckBounds = default; // 빨간 반다나와 보라 스카프를 목 윗부분에 정확히 걸기 위한 실제 목 Bounds를 저장한다.
                 bool hasNeckBounds = neck != null && TryGetPartWorldBounds(neck, out neckBounds); // 목 Renderer가 있으면 품종별 목 크기를 직접 읽고, 없으면 아래의 안전한 추정값을 사용한다.
-                float fittedNeckSize = Mathf.Max(localWidth * 0.52f, localHeight * 0.24f); // 목 장식 전체 크기를 한 단계 더 줄여 굵은 링처럼 목 바깥에 떠 보이지 않게 한다.
+                float fittedNeckWidth = Mathf.Max(width * 0.54f, height * 0.25f); // 목 Bounds를 읽지 못해도 긴 스카프 꼬리가 아니라 개 몸의 실제 월드 폭을 기준으로 고리 크기를 정한다.
                 if (hasDogFrame && hasNeckBounds)
                 {
                     float neckWidth = ProjectedRadius(neckBounds.extents, anatomicalRight) * 2f; // 실제 목 좌우 폭을 계산한다.
-                    fittedNeckSize = Mathf.Clamp(neckWidth * 1.06f, width * 0.36f, width * 0.58f) / parentScale; // 실제 목 폭에 거의 맞는 크기로 줄여 스카프 고리 부분이 목보다 과하게 크게 보이지 않게 한다.
+                    float sizeRatio = neckId == MushCustomizationIds.DogPurpleScarf ? 1.08f : 1.04f; // 기본 파란 목줄을 숨긴 뒤 커스텀 고리가 목털 바깥에서 확실히 보일 정도의 폭을 준다.
+                    fittedNeckWidth = Mathf.Clamp(neckWidth * sizeRatio, width * 0.44f, width * 0.68f); // 허스키와 말라뮤트의 목 크기 차이는 유지하면서 몸 전체만큼 과하게 커지지는 않게 한다.
                 }
 
-                GameObject neckAccessory = CreateFittedModel(
-                    catalog.GetPrefab(neckId, malamute),
+                GameObject neckAccessory = CreateDogAccessoryModel(
+                    neckPrefab,
                     dogRoot,
-                    GeneratedPrefix + "Neck",
-                    fittedNeckSize,
-                    dogRoot.InverseTransformPoint(neckWorld),
-                    false); // 스카프도 회전 전 Bounds 정렬을 하지 않아 -90도 가져오기 축 때문에 위치 오프셋이 앞뒤로 돌아가는 문제를 막는다.
+                    GeneratedPrefix + "Neck"); // 품종별 FBX 안의 Socket.Neck와 원래 메시 중심을 보존해 긴 천 꼬리가 장착 위치 계산을 흔들지 않게 한다.
                 Quaternion accessoryAxisFix = Quaternion.Euler(90f, 0f, 0f); // 빨간 반다나와 보라 스카프도 모자와 같은 FBX -90도 회전을 상쇄한다.
                 if (hasDogFrame)
-                    PositionNeckAccessory(neckAccessory, neck != null ? neck : head, neckWorld, hasNeckBounds ? neckBounds : default, hasNeckBounds, anatomicalForward, anatomicalUp, accessoryAxisFix, neckId); // 회전한 뒤 목 아래·앞쪽으로 다시 맞춰 고리보다 스카프/반다나 꼬리가 눈에 들어오게 한다.
+                    PositionNeckAccessory(neckAccessory, neck != null ? neck : head, neckWorld, hasNeckBounds ? neckBounds : default, hasNeckBounds, anatomicalForward, anatomicalUp, anatomicalRight, accessoryAxisFix, neckId, fittedNeckWidth); // FBX의 목 소켓을 실제 개 목에 맞춘 뒤 고리 폭만 품종별 목 크기로 보정한다.
                 else
                     PositionDogAccessory(neckAccessory, neck != null ? neck : head, neckWorld, anatomicalForward, anatomicalUp, accessoryAxisFix); // 해부학 프레임이 없는 경우에도 축 보정과 추적은 유지한다.
             }
@@ -412,8 +433,10 @@ namespace Mush.Customization
             bool hasNeckBounds,
             Vector3 forward,
             Vector3 up,
+            Vector3 right,
             Quaternion localRotationOffset,
-            string accessoryId)
+            string accessoryId,
+            float targetWorldWidth)
         {
             if (accessory == null)
                 return; // 목 액세서리 프리팹을 읽지 못했다면 추가 위치 계산을 하지 않는다.
@@ -422,38 +445,59 @@ namespace Mush.Customization
                 forward = Vector3.forward; // 해부학적 앞 방향이 유효하지 않은 예외 상황에서는 Unity 기본 앞 방향을 사용한다.
             if (up.sqrMagnitude < 0.000001f)
                 up = Vector3.up; // 해부학적 위 방향을 못 얻었을 때는 월드 위 방향으로 안전하게 대체한다.
+            if (right.sqrMagnitude < 0.000001f)
+                right = Vector3.Cross(up, forward); // 좌우 축을 못 얻은 예외 상황에서는 앞/위 축으로 다시 만든다.
             forward.Normalize(); // LookRotation과 Bounds 투영이 같은 기준을 사용하도록 앞 방향을 정규화한다.
             up.Normalize(); // 스카프 윗면과 목 윗면 높이를 정확히 비교하기 위해 위 방향도 정규화한다.
+            right.Normalize(); // 목 고리의 가로 폭과 액세서리 가로 폭을 같은 단위로 비교한다.
 
             Quaternion neckAlignedRotation = Quaternion.LookRotation(forward, up); // 개 목의 앞/위 방향을 기준으로 액세서리 기본 자세를 만든다.
-            float yawOffset = accessoryId == MushCustomizationIds.DogPurpleScarf ? -22f : 0f; // 보라 스카프는 작은 꼬리 파츠가 몸 안쪽에 숨지 않도록 목 둘레에서 살짝 돌려 앞옆으로 보이게 한다.
-            Quaternion visibleTailRotation = Quaternion.AngleAxis(yawOffset, up) * neckAlignedRotation * localRotationOffset; // FBX 축 보정 뒤에도 스카프 꼬리가 보이는 방향을 유지하도록 최종 회전을 만든다.
-            accessory.transform.SetPositionAndRotation(neckWorld, visibleTailRotation); // 먼저 목 중심에 회전을 적용한 뒤 실제 렌더러 Bounds를 이용해 높이와 앞뒤 위치를 다시 맞춘다.
+            float yawOffset = 0f; // 품종별 스카프와 반다나 FBX에 저장된 정면 방향을 그대로 사용한다.
+            Quaternion visibleTailRotation = Quaternion.AngleAxis(yawOffset, up) * neckAlignedRotation * localRotationOffset; // FBX -90도 축 보정과 종류별 미세 회전을 함께 적용한다.
+            accessory.transform.SetPositionAndRotation(neckWorld, visibleTailRotation); // 먼저 최종 회전을 적용해야 현재 개의 좌우 축에서 실제 액세서리 폭을 정확히 읽을 수 있다.
 
-            float forwardOffset = 0f; // 목 Bounds를 못 찾은 경우에는 불필요하게 액세서리를 앞으로 밀지 않는다.
+            Transform model = accessory.transform.childCount > 0 ? accessory.transform.GetChild(0) : null; // 전용 생성 함수가 만든 품종별 FBX 루트를 찾는다.
+            if (model != null && targetWorldWidth > 0.0001f &&
+                TryGetProjectedRange(accessory, right, out float accessoryLeft, out float accessoryRight))
+            {
+                float currentWidth = accessoryRight - accessoryLeft; // 긴 꼬리의 세로 길이는 무시하고 목 고리가 차지하는 좌우 폭만 읽는다.
+                if (currentWidth > 0.0001f)
+                {
+                    float scaleFactor = Mathf.Clamp(targetWorldWidth / currentWidth, 0.005f, 2.40f); // 액세서리 FBX는 원본 단위가 개 모델보다 훨씬 커서 0.35 하한을 두면 집만 한 고리가 된다. 실제 목 폭까지 충분히 축소되도록 작은 배율을 허용한다.
+                    model.localScale *= scaleFactor; // FBX의 품종별 비율과 내부 소켓은 유지한 채 전체 크기만 균일하게 맞춘다.
+                }
+            }
+
             if (hasNeckBounds)
             {
-                float neckForwardRadius = ProjectedRadius(neckBounds.extents, forward); // 목이 앞뒤 방향으로 차지하는 실제 반경을 계산한다.
-                forwardOffset = neckForwardRadius * (accessoryId == MushCustomizationIds.DogPurpleScarf ? 0.22f : 0.16f); // 고리 부분은 목에 남기되 천 꼬리가 턱 아래에서 몸통 밖으로 보일 정도만 앞으로 당긴다.
+                float neckUpRadius = ProjectedRadius(neckBounds.extents, up); // 액세서리 원점이 목 중심에서 턱 쪽으로 얼마나 올라갈지 계산한다.
+                float neckForwardRadius = ProjectedRadius(neckBounds.extents, forward); // 스카프 꼬리와 반다나 앞면이 가슴 털 밖으로 나올 거리를 계산한다.
+                accessory.transform.position += up * (neckUpRadius * 0.12f); // FBX의 원점이 목 고리 중심이라는 제작 메타데이터를 그대로 사용한다.
+                accessory.transform.position += forward * (neckForwardRadius * 0.08f); // 메시 전체를 앞쪽으로 빼지 않고 털과 겹치지 않을 최소 여유만 준다.
             }
 
-            if (TryGetProjectedRange(accessory, up, out _, out float accessoryTop))
+            foreach (Renderer renderer in accessory.GetComponentsInChildren<Renderer>(true))
             {
-                float desiredTop = Vector3.Dot(neckWorld, up) - 0.01f; // 목 Bounds를 못 찾은 경우에도 액세서리를 목 중심보다 위로 치켜올리지 않는다.
-                if (hasNeckBounds)
-                {
-                    float neckRadius = ProjectedRadius(neckBounds.extents, up); // 목 파츠가 위 방향으로 차지하는 실제 반경을 계산한다.
-                    float topRatio = accessoryId == MushCustomizationIds.DogPurpleScarf ? 0.34f : 0.42f; // 보라 스카프는 더 아래에, 반다나는 턱 바로 아래에 걸리도록 종류별 높이를 나눈다.
-                    desiredTop = Vector3.Dot(neckBounds.center, up) + neckRadius * topRatio; // 예전 0.72배보다 훨씬 낮춰 목 위의 링처럼 떠 있는 느낌을 없앤다.
-                }
-                accessory.transform.position += up * (desiredTop - accessoryTop); // 회전된 실제 액세서리 윗면이 목표 목 높이에 오도록 상하 위치를 맞춘다.
+                renderer.enabled = true; // 프리팹 임포트 상태와 관계없이 선택한 보라/빨간 메시가 실제 화면에 렌더링되게 한다.
             }
-            accessory.transform.position += forward * forwardOffset; // 마지막에 목 앞쪽으로 조금 이동시켜 스카프/반다나의 천 부분이 몸통 내부에 묻히지 않게 한다.
 
             if (trackedPart != null)
             {
                 MushDogAccessoryFollower follower = accessory.AddComponent<MushDogAccessoryFollower>(); // 개가 고개와 목을 움직여도 현재 스카프 위치가 함께 따라가도록 추적기를 추가한다.
                 follower.Configure(trackedPart); // 회전과 높이 보정이 끝난 최종 상태를 목 파츠 기준 로컬 오프셋으로 저장한다.
+            }
+        }
+
+        private static void SetDefaultDogCollarVisible(Transform dogRoot, bool visible)
+        {
+            if (dogRoot == null)
+                return;
+            foreach (Renderer renderer in dogRoot.GetComponentsInChildren<Renderer>(true))
+            {
+                if (HasGeneratedParent(renderer.transform, dogRoot))
+                    continue;
+                if (renderer.name.IndexOf("BlueCollar", StringComparison.OrdinalIgnoreCase) >= 0)
+                    renderer.enabled = visible; // 목 장비 해제 시에는 원래 파란 목줄을 다시 보여 준다.
             }
         }
 

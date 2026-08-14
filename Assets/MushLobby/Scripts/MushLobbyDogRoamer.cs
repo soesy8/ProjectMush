@@ -50,7 +50,7 @@ namespace Mush.Lobby
         private float callWaitTimer;
         private Vector3 calledDestinationWorld;
         private Vector3 calledLookPointWorld;
-        private int routeIndex = -1; // 현재 향하고 있는 안전 생활 경로 지점의 번호다.
+        private int lastRoamZone = -1; // 직전에 고른 생활 구역을 기억해 같은 앞쪽 구역만 연속으로 뽑는 현상을 줄인다.
         private bool runningToTarget; // 일반 배회 중 이번 구간을 달릴지 기억한다.
         private float sleepTimer; // 0보다 크면 현재 잠자는 행동을 유지한다.
         private bool sleepPoseFrozen; // 눕기 애니메이션의 마지막 자세를 고정했는지 기억한다.
@@ -74,23 +74,17 @@ namespace Mush.Lobby
 
         private static readonly List<MushLobbyDogRoamer> ActiveDogs = new(); // 로비에 살아 있는 개들을 모아 두 마리 상호작용에 사용한다.
 
-        // 하우징 가구가 벽 쪽 슬롯에 놓여도 개가 가구 사이를 직선으로 가르지 않도록 만든 프로토타입 안전 순환 경로다.
-        // 순서대로 인접한 지점만 이동하므로 방 전체에서 무작위 좌표를 뽑던 기존 방식보다 경로가 훨씬 명확하다.
-        private static readonly Vector3[] SafeRoutePoints =
+        // NavMesh가 실제 장애물 회피를 담당하므로 더 이상 11개의 고정 점을 시계/반시계로 도는 경로를 사용하지 않는다.
+        // 아래 각 Vector4는 (xMin, xMax, zMin, zMax) 형태의 생활 구역이며, 목적지는 매번 구역 안에서 새 좌표를 뽑는다.
+        private static readonly Vector4[] RoamZones =
         {
-            // 플레이어는 +Z 뒤쪽 좌석에서 -Z 정면을 바라본다. 새 로비는 가로를 줄이고 정면 깊이를 늘렸으므로
-            // 개 경로도 양옆 벽으로 퍼지지 않고 중앙과 정면을 길게 왕복한다. 하우징 가구는 더 깊은 좌우 코너에 있어 이 경로와 겹치지 않는다.
-            new(-0.95f, 0f, 0.45f), // 호출 위치에서 자연스럽게 배회로 이어지는 왼쪽 가까운 지점이다.
-            new(-2.15f, 0f, -0.35f), // 집 꾸미기 상자 안쪽을 지나되 상자 금지 반경에는 들어가지 않는 왼쪽 지점이다.
-            new(-2.25f, 0f, -1.85f), // 지도 스탠드와 왼쪽 클릭 구역을 바깥으로 돌아 정면 깊은 공간으로 내려가는 지점이다.
-            new(-1.55f, 0f, -3.05f), // 의자/탁자보다 중앙 쪽을 통과하는 왼쪽 중간 지점이다.
-            new(-0.55f, 0f, -4.85f), // 깊어진 방을 실제로 활용하되 하우징 가구 앞을 침범하지 않는 왼쪽 깊은 지점이다.
-            new(0.65f, 0f, -4.85f), // 두 마리가 깊은 구역에서 추격 놀이할 수 있는 오른쪽 깊은 지점이다.
-            new(1.55f, 0f, -3.05f), // 개 침대보다 중앙 쪽에 충분히 떨어진 오른쪽 중간 지점이다.
-            new(2.25f, 0f, -1.85f), // 상점과 지도 스탠드의 금지 반경을 피해 돌아오는 오른쪽 지점이다.
-            new(2.15f, 0f, -0.35f), // 플레이어 오른쪽 가까운 구간에서도 벽 쪽으로 과하게 퍼지지 않는 지점이다.
-            new(0.95f, 0f, 0.45f), // 호출 위치에서 배회로 자연스럽게 이어지는 오른쪽 가까운 지점이다.
-            new(0.00f, 0f, 0.10f), // 순환 경로를 이어 주는 중앙 지점이다.
+            new(-3.15f, -1.05f, -1.45f, 0.45f), // 플레이어 기준 가까운 왼쪽 구역이다. 항상 여기만 머물지 않도록 lastRoamZone과 함께 사용한다.
+            new(1.05f, 3.15f, -1.45f, 0.45f), // 플레이어 기준 가까운 오른쪽 구역이다.
+            new(-3.15f, -0.45f, -3.35f, -1.75f), // 산장 중간 왼쪽 넓은 생활 구역이다.
+            new(0.45f, 3.15f, -3.35f, -1.75f), // 산장 중간 오른쪽 넓은 생활 구역이다.
+            new(-3.10f, -0.20f, -5.20f, -3.65f), // 의자/탁자 코너보다 중앙 쪽에 남겨 둔 깊은 왼쪽 구역이다.
+            new(0.20f, 3.10f, -5.20f, -3.65f), // 개 침대 코너를 피해 다닐 수 있는 깊은 오른쪽 구역이다.
+            new(-1.55f, 1.55f, -4.80f, -0.85f), // 방 중앙을 앞뒤로 길게 가로지르는 구역으로, 두 마리가 같은 원을 도는 느낌을 깨준다.
         };
 
         public bool IsMoving { get; private set; }
@@ -779,41 +773,68 @@ namespace Mush.Lobby
 
         private void PickTarget(bool forceRun = false)
         {
-            if (SafeRoutePoints.Length == 0) return;
+            Vector3 currentLocal = transform.localPosition; // 현재 위치와 충분히 떨어진 목적지만 선택하기 위해 개의 로컬 위치를 저장한다.
+            currentLocal.y = 0f; // 생활 구역 선택은 바닥 XZ 평면에서만 계산한다.
+            const float minimumTravelDistance = 1.15f; // 너무 가까운 점을 연속으로 뽑아 제자리에서 빙글도는 모습을 막는 최소 이동 거리다.
 
-            if (routeIndex < 0)
+            for (int attempt = 0; attempt < 24; attempt++)
             {
-                float bestDistance = float.PositiveInfinity;
-                for (int index = 0; index < SafeRoutePoints.Length; index++)
+                int zoneIndex = Random.Range(0, RoamZones.Length); // 매번 방 전체의 여러 생활 구역 중 하나를 무작위로 고른다.
+                if (RoamZones.Length > 1 && zoneIndex == lastRoamZone && attempt < 12)
+                    continue; // 처음 여러 번은 직전 구역을 다시 고르지 않아 앞쪽 한 구역에서 계속 원을 그리는 현상을 줄인다.
+
+                Vector4 zone = RoamZones[zoneIndex]; // 선택한 구역의 X/Z 최소·최대 범위를 가져온다.
+                Vector3 candidate = new(
+                    Random.Range(zone.x, zone.y),
+                    0f,
+                    Random.Range(zone.z, zone.w)); // 고정 경유지가 아니라 구역 내부의 실제 임의 좌표를 새 목적지 후보로 만든다.
+
+                if ((candidate - currentLocal).sqrMagnitude < minimumTravelDistance * minimumTravelDistance)
+                    continue; // 현재 위치 바로 옆을 뽑았으면 다시 골라 짧은 왕복과 제자리 회전을 막는다.
+
+                Vector3 worldCandidate = transform.parent != null
+                    ? transform.parent.TransformPoint(candidate)
+                    : candidate; // NavMesh와 가구 Bounds 검사는 월드 좌표를 사용하므로 후보를 월드로 변환한다.
+
+                if (MushLobbyFurnitureObstacle.IsBlocked(worldCandidate, furnitureClearance + 0.12f))
+                    continue; // 의자·탁자·상점·집꾸미기·침대 같은 실제 가구 영역 안을 목적지로 고르지 않는다.
+
+                if (MushLobbyNavMeshRuntime.IsReady && NavMesh.SamplePosition(worldCandidate, out NavMeshHit hit, 0.90f, NavMesh.AllAreas))
                 {
-                    float distance = (SafeRoutePoints[index] - transform.localPosition).sqrMagnitude;
-                    if (distance >= bestDistance) continue;
-                    bestDistance = distance;
-                    routeIndex = index;
+                    worldCandidate = hit.position; // 후보 주변의 실제 걸을 수 있는 NavMesh 지점으로 스냅한다.
+                    candidate = transform.parent != null
+                        ? transform.parent.InverseTransformPoint(worldCandidate)
+                        : worldCandidate; // Agent와 기존 target 필드가 같은 좌표계를 사용하도록 다시 로컬로 되돌린다.
+                    candidate.y = 0f; // 루트 높이는 기존 접지 코드가 관리하므로 목적지는 XZ만 사용한다.
                 }
+                else if (MushLobbyNavMeshRuntime.IsReady)
+                {
+                    continue; // 내비메시가 준비됐는데 후보 주변에 길이 없다면 그 점은 버리고 다른 구역을 다시 뽑는다.
+                }
+
+                float travelDistance = Vector3.Distance(currentLocal, candidate); // 이번 이동이 방을 가로지르는 긴 이동인지 계산한다.
+                target = candidate; // 모든 검사를 통과한 무작위 좌표를 실제 이동 목적지로 확정한다.
+                lastRoamZone = zoneIndex; // 다음 목적지에서는 같은 구역을 우선 피할 수 있도록 이번 구역을 기억한다.
+                float distanceRunChance = travelDistance >= 3.0f ? 0.68f : randomRunChance; // 먼 구역으로 갈 때는 뛰는 빈도를 높여 걷기만 반복되는 느낌을 줄인다.
+                runningToTarget = forceRun || Random.value < distanceRunChance; // 장난 리더는 항상 달리고 일반 생활은 거리와 확률에 따라 걷기/달리기를 섞는다.
+                return; // 유효한 목적지를 하나 찾았으므로 이번 선택을 끝낸다.
             }
 
-            int direction = Random.value < 0.5f ? -1 : 1;
-            int step = Random.value < 0.22f ? 2 : 1;
-            for (int attempt = 0; attempt < SafeRoutePoints.Length; attempt++)
+            Vector3 fallbackWorld = transform.parent != null
+                ? transform.parent.TransformPoint(new Vector3(0f, 0f, -2.85f))
+                : new Vector3(0f, 0f, -2.85f); // 아주 드물게 모든 무작위 후보가 막혔을 때 사용할 방 중앙 안전 지점을 준비한다.
+            if (NavMesh.SamplePosition(fallbackWorld, out NavMeshHit fallbackHit, 1.5f, NavMesh.AllAreas))
             {
-                int candidateIndex = (routeIndex + direction * step + SafeRoutePoints.Length) % SafeRoutePoints.Length;
-                Vector3 candidate = SafeRoutePoints[candidateIndex];
-                Vector3 worldCandidate = transform.parent != null ? transform.parent.TransformPoint(candidate) : candidate;
-                if (!MushLobbyFurnitureObstacle.IsBlocked(worldCandidate, furnitureClearance + 0.12f))
-                {
-                    routeIndex = candidateIndex;
-                    target = candidate;
-                    runningToTarget = forceRun || Random.value < randomRunChance;
-                    return;
-                }
-                direction = -direction;
-                step = 1;
+                target = transform.parent != null
+                    ? transform.parent.InverseTransformPoint(fallbackHit.position)
+                    : fallbackHit.position; // 중앙 근처의 실제 NavMesh 지점을 마지막 안전 목적지로 사용한다.
+                target.y = 0f; // 바닥 높이는 접지/Agent가 처리하므로 XZ만 유지한다.
+                runningToTarget = forceRun || Random.value < randomRunChance; // fallback에서도 걷기/달리기 변화는 유지한다.
+                return;
             }
 
-            target = transform.localPosition; // 모든 후보가 막힌 극단적인 경우에는 가구를 뚫는 대신 제자리에서 다시 판단한다.
-            target.y = 0f;
-            runningToTarget = false;
+            target = currentLocal; // 내비메시 자체가 없는 비정상 상황에서만 현재 위치를 임시 목표로 남긴다.
+            runningToTarget = false; // 길이 없는데 달리기 애니메이션만 재생되는 상황을 막는다.
         }
 
         private void Animate(bool walking)
