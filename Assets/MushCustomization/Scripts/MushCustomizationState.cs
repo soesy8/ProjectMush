@@ -56,9 +56,9 @@ namespace Mush.Customization
         {
             return placementIndex switch
             {
-                ChairPlacement => new Vector3(-2.40f, 0f, -4.45f), // 의자는 플레이어 옆이 아니라 정면 깊은 생활 구역으로 올려 좌식 VR에서 고개를 옆으로 심하게 돌리지 않아도 보이게 한다.
-                TablePlacement => new Vector3(-1.18f, 0f, -4.45f), // 탁자는 의자에서 약 1.2m 옆에 붙여 한 가구 코너처럼 보이게 하되 개 중앙 통로는 비워 둔다.
-                DogRestPlacement => new Vector3(2.30f, 0f, -4.45f), // 개 침대는 반대편 정면 생활 구역에 두어 양옆 사각지대를 비우면서도 앉은 자리에서 자는 모습을 볼 수 있게 한다.
+                ChairPlacement => new Vector3(-2.80f, 0f, -4.45f), // 벽난로 앞 고정 좌석과 같은 위치에 두어 실제 의자에 앉아 쉬는 지점으로 사용한다.
+                TablePlacement => new Vector3(-3.40f, 0f, 0.00f), // 탁자는 왼쪽 뒤 벽으로 분리해 집 꾸미기 상자·벽난로 좌석과 겹치지 않게 한다.
+                DogRestPlacement => new Vector3(3.25f, 0f, -4.45f), // 개 침대는 오른쪽 앞 벽으로 붙여 중앙 이동 동선과 겹치지 않게 한다.
                 _ => Vector3.zero,
             };
         }
@@ -67,9 +67,9 @@ namespace Mush.Customization
         {
             float yaw = placementIndex switch
             {
-                ChairPlacement => 20f, // 의자는 옆벽이 아니라 방 중앙과 탁자 쪽을 바라보게 살짝만 안쪽으로 돌린다.
-                TablePlacement => 0f, // 탁자는 정면 축을 유지해 의자 옆에 붙은 한 세트처럼 안정적으로 보이게 한다.
-                DogRestPlacement => -15f, // 개 침대는 중앙 생활 공간 쪽으로 살짝 돌려 누운 개의 몸이 플레이어 시야에 잘 들어오게 한다.
+                ChairPlacement => 180f, // 벽난로를 등진 좌석에서 방 중앙을 바라보는 방향으로 고정한다.
+                TablePlacement => 90f, // 왼쪽 벽과 나란히 놓아 중앙 쪽으로 튀어나오는 깊이를 줄인다.
+                DogRestPlacement => 270f, // 오른쪽 벽과 나란히 놓아 중앙 공놀이 공간을 침범하지 않는다.
                 _ => 0f,
             };
             return Quaternion.Euler(0f, yaw, 0f);

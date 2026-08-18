@@ -30,11 +30,35 @@ namespace Mush.Lobby
         private Vector2 leftHandViewport = new Vector2(0.32f, 0.25f);
         private Vector2 rightHandViewport = new Vector2(0.68f, 0.25f);
 
+        public Vector3 CurrentWorldViewDirection
+        {
+            get
+            {
+                if (cameraTransform == null)
+                    return transform.forward;
+
+                Quaternion desiredLocalRotation =
+                    cameraRestRotation * Quaternion.Euler(pitch, yaw, 0f);
+                Quaternion desiredWorldRotation = cameraTransform.parent != null
+                    ? cameraTransform.parent.rotation * desiredLocalRotation
+                    : desiredLocalRotation;
+                return (desiredWorldRotation * Vector3.forward).normalized;
+            }
+        }
+
         public void Configure(Transform newCameraTransform)
         {
             cameraTransform = newCameraTransform;
             if (cameraTransform != null)
                 cameraRestRotation = cameraTransform.localRotation;
+        }
+
+        public void RecenterView()
+        {
+            yaw = 0f;
+            pitch = 0f;
+            if (cameraTransform != null && !XRSettings.isDeviceActive)
+                cameraTransform.localRotation = cameraRestRotation;
         }
 
         private void Awake()

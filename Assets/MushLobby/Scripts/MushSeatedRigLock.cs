@@ -18,6 +18,13 @@ namespace Mush.Lobby
             lockedRotation = transform.rotation;
         }
 
+        public void MoveSeat(Vector3 worldPosition, Quaternion worldRotation)
+        {
+            lockedPosition = worldPosition;
+            lockedRotation = worldRotation;
+            transform.SetPositionAndRotation(lockedPosition, lockedRotation);
+        }
+
         private void LateUpdate()
         {
             transform.SetPositionAndRotation(lockedPosition, lockedRotation);

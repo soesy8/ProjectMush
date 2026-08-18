@@ -71,7 +71,7 @@ namespace Mush.Lobby
                 return;
             }
 
-            if (head == null || roamer == null || roamer.IsMoving)
+            if (head == null || roamer == null || roamer.IsMoving || roamer.IsFetching)
             {
                 CaptureHandPositions();
                 return;
@@ -79,7 +79,7 @@ namespace Mush.Lobby
 
             bool near = CheckHand(leftHand, ref previousLeftPosition) |
                         CheckHand(rightHand, ref previousRightPosition);
-            if (near && !handWasNear)
+            if (near && !handWasNear && !roamer.IsRestingAtFireplace && !roamer.IsOnLap)
                 roamer.PlayHeadTilt();
             handWasNear = near;
             positionsReady = true;
@@ -87,21 +87,28 @@ namespace Mush.Lobby
 
         public void Pet()
         {
-            if (petCooldown > 0f || roamer == null)
+            if (petCooldown > 0f || roamer == null || roamer.IsFetching)
                 return;
 
             petCooldown = 0.45f;
             roamer.MarkPetted();
+            bool calmPetPose = roamer.IsRestingAtFireplace || roamer.IsOnLap;
             petCount++;
             if (petCount >= 3)
             {
                 petCount = 0;
-                roamer.Celebrate();
+                if (calmPetPose)
+                    roamer.PlayRestingPet(); // 벽난로 바닥이나 무릎에서는 일어나 뛰지 않고 현재 자세로 하트만 보여 준다.
+                else
+                    roamer.Celebrate();
                 expression?.ShowLoveCelebration();
             }
             else
             {
-                roamer.PlayPet();
+                if (calmPetPose)
+                    roamer.PlayRestingPet(); // 벽난로 수면/무릎 앉기 자세를 깨지 않고 꼬리만 흔든다.
+                else
+                    roamer.PlayPet();
                 expression?.ShowPetEnjoyment();
             }
         }

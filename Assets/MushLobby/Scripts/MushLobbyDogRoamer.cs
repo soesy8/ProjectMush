@@ -64,6 +64,8 @@ namespace Mush.Lobby
         private Vector3 lastNavDestination; // 같은 목적지를 매 프레임 다시 SetDestination하지 않도록 마지막 내비메시 목적지를 저장한다.
         private bool hasNavDestination; // lastNavDestination에 유효한 값이 들어 있는지 나타낸다.
         private MushLobbyDogBedSpot reservedBed; // 이번 수면 행동에서 이 개가 예약한 개 침대다.
+        private MushLobbyFireplaceRestSpot reservedFireplaceRest; // 이번 수면 행동에서 이 개가 예약한 벽난로 앞 자리다.
+        private int reservedFireplaceSlot = -1; // 벽난로 앞 두 자리 중 어느 쪽을 예약했는지 기억한다.
         private bool walkingToBed; // 내비메시를 따라 침대 앞 접근 지점으로 이동 중인지 나타낸다.
         private bool enteringBed; // NavMeshObstacle 바깥 접근 지점에서 침대 중심까지 짧게 들어가는 중인지 나타낸다.
         private bool leavingBed; // 수면 후 침대 중심에서 다시 내비메시 접근 지점으로 나오는 중인지 나타낸다.
@@ -71,6 +73,22 @@ namespace Mush.Lobby
         private Vector3 bedSleepWorld; // 실제로 누울 침대 중심의 월드 XZ 지점이다.
         private Quaternion bedSleepRotation = Quaternion.identity; // 침대 위에서 누웠을 때 바라볼 방향이다.
         private float sleepSurfaceLift; // 바닥이 아니라 침대 윗면에 몸이 올라가 보이도록 비주얼 루트를 들어 올리는 높이다.
+        private MushLobbyFetchBall fetchBall; // 현재 이 개가 담당해 물어오고 있는 공이다.
+        private bool returningFetchBall; // 공을 문 뒤 플레이어 앞 반환 지점으로 돌아가는 단계인지 나타낸다.
+        private bool waitingForFetchTake; // 플레이어 앞에 도착해 공을 문 채 직접 가져가기를 기다리는 단계다.
+        private bool watchingHeldBall; // 플레이어가 든 공을 바라보며 출발을 기다리는 단계다.
+        private bool followingFetchReturn; // 다른 개가 공을 잡은 뒤 천천히 플레이어 쪽으로 합류하는 단계다.
+        private Transform fetchCarrySocket; // 모델이 바뀌어도 공을 입 근처에 붙일 수 있도록 런타임에 만드는 소켓이다.
+        private float ballExcitementPhase; // 여러 개가 완전히 동시에 뛰지 않도록 개별 폴짝 위상을 둔다.
+        private Transform lapTarget; // 벽난로 의자에서 무릎 위치를 계산할 플레이어 카메라다.
+        private bool lapApproachReached; // 의자 옆의 안전한 바닥 접근점까지 도착했는지 나타낸다.
+        private bool mountingLap; // 바닥 접근점에서 무릎으로 올라오는 짧은 전환 중인지 나타낸다.
+        private bool sittingOnLap; // 실제 무릎 위치에 도착해 앉아 있는 상태다.
+        private Vector3 lapApproachWorld; // 의자를 관통하지 않고 올라갈 수 있는 좌우 바닥 지점이다.
+        private Vector3 lapWorld; // 호출 순간 계산한 실제 무릎 위 루트 위치다.
+        private Vector3 lapMountStart; // 올라오는 포물선 보간의 시작 위치다.
+        private Quaternion lapRotation = Quaternion.identity; // 무릎 위에서 플레이어와 같은 방향을 바라보는 회전이다.
+        private float lapMountProgress; // 0~1 사이의 무릎 탑승 진행도다.
 
         private static readonly List<MushLobbyDogRoamer> ActiveDogs = new(); // 로비에 살아 있는 개들을 모아 두 마리 상호작용에 사용한다.
 
@@ -88,6 +106,10 @@ namespace Mush.Lobby
         };
 
         public bool IsMoving { get; private set; }
+        public bool IsFetching => fetchBall != null;
+        public bool IsRestingAtFireplace => reservedFireplaceRest != null && sleepTimer > 0f; // 벽난로 앞에서 누운 채 쓰다듬기 반응을 분리할 때 사용한다.
+        public bool IsOnLap => sittingOnLap;
+        public bool IsInLapRoutine => lapTarget != null;
         public Transform VisualRoot => visualRoot != null ? visualRoot : transform;
 
         public void Configure(Transform newVisualRoot, Transform newTail, Vector2 newAreaMin, Vector2 newAreaMax)
@@ -136,7 +158,7 @@ namespace Mush.Lobby
         private void OnDestroy()
         {
             ActiveDogs.Remove(this); // 씬을 나가거나 개가 제거될 때 정적 목록에 죽은 참조가 남지 않게 정리한다.
-            ReleaseReservedBed(); // 씬 전환 중 침대를 예약한 채 사라져 다른 개가 영원히 못 쓰는 상태를 막는다.
+            ReleaseReservedRestSpot(); // 씬 전환 중 휴식 자리를 예약한 채 사라져 다른 개가 영원히 못 쓰는 상태를 막는다.
             BreakPlayPair(false); // 장난 중 삭제되면 상대 개도 정상 배회 상태로 돌려놓는다.
         }
 
@@ -192,6 +214,7 @@ namespace Mush.Lobby
             string prefix = malamute ? "Malamute_" : "Husky_";
             if (tail == null)
                 tail = FindPart(visualRoot, prefix + "Tail") ?? FindPart(visualRoot, "Tail");
+            ballExcitementPhase = Mathf.Abs(GetInstanceID() % 17) * 0.37f;
         }
 
         private void OrientVisualFromGeometry()
@@ -311,6 +334,7 @@ namespace Mush.Lobby
                 if (headCollider == null)
                     headCollider = head.gameObject.AddComponent<SphereCollider>();
                 headCollider.radius = malamute ? 0.53f : 0.49f;
+                headCollider.isTrigger = true; // 쓰다듬기/마우스 판정용이며 다른 개나 소품을 물리적으로 밀 필요는 없다.
             }
 
             MushLobbyDogExpression expression = GetComponent<MushLobbyDogExpression>();
@@ -357,6 +381,18 @@ namespace Mush.Lobby
             if (idleBounceTimer > 0f) idleBounceTimer -= Time.deltaTime;
             if (socialCooldown > 0f) socialCooldown -= Time.deltaTime;
 
+            if (fetchBall != null)
+            {
+                UpdateFetchMovement(); // 공 놀이는 호출·수면·일반 배회보다 우선하며 기존 NavMesh 이동을 그대로 사용한다.
+                return;
+            }
+
+            if (lapTarget != null)
+            {
+                UpdateLapMovement(); // 벽난로 무릎 호출은 일반 호출·수면·배회보다 우선하며 좌석을 떠날 때까지 유지한다.
+                return;
+            }
+
             if (reactionTimer > 0f)
             {
                 IsMoving = false;
@@ -394,10 +430,10 @@ namespace Mush.Lobby
                 {
                     WakeFromSleep(); // Animator와 절차식 수면 자세를 정상 상태로 되돌린다.
                     pauseTimer = 0f; // 잠에서 깬 뒤에도 의미 없는 대기시간은 두지 않는다.
-                    if (reservedBed != null)
+                    if (HasReservedRestSpot())
                     {
-                        leavingBed = true; // 침대에서 잤다면 바로 경로를 잡지 말고 먼저 침대 바깥 접근 지점으로 걸어나온다.
-                        StopNavAgent(true); // 침대 자체는 carving 장애물이므로 마지막 퇴장 구간 동안 Agent를 잠시 끈다.
+                        leavingBed = true; // 침대나 벽난로 앞에서 잤다면 바로 경로를 잡지 말고 먼저 접근 지점으로 걸어나온다.
+                        StopNavAgent(true); // 마지막 퇴장 구간 동안 Agent를 잠시 끈다.
                     }
                     else
                     {
@@ -464,7 +500,7 @@ namespace Mush.Lobby
 
             Vector3 direction = difference.normalized;
             Vector3 worldDirection = transform.parent != null ? transform.parent.TransformDirection(direction) : direction;
-            worldDirection += GetDogSeparationDirection() * 0.65f; // 두 마리가 같은 길을 쓸 때 몸이 포개지는 것을 완화한다.
+            worldDirection += GetDogSeparationDirection() * 0.30f; // NavMesh가 없는 예외 상황에서도 여러 마리가 서로를 과하게 밀지 않고 살짝 비켜 간다.
             worldDirection = MushLobbyFurnitureObstacle.FindOpenDirection(
                 transform.position, worldDirection, 0.72f, furnitureClearance); // 실제 설치된 가구 Bounds까지 한 번 더 피한다.
             if (worldDirection.sqrMagnitude < 0.0001f)
@@ -513,15 +549,16 @@ namespace Mush.Lobby
         private Vector3 GetDogSeparationDirection()
         {
             Vector3 separation = Vector3.zero;
+            const float separationRange = 0.52f;
             foreach (MushLobbyDogRoamer other in ActiveDogs)
             {
                 if (other == null || other == this) continue;
                 Vector3 away = Vector3.ProjectOnPlane(transform.position - other.transform.position, Vector3.up);
                 float sqrDistance = away.sqrMagnitude;
-                if (sqrDistance <= 0.0001f || sqrDistance > 0.70f * 0.70f) continue;
-                separation += away.normalized * (1f - Mathf.Sqrt(sqrDistance) / 0.70f);
+                if (sqrDistance <= 0.0001f || sqrDistance > separationRange * separationRange) continue;
+                separation += away.normalized * (1f - Mathf.Sqrt(sqrDistance) / separationRange);
             }
-            return separation;
+            return Vector3.ClampMagnitude(separation, 0.45f);
         }
 
         private void ChooseAmbientActionAtWaypoint()
@@ -531,8 +568,8 @@ namespace Mush.Lobby
             Animate(false);
 
             float choice = Random.value;
-            if (choice < sleepChance && TryStartBedSleepJourney())
-                return; // 잠은 아무 길바닥에서 시작하지 않고 장착된 개 침대를 예약할 수 있을 때만 선택한다.
+            if (choice < sleepChance && TryStartRestSleepJourney())
+                return; // 잠은 아무 길바닥에서 시작하지 않고 침대 또는 벽난로 앞의 예약된 자리에서만 시작한다.
             if (choice < sleepChance + playChance && TryBeginPlayTogether())
                 return;
 
@@ -576,7 +613,7 @@ namespace Mush.Lobby
             foreach (MushLobbyDogRoamer other in ActiveDogs)
             {
                 if (other == null || other == this || other.called || other.sleepTimer > 0f ||
-                    other.walkingToBed || other.enteringBed || other.leavingBed || other.reservedBed != null ||
+                    other.walkingToBed || other.enteringBed || other.leavingBed || other.HasReservedRestSpot() ||
                     other.playPartner != null || other.reactionTimer > 0f || other.socialCooldown > 0f)
                     continue;
 
@@ -656,36 +693,42 @@ namespace Mush.Lobby
                 OrientVisualFromGeometry();
                 poseCorrectionFrames--;
             }
-            if (sleepTimer <= 0f && !enteringBed && !leavingBed)
+            if (sleepTimer <= 0f && !enteringBed && !leavingBed && !watchingHeldBall && lapTarget == null)
                 SnapPawsToFloor(); // 침대 위 수면/진입/퇴장 중에는 바닥 접지가 비주얼을 침대 아래로 끌어내리지 않게 한다.
             if (poseCorrectionFrames > 0 && visualRoot != null)
             {
                 visualRestPosition = visualRoot.localPosition;
                 visualRestRotation = visualRoot.localRotation;
             }
+            if (watchingHeldBall && fetchBall != null)
+                ApplyHeldBallAttentionVisuals(); // 몸/Animator 보정이 끝난 뒤 폴짝과 고개 추적을 적용해야 모자 추적기가 같은 최종 자세를 따라간다.
         }
 
         public void CallTo(Transform newTarget)
         {
+            if (fetchBall != null)
+                return; // 물어오는 중에는 일반 호출이 공 담당 상태를 중간에 덮어쓰지 않게 한다.
+            if (lapTarget != null)
+                ClearLapState(true); // 일반 호출로 바뀌면 먼저 의자 옆 바닥으로 안전하게 내려놓는다.
             if (playPartner != null) BreakPlayPair(false); // 장난 중 호출되면 둘의 놀이를 즉시 끝낸다.
             if (walkingToBed)
             {
                 walkingToBed = false; // 침대로 가던 중 호출되면 수면 계획을 취소한다.
-                ReleaseReservedBed(); // 다른 개가 침대를 사용할 수 있게 예약도 즉시 푼다.
+                ReleaseReservedRestSpot(); // 다른 개가 휴식 자리를 사용할 수 있게 예약도 즉시 푼다.
             }
             if (sleepTimer > 0f || sleepPoseFrozen)
             {
                 WakeFromSleep(); // 침대에서 자고 있어도 호출을 받으면 바로 깬다.
-                if (reservedBed != null)
+                if (HasReservedRestSpot())
                 {
-                    leavingBed = true; // 다만 침대 안에서 바로 NavMeshAgent를 켜지 않고 먼저 입구까지 빠져나오게 한다.
-                    StopNavAgent(true); // carving 영역 내부에서 Agent가 생성되며 튀는 문제를 막는다.
+                    leavingBed = true; // 다만 휴식 위치에서 바로 NavMeshAgent를 켜지 않고 먼저 접근점까지 빠져나오게 한다.
+                    StopNavAgent(true); // 수동 퇴장 중 Agent가 생성되며 튀는 문제를 막는다.
                 }
             }
             if (enteringBed)
             {
                 enteringBed = false; // 침대에 들어가는 도중 호출되면 방향을 되돌린다.
-                leavingBed = reservedBed != null; // 예약한 침대가 남아 있으면 접근 지점까지 먼저 빠져나온다.
+                leavingBed = HasReservedRestSpot(); // 예약한 휴식 자리가 남아 있으면 접근 지점까지 먼저 빠져나온다.
                 StopNavAgent(true); // 수동 퇴장 구간 동안 Agent는 꺼 둔다.
             }
             if (newTarget != null)
@@ -696,6 +739,473 @@ namespace Mush.Lobby
             reachedCallPoint = false;
             callWaitTimer = 0f;
             pauseTimer = 0f;
+        }
+
+        public bool CallToLap(Transform newTarget)
+        {
+            if (newTarget == null || fetchBall != null)
+                return false;
+            if (lapTarget == newTarget)
+                return true; // 이미 같은 무릎으로 오거나 앉아 있으면 중복 탑승을 시작하지 않는다.
+
+            if (lapTarget != null)
+                ClearLapState(true);
+            if (playPartner != null)
+                BreakPlayPair(false);
+            if (sleepTimer > 0f || sleepPoseFrozen)
+                WakeFromSleep();
+            ReleaseReservedRestSpot();
+
+            called = false;
+            reachedCallPoint = false;
+            callWaitTimer = 0f;
+            reactionTimer = 0f;
+            pauseTimer = 0f;
+            lapTarget = newTarget;
+            CaptureLapPose();
+            EnsureNavMeshAgentOnCurrentPosition();
+            hasNavDestination = false;
+            return true;
+        }
+
+        public void LeaveLap()
+        {
+            if (lapTarget == null)
+                return;
+            ClearLapState(true);
+            PickTarget();
+            pauseTimer = 0f;
+        }
+
+        private void CaptureLapPose()
+        {
+            Vector3 forward = Vector3.ProjectOnPlane(lapTarget.forward, Vector3.up).normalized;
+            Vector3 right = Vector3.ProjectOnPlane(lapTarget.right, Vector3.up).normalized;
+            if (forward.sqrMagnitude < 0.01f)
+                forward = Vector3.back;
+            if (right.sqrMagnitude < 0.01f)
+                right = Vector3.right;
+
+            float sideDot = Vector3.Dot(transform.position - lapTarget.position, right);
+            float sideSign = Mathf.Abs(sideDot) > 0.05f
+                ? Mathf.Sign(sideDot)
+                : (Mathf.Max(0, ActiveDogs.IndexOf(this)) % 2 == 0 ? -1f : 1f);
+            Vector3 cameraFloor = lapTarget.position;
+            cameraFloor.y = transform.position.y;
+            lapApproachWorld = cameraFloor + right * (sideSign * 0.90f) + forward * 0.04f;
+
+            lapWorld = lapTarget.position + forward * 0.34f - Vector3.up * 0.88f;
+            lapWorld.y = Mathf.Max(cameraFloor.y + 0.60f, lapWorld.y); // VR 카메라 높이가 달라도 개가 바닥이나 얼굴에 붙지 않게 무릎 높이를 제한한다.
+            lapRotation = Quaternion.LookRotation(forward, Vector3.up);
+            lapApproachReached = false;
+            mountingLap = false;
+            sittingOnLap = false;
+            lapMountProgress = 0f;
+        }
+
+        private void UpdateLapMovement()
+        {
+            if (!lapApproachReached)
+            {
+                bool arrived;
+                if (!TryNavigateToWorld(lapApproachWorld, runSpeed, 0.85f, 0.24f, out arrived))
+                    MoveDirectlyToWorld(lapApproachWorld, runSpeed, 0.85f, 0.24f, out arrived);
+                if (!arrived)
+                    return;
+
+                lapApproachReached = true;
+                mountingLap = true;
+                lapMountStart = transform.position;
+                lapMountProgress = 0f;
+                StopNavAgent(true);
+            }
+
+            if (mountingLap)
+            {
+                lapMountProgress = Mathf.Clamp01(lapMountProgress + Time.deltaTime / 0.72f);
+                float smooth = Mathf.SmoothStep(0f, 1f, lapMountProgress);
+                Vector3 arcPosition = Vector3.Lerp(lapMountStart, lapWorld, smooth);
+                arcPosition += Vector3.up * (Mathf.Sin(lapMountProgress * Mathf.PI) * 0.16f);
+                transform.position = arcPosition;
+                transform.rotation = Quaternion.Slerp(transform.rotation, lapRotation, Time.deltaTime * 8f);
+                IsMoving = true;
+                SetAnimatorSpeed(0f);
+                Animate(false);
+                if (lapMountProgress < 1f)
+                    return;
+
+                mountingLap = false;
+                sittingOnLap = true;
+                transform.SetPositionAndRotation(lapWorld, lapRotation);
+                tailWagTimer = Mathf.Max(tailWagTimer, 1.8f);
+                TriggerAnimation("Sit");
+            }
+
+            transform.SetPositionAndRotation(lapWorld, lapRotation);
+            IsMoving = false;
+            SetAnimatorSpeed(0f);
+            Animate(false);
+        }
+
+        private void ClearLapState(bool returnToFloor)
+        {
+            if (lapTarget == null)
+                return;
+
+            if (returnToFloor)
+            {
+                transform.position = lapApproachWorld;
+                transform.rotation = lapRotation;
+            }
+            lapTarget = null;
+            lapApproachReached = false;
+            mountingLap = false;
+            sittingOnLap = false;
+            lapMountProgress = 0f;
+            if (animator != null)
+                animator.speed = 1f;
+            IsMoving = false;
+            SetAnimatorSpeed(0f);
+            Animate(false);
+            EnsureNavMeshAgentOnCurrentPosition();
+            hasNavDestination = false;
+        }
+
+        public bool TryBeginFetch(MushLobbyFetchBall ball)
+        {
+            if (ball == null || (fetchBall != null && fetchBall != ball))
+                return false;
+
+            PrepareForBallActivity();
+            fetchBall = ball;
+            returningFetchBall = false;
+            waitingForFetchTake = false;
+            watchingHeldBall = false;
+            followingFetchReturn = false;
+            tailWagTimer = Mathf.Max(tailWagTimer, 2f);
+            EnsureNavMeshAgentOnCurrentPosition();
+            hasNavDestination = false;
+            return true;
+        }
+
+        public void WatchHeldBall(MushLobbyFetchBall ball)
+        {
+            if (ball == null)
+                return;
+
+            PrepareForBallActivity();
+            fetchBall = ball;
+            returningFetchBall = false;
+            waitingForFetchTake = false;
+            watchingHeldBall = true;
+            followingFetchReturn = false;
+            tailWagTimer = Mathf.Max(tailWagTimer, 0.35f);
+            StopNavAgent(false);
+            hasNavDestination = false;
+        }
+
+        public void FollowFetchWinner(MushLobbyFetchBall ball)
+        {
+            if (ball == null || (fetchBall != null && fetchBall != ball))
+                return;
+
+            PrepareForBallActivity();
+            fetchBall = ball;
+            returningFetchBall = false;
+            waitingForFetchTake = false;
+            watchingHeldBall = false;
+            followingFetchReturn = true;
+            EnsureNavMeshAgentOnCurrentPosition();
+            hasNavDestination = false;
+        }
+
+        public void CancelFetch(MushLobbyFetchBall ball)
+        {
+            if (fetchBall == null || fetchBall != ball)
+                return;
+
+            fetchBall = null;
+            returningFetchBall = false;
+            waitingForFetchTake = false;
+            watchingHeldBall = false;
+            followingFetchReturn = false;
+            ResumeRoaming();
+        }
+
+        private void UpdateFetchMovement()
+        {
+            if (fetchBall == null)
+                return;
+
+            if (watchingHeldBall)
+            {
+                UpdateHeldBallAttention();
+                return;
+            }
+
+            if (followingFetchReturn)
+            {
+                UpdateFetchFollower();
+                return;
+            }
+
+            if (!returningFetchBall)
+            {
+                // 던진 직후부터 전부 공 아래의 NavMesh 지점으로 달려간다. 실제 물기는
+                // 공이 바닥에 닿고 안정된 뒤에만 허용해 공중으로 솟는 현상은 막는다.
+                Vector3 targetPosition = fetchBall.FetchTargetPosition;
+                MoveForFetch(targetPosition, runSpeed * 1.14f, 1f, 0.28f, out bool reachedBall);
+                float ballDistance = Vector3.ProjectOnPlane(
+                    fetchBall.transform.position - transform.position,
+                    Vector3.up).magnitude;
+                if (!fetchBall.CanBePickedUp)
+                    return;
+                if (!reachedBall && ballDistance > 0.44f)
+                    return;
+
+                Transform carrySocket = GetOrCreateFetchCarrySocket();
+                if (carrySocket == null)
+                {
+                    CancelFetch(fetchBall);
+                    return;
+                }
+
+                if (!fetchBall.TryAttachToDog(this, carrySocket))
+                    return; // 같은 프레임에 다른 개가 먼저 물었으면 공 쪽에서 느린 합류 상태로 전환한다.
+
+                returningFetchBall = true;
+                waitingForFetchTake = false;
+                tailWagTimer = Mathf.Max(tailWagTimer, 3f);
+                hasNavDestination = false;
+                return;
+            }
+
+            if (waitingForFetchTake)
+            {
+                WaitForPlayerToTakeFetchBall();
+                return;
+            }
+
+            Vector3 returnTarget = fetchBall.ReturnWorldPosition;
+            MoveForFetch(returnTarget, runSpeed * 1.35f, 1f, 0.34f, out bool reachedPlayer);
+            float returnDistance = Vector3.ProjectOnPlane(
+                returnTarget - transform.position,
+                Vector3.up).magnitude;
+            if (!reachedPlayer && returnDistance > 0.48f)
+                return;
+
+            waitingForFetchTake = true;
+            StopNavAgent(false);
+            hasNavDestination = false;
+            WaitForPlayerToTakeFetchBall();
+        }
+
+        private void WaitForPlayerToTakeFetchBall()
+        {
+            if (fetchBall == null)
+                return;
+
+            Vector3 towardPlayer = Vector3.ProjectOnPlane(
+                fetchBall.PlayerWorldPosition - transform.position,
+                Vector3.up);
+            if (towardPlayer.sqrMagnitude > 0.01f)
+            {
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    Quaternion.LookRotation(towardPlayer.normalized, Vector3.up),
+                    turnSpeed * Time.deltaTime);
+            }
+
+            tailWagTimer = Mathf.Max(tailWagTimer, 0.25f);
+            IsMoving = false;
+            SetAnimatorSpeed(0f);
+            Animate(false);
+        }
+
+        private void UpdateHeldBallAttention()
+        {
+            StopNavAgent(false);
+            Vector3 towardBall = fetchBall.transform.position - transform.position;
+            Vector3 flatTowardBall = Vector3.ProjectOnPlane(towardBall, Vector3.up);
+            if (flatTowardBall.sqrMagnitude > 0.01f)
+            {
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    Quaternion.LookRotation(flatTowardBall.normalized, Vector3.up),
+                    turnSpeed * Time.deltaTime);
+            }
+
+            IsMoving = false;
+            SetAnimatorSpeed(0f);
+            tailWagTimer = Mathf.Max(tailWagTimer, 0.25f);
+            Animate(false);
+        }
+
+        private void ApplyHeldBallAttentionVisuals()
+        {
+            // 모델 자체를 작게 들어 올려 현재 임시 모델에도 확실히 보이는 들뜬 폴짝 동작을 준다.
+            if (visualRoot != null)
+            {
+                float wave = Mathf.Max(0f, Mathf.Sin(animationTime * 7.2f + ballExcitementPhase));
+                float hopHeight = wave * wave * 0.045f; // 모자/머리 소켓이 한 프레임 어긋나도 파츠 안으로 깊게 들어가지 않는 작은 높이로 제한한다.
+                Vector3 hopTarget = visualRestPosition + Vector3.up * hopHeight;
+                visualRoot.localPosition = Vector3.Lerp(
+                    visualRoot.localPosition,
+                    hopTarget,
+                    Time.deltaTime * 18f);
+            }
+
+            // 머리 메시/본만 별도로 돌리면 런타임 모자가 사용하는 독립 추적 좌표와 충돌해
+            // 공을 든 동안 모자가 몸 안이나 시야 밖으로 이동한다. 몸 전체가 이미 매 프레임
+            // 공을 향하므로 여기서는 머리 파츠를 따로 회전하지 않고 장착 상태를 보존한다.
+        }
+
+        private void UpdateFetchFollower()
+        {
+            Vector3 playerPoint = fetchBall.ReturnWorldPosition;
+            Vector3 outward = Vector3.ProjectOnPlane(
+                playerPoint - fetchBall.PlayerWorldPosition,
+                Vector3.up);
+            if (outward.sqrMagnitude < 0.01f)
+                outward = Vector3.ProjectOnPlane(-transform.forward, Vector3.up);
+            if (outward.sqrMagnitude < 0.01f)
+                outward = Vector3.forward;
+            outward.Normalize();
+            Vector3 right = Vector3.Cross(Vector3.up, outward).normalized;
+
+            int dogIndex = Mathf.Max(0, ActiveDogs.IndexOf(this));
+            float sideSign = dogIndex % 2 == 0 ? -1f : 1f;
+            float sideDistance = 0.46f + (dogIndex / 2) * 0.30f;
+            Vector3 joinTarget = playerPoint + outward * 0.34f + right * (sideSign * sideDistance);
+
+            MoveForFetch(joinTarget, runSpeed * 1.15f, 0.92f, 0.28f, out bool reachedJoinPoint);
+            if (!reachedJoinPoint)
+                return;
+
+            Vector3 towardPlayer = Vector3.ProjectOnPlane(
+                fetchBall.PlayerWorldPosition - transform.position,
+                Vector3.up);
+            if (towardPlayer.sqrMagnitude > 0.01f)
+            {
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    Quaternion.LookRotation(towardPlayer.normalized, Vector3.up),
+                    turnSpeed * Time.deltaTime);
+            }
+            tailWagTimer = Mathf.Max(tailWagTimer, 0.25f);
+            IsMoving = false;
+            SetAnimatorSpeed(0f);
+            Animate(false);
+        }
+
+        private void PrepareForBallActivity()
+        {
+            if (lapTarget != null)
+                ClearLapState(true); // 무릎에 있던 개로 공놀이를 시작하면 먼저 의자 옆 바닥으로 내려놓는다.
+            if (playPartner != null)
+                BreakPlayPair(false);
+            if (sleepTimer > 0f || sleepPoseFrozen)
+                WakeFromSleep();
+            ReleaseReservedRestSpot();
+            called = false;
+            reachedCallPoint = false;
+            callWaitTimer = 0f;
+            reactionTimer = 0f;
+            pauseTimer = 0f;
+        }
+
+        public void CompleteFetchHandoff(MushLobbyFetchBall ball, Transform playerTarget)
+        {
+            if (ball == null || fetchBall != ball)
+                return;
+
+            fetchBall = null;
+            returningFetchBall = false;
+            waitingForFetchTake = false;
+            watchingHeldBall = false;
+            followingFetchReturn = false;
+            EnterBallInteractionWait(playerTarget);
+        }
+
+        public void EndBallGameAndWait(MushLobbyFetchBall ball, Transform playerTarget)
+        {
+            if (ball == null || fetchBall != ball)
+                return;
+
+            fetchBall = null;
+            returningFetchBall = false;
+            waitingForFetchTake = false;
+            watchingHeldBall = false;
+            followingFetchReturn = false;
+            EnterBallInteractionWait(playerTarget);
+        }
+
+        private void EnterBallInteractionWait(Transform playerTarget)
+        {
+            if (playerTarget != null)
+                callTarget = playerTarget;
+
+            called = callTarget != null;
+            reachedCallPoint = called;
+            callWaitTimer = called ? unpettedCallWait : 0f;
+            pauseTimer = 0f;
+            hasNavDestination = false;
+            StopNavAgent(false);
+
+            if (called)
+            {
+                calledDestinationWorld = transform.position;
+                calledLookPointWorld = callTarget.position;
+                calledLookPointWorld.y = transform.position.y;
+                tailWagTimer = Mathf.Max(tailWagTimer, 1.2f);
+                IsMoving = false;
+                SetAnimatorSpeed(0f);
+                Animate(false);
+                return;
+            }
+
+            ResumeRoaming();
+        }
+
+        private void MoveForFetch(
+            Vector3 worldDestination,
+            float moveSpeed,
+            float animatorSpeed,
+            float stoppingDistance,
+            out bool arrived)
+        {
+            if (TryNavigateToWorld(worldDestination, moveSpeed, animatorSpeed, stoppingDistance, out arrived))
+                return;
+
+            MoveDirectlyToWorld(worldDestination, moveSpeed, animatorSpeed, stoppingDistance, out arrived);
+        }
+
+        private Transform GetOrCreateFetchCarrySocket()
+        {
+            if (fetchCarrySocket != null)
+                return fetchCarrySocket;
+
+            Transform mouth = FindPart(visualRoot, "Mouth") ??
+                              FindPart(visualRoot, "Muzzle") ??
+                              FindPart(visualRoot, "Nose") ??
+                              FindPart(visualRoot, "Head");
+            Transform parent = mouth != null ? mouth : visualRoot != null ? visualRoot : transform;
+            if (parent == null)
+                return null;
+
+            Vector3 mouthCenter = parent.position;
+            Renderer mouthRenderer = parent.GetComponent<Renderer>();
+            if (mouthRenderer == null)
+                mouthRenderer = parent.GetComponentInChildren<Renderer>(true);
+            if (mouthRenderer != null)
+                mouthCenter = mouthRenderer.bounds.center;
+
+            GameObject socket = new("Fetch Ball Mouth Socket");
+            fetchCarrySocket = socket.transform;
+            fetchCarrySocket.SetParent(parent, true);
+            fetchCarrySocket.position = mouthCenter + transform.forward * 0.11f - Vector3.up * 0.025f;
+            fetchCarrySocket.rotation = transform.rotation;
+            return fetchCarrySocket;
         }
 
         private void CaptureCalledDestination()
@@ -717,11 +1227,18 @@ namespace Mush.Lobby
 
         public void ResumeRoaming()
         {
+            if (lapTarget != null)
+                ClearLapState(true);
             called = false;
+            fetchBall = null;
+            returningFetchBall = false;
+            waitingForFetchTake = false;
+            watchingHeldBall = false;
+            followingFetchReturn = false;
             sleepTimer = 0f;
             reachedCallPoint = false;
             callWaitTimer = 0f;
-            ReleaseReservedBed(); // 호출 종료가 침대 행동과 겹친 예외 상황에서도 예약을 남기지 않는다.
+            ReleaseReservedRestSpot(); // 호출 종료가 수면 행동과 겹친 예외 상황에서도 예약을 남기지 않는다.
             EnsureNavMeshAgentOnCurrentPosition(); // 현재 위치를 가까운 NavMesh에 다시 붙여 이후 경로가 안정적으로 이어지게 한다.
             PickTarget();
             pauseTimer = 0f; // 호출이 끝난 뒤에도 이유 없는 멀뚱한 정지를 만들지 않는다.
@@ -733,6 +1250,14 @@ namespace Mush.Lobby
             // seconds. It must still resume roaming when interaction stops.
             if (called && reachedCallPoint)
                 callWaitTimer = unpettedCallWait;
+            if (IsRestingAtFireplace)
+                sleepTimer = Mathf.Max(sleepTimer, 4.5f); // 손이 닿아 있는 동안 갑자기 일어나 떠나지 않고 누운 상태를 조금 더 유지한다.
+        }
+
+        public void PlayRestingPet()
+        {
+            tailWagTimer = Mathf.Max(tailWagTimer, 1.45f); // 벽난로 앞에서는 서는 Pet 애니메이션 대신 누운 자세와 꼬리 반응만 유지한다.
+            SetAnimatorSpeed(0f);
         }
 
         public void Celebrate()
@@ -842,12 +1367,15 @@ namespace Mush.Lobby
             bool animatorReady = animator != null && animator.isActiveAndEnabled &&
                                  animator.runtimeAnimatorController != null && animator.avatar != null;
             bool proceduralSleeping = sleepTimer > 0f;
+            bool proceduralLapSitting = sittingOnLap && !animatorReady;
             if (visualRoot != null)
             {
                 float bedLift = (sleepTimer > 0f || enteringBed || leavingBed) ? sleepSurfaceLift : 0f; // 침대 행동 동안만 바닥보다 높은 침대 윗면 오프셋을 적용한다.
                 Vector3 desiredPosition = proceduralSleeping && !animatorReady
                     ? visualRestPosition + Vector3.up * bedLift + Vector3.down * proceduralSleepBodyDrop // 전용 Animator가 없으면 침대 위 높이를 유지하면서 절차식 눕기 자세만큼 몸을 낮춘다.
-                    : visualRestPosition + Vector3.up * bedLift; // 실제 LieDown 애니메이션이 있으면 애니메이션 자세는 그대로 두고 전체 모델 높이만 침대 윗면으로 올린다.
+                    : proceduralLapSitting
+                        ? visualRestPosition + Vector3.down * 0.08f // Animator가 없는 임시 모델도 무릎 위에서 뒷부분을 낮춘 앉은 높이로 보이게 한다.
+                        : visualRestPosition + Vector3.up * bedLift; // 실제 LieDown 애니메이션이 있으면 애니메이션 자세는 그대로 두고 전체 모델 높이만 침대 윗면으로 올린다.
                 visualRoot.localPosition = Vector3.Lerp(visualRoot.localPosition, desiredPosition, Time.deltaTime * 5f); // 수면과 기상 사이를 갑자기 튀지 않게 부드럽게 보간한다.
                 visualRoot.localRotation = Quaternion.Slerp(visualRoot.localRotation, visualRestRotation, Time.deltaTime * 7f);
             }
@@ -879,9 +1407,12 @@ namespace Mush.Lobby
                 float legRate = Mathf.Lerp(8.5f, 15.5f, runBlend);
                 float legSwing = Mathf.Lerp(15f, 24f, runBlend);
                 float sleepFold = index < 2 ? 52f : -46f;
+                float lapFold = index < 2 ? 8f : -58f;
                 float targetAngle = proceduralSleeping
                     ? sleepFold
-                    : walking ? Mathf.Sin(animationTime * legRate + phase) * legSwing : 0f;
+                    : proceduralLapSitting
+                        ? lapFold
+                        : walking ? Mathf.Sin(animationTime * legRate + phase) * legSwing : 0f;
                 Quaternion targetRotation = fallbackLegRestRotations[index] * Quaternion.Euler(targetAngle, 0f, 0f);
                 fallbackLegs[index].localRotation = Quaternion.Slerp(
                     fallbackLegs[index].localRotation,
@@ -948,11 +1479,17 @@ namespace Mush.Lobby
                 bodyCollider = gameObject.AddComponent<CapsuleCollider>();
 
             bodyCollider.enabled = true;
-            bodyCollider.isTrigger = false;
+            bodyCollider.isTrigger = true; // 실제 밀어내기는 NavMeshAgent가 담당하고 이 캡슐은 클릭/상호작용 범위로만 사용한다.
             bodyCollider.direction = 1;
             bodyCollider.center = transform.InverseTransformPoint(bounds.center);
             bodyCollider.height = Mathf.Max(0.4f, bounds.size.y);
             bodyCollider.radius = Mathf.Max(0.18f, Mathf.Max(bounds.extents.x, bounds.extents.z) * 0.78f);
+
+            foreach (Collider interactionCollider in visualRoot.GetComponentsInChildren<Collider>(true))
+            {
+                if (interactionCollider != null)
+                    interactionCollider.isTrigger = true; // 씬에 미리 들어 있던 머리 콜라이더도 물리 충돌 없이 판정용으로 통일한다.
+            }
         }
 
         private void CacheGroundSurfaces()
@@ -1121,19 +1658,20 @@ namespace Mush.Lobby
                 navAgent = gameObject.AddComponent<NavMeshAgent>(); // 로비 개에게 Unity 내비메시 이동/회피 기능을 실제로 추가한다.
 
             navAgent.agentTypeID = 0; // 런타임 바닥 내비메시가 사용하는 기본 Agent Type과 일치시킨다.
-            navAgent.radius = 0.28f; // 두 개와 가구 사이에 실제 몸통 여유가 생기도록 개 크기에 맞춘 반지름을 사용한다.
+            navAgent.radius = 0.21f; // 6마리까지 같은 실내를 쓸 수 있도록 겹침 방지에 필요한 최소 여유만 둔다.
             navAgent.height = 0.90f; // 개 높이에 맞춰 Agent 캡슐을 설정한다.
             navAgent.baseOffset = 0f; // 개 루트와 바닥 내비메시 높이를 직접 일치시키므로 별도 수직 오프셋을 두지 않는다.
             navAgent.speed = walkSpeed; // 기본 배회 속도는 기존 걷기 속도와 일치시킨다.
             navAgent.angularSpeed = 540f; // 좁은 실내에서 코너를 부드럽지만 답답하지 않게 돌 수 있는 회전 속도다.
-            navAgent.acceleration = 4.5f; // 출발/정지 때 순간이동처럼 보이지 않도록 적당한 가속을 사용한다.
+            navAgent.acceleration = 3.2f; // 회피 방향이 바뀔 때 옆으로 갑자기 밀려나는 느낌을 줄인다.
             navAgent.stoppingDistance = 0.18f; // 생활 경유지에서 너무 멀리 떨어져 멈추지 않게 작은 정지 거리를 사용한다.
             navAgent.autoBraking = true; // 단일 목표마다 자연스럽게 감속해 가구에 박히는 느낌을 줄인다.
             navAgent.autoRepath = true; // 하우징 교체로 carving 영역이 바뀌면 자동으로 새 경로를 찾게 한다.
             navAgent.updateRotation = false; // 개 방향은 기존 스크립트가 desiredVelocity 기준으로 부드럽게 회전시켜 비주얼과 일치시킨다.
             navAgent.updateUpAxis = false; // 평평한 로비에서 Agent가 모델의 해부학 축을 건드리지 않게 한다.
-            navAgent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance; // 두 마리가 마주칠 때 서로 통과하지 않고 적극적으로 피하게 한다.
-            navAgent.avoidancePriority = name.IndexOf("Mochi", System.StringComparison.OrdinalIgnoreCase) >= 0 ? 45 : 55; // 두 개가 정면에서 만났을 때 우선순위가 완전히 같아 교착되는 것을 줄인다.
+            navAgent.obstacleAvoidanceType = ObstacleAvoidanceType.GoodQualityObstacleAvoidance; // 과도한 측면 밀림은 줄이면서 실내 교차 회피는 유지한다.
+            int dogIndex = Mathf.Max(0, ActiveDogs.IndexOf(this));
+            navAgent.avoidancePriority = 40 + (dogIndex * 7) % 27; // 최대 6마리가 서로 다른 우선순위를 가져 같은 자리에서 힘겨루기하지 않게 한다.
             navAgent.Warp(hit.position); // 설정이 끝난 Agent의 내부 시뮬레이션 위치도 현재 NavMesh 위치와 정확히 맞춘다.
             navAgent.isStopped = false; // 첫 배회 목적지를 바로 따라갈 수 있게 이동 가능 상태로 둔다.
             hasNavDestination = false; // 아직 목적지를 전달하지 않았으므로 다음 이동에서 SetDestination을 실행하게 한다.
@@ -1225,25 +1763,50 @@ namespace Mush.Lobby
                 navAgent.enabled = false; // 침대 중심처럼 NavMesh 바깥으로 직접 이동할 때만 컴포넌트를 잠시 끈다.
         }
 
-        private bool TryStartBedSleepJourney()
+        private bool TryStartRestSleepJourney()
         {
-            if (!MushLobbyDogBedSpot.TryReserveNearest(this, out reservedBed, out bedApproachWorld, out bedSleepWorld, out bedSleepRotation))
-                return false; // 장착된 개 침대가 없거나 다른 개가 이미 쓰고 있으면 이번에는 잠 대신 다른 생활 행동을 고른다.
+            bool preferFireplace = Random.value < 0.5f; // 침대가 있어도 벽난로 앞 휴식이 무작위로 섞이게 한다.
+            bool reserved = preferFireplace
+                ? TryReserveFireplaceRest() || TryReserveDogBed()
+                : TryReserveDogBed() || TryReserveFireplaceRest();
+            if (!reserved)
+                return false; // 모든 침대와 벽난로 앞 자리가 사용 중이면 이번에는 다른 생활 행동을 고른다.
 
-            walkingToBed = true; // 먼저 침대 바깥 접근 지점까지 내비메시로 이동한다.
-            enteringBed = false; // 아직 침대 안으로 들어가는 단계는 아니다.
+            walkingToBed = true; // 먼저 휴식 자리 바깥 접근 지점까지 내비메시로 이동한다.
+            enteringBed = false; // 아직 실제로 누울 위치로 들어가는 단계는 아니다.
             leavingBed = false; // 수면 전이므로 퇴장 상태도 아니다.
             runningToTarget = false; // 침대에는 뛰어들지 않고 걷기로 접근한다.
-            sleepSurfaceLift = 0f; // 실제 침대 윗면 높이는 들어가기 직전에 다시 계산한다.
-            return true; // 이번 생활 행동이 침대 수면 루틴으로 전환되었음을 알린다.
+            sleepSurfaceLift = 0f; // 침대 윗면 또는 벽난로 앞 바닥 높이는 들어가기 직전에 계산한다.
+            return true; // 이번 생활 행동이 예약 수면 루틴으로 전환되었음을 알린다.
+        }
+
+        private bool TryReserveDogBed()
+        {
+            return MushLobbyDogBedSpot.TryReserveNearest(
+                this,
+                out reservedBed,
+                out bedApproachWorld,
+                out bedSleepWorld,
+                out bedSleepRotation);
+        }
+
+        private bool TryReserveFireplaceRest()
+        {
+            return MushLobbyFireplaceRestSpot.TryReserveRandom(
+                this,
+                out reservedFireplaceRest,
+                out reservedFireplaceSlot,
+                out bedApproachWorld,
+                out bedSleepWorld,
+                out bedSleepRotation);
         }
 
         private void UpdateWalkToBed()
         {
-            if (reservedBed == null || !reservedBed.isActiveAndEnabled)
+            if (!HasValidReservedRestSpot())
             {
-                walkingToBed = false; // 하우징 교체 등으로 침대가 사라졌다면 수면 루틴을 즉시 취소한다.
-                ReleaseReservedBed(); // 혹시 남은 예약 정보도 정리한다.
+                walkingToBed = false; // 하우징 교체 등으로 휴식 자리가 사라졌다면 수면 루틴을 즉시 취소한다.
+                ReleaseReservedRestSpot(); // 혹시 남은 예약 정보도 정리한다.
                 PickTarget(); // 일반 생활 경로로 돌아간다.
                 return;
             }
@@ -1256,7 +1819,7 @@ namespace Mush.Lobby
                 walkingToBed = false; // 내비메시 구간이 끝났음을 표시한다.
                 enteringBed = true; // 이제 짧은 마지막 진입 구간으로 전환한다.
                 StopNavAgent(true); // 침대는 carving 장애물이므로 중심으로 들어가는 동안 Agent를 잠시 끈다.
-                sleepSurfaceLift = Mathf.Max(0f, reservedBed.SurfaceY - ResolveGroundY()); // 현재 바닥과 침대 윗면 높이 차이를 계산해 비주얼을 침대 위에 올린다.
+                sleepSurfaceLift = Mathf.Max(0f, GetReservedRestSurfaceY() - ResolveGroundY()); // 침대 윗면은 올리고 벽난로 앞에서는 바닥 높이를 유지한다.
                 return;
             }
 
@@ -1267,7 +1830,7 @@ namespace Mush.Lobby
                 walkingToBed = false; // 접근점에 도착했으므로 수동 진입 단계로 넘어간다.
                 enteringBed = true; // 침대 중심으로 들어갈 준비를 한다.
                 StopNavAgent(true); // 혹시 Agent가 반쯤 활성화돼 있다면 확실히 끈다.
-                sleepSurfaceLift = Mathf.Max(0f, reservedBed.SurfaceY - ResolveGroundY()); // 침대 높이를 동일하게 계산한다.
+                sleepSurfaceLift = Mathf.Max(0f, GetReservedRestSurfaceY() - ResolveGroundY()); // 휴식 자리의 실제 높이를 동일하게 계산한다.
             }
         }
 
@@ -1306,7 +1869,7 @@ namespace Mush.Lobby
             {
                 leavingBed = false; // 침대 바깥 접근점까지 안전하게 나왔다.
                 sleepSurfaceLift = 0f; // 비주얼 높이를 다시 일반 바닥 기준으로 되돌린다.
-                ReleaseReservedBed(); // 다른 개가 이 침대를 사용할 수 있도록 예약을 해제한다.
+                ReleaseReservedRestSpot(); // 다른 개가 이 침대나 벽난로 앞 자리를 사용할 수 있도록 예약을 해제한다.
                 EnsureNavMeshAgentOnCurrentPosition(); // 접근점의 실제 NavMesh 위치에 Agent를 다시 올린다.
                 if (called && callTarget != null)
                     return; // B 호출 때문에 깬 경우 다음 프레임부터 기존 호출 목적지로 바로 간다.
@@ -1334,11 +1897,36 @@ namespace Mush.Lobby
             Animate(true); // 절차식 다리 움직임도 재생한다.
         }
 
-        private void ReleaseReservedBed()
+        private bool HasReservedRestSpot()
+        {
+            return reservedBed != null || reservedFireplaceRest != null;
+        }
+
+        private bool HasValidReservedRestSpot()
+        {
+            if (reservedBed != null)
+                return reservedBed.isActiveAndEnabled;
+            return reservedFireplaceRest != null &&
+                   reservedFireplaceRest.isActiveAndEnabled &&
+                   reservedFireplaceRest.IsReservedBy(this, reservedFireplaceSlot);
+        }
+
+        private float GetReservedRestSurfaceY()
+        {
+            if (reservedBed != null)
+                return reservedBed.SurfaceY;
+            return reservedFireplaceRest != null ? reservedFireplaceRest.SurfaceY : ResolveGroundY();
+        }
+
+        private void ReleaseReservedRestSpot()
         {
             if (reservedBed != null)
                 reservedBed.Release(this); // 이 개가 예약한 침대만 안전하게 해제한다.
+            if (reservedFireplaceRest != null)
+                reservedFireplaceRest.Release(this, reservedFireplaceSlot); // 이 개가 예약한 벽난로 앞 자리만 안전하게 해제한다.
             reservedBed = null; // 이후 상태 검사에서 이전 침대를 다시 참조하지 않게 비운다.
+            reservedFireplaceRest = null;
+            reservedFireplaceSlot = -1;
             walkingToBed = false; // 남아 있는 수면 접근 상태도 함께 초기화한다.
             enteringBed = false; // 남아 있는 진입 상태도 초기화한다.
             leavingBed = false; // 남아 있는 퇴장 상태도 초기화한다.

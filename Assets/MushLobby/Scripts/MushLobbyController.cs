@@ -43,6 +43,8 @@ namespace Mush.Lobby
         private const string RightControllerSecondaryButtonBinding = "<XRController>{RightHand}/secondaryButton"; // OpenXR의 오른손 XR 컨트롤러 보조 버튼을 지정한다. Quest Touch 계열에서는 이 경로가 B 버튼에 대응한다.
         private InputAction callDogsVrAction; // 로비에서 오른손 B 버튼을 눌렀을 때 개들을 부르기 위한 New Input System 액션을 런타임에 보관한다.
         private readonly List<MeshRenderer> suppressedLobbyTextRenderers = new();
+        private MushLobbyStationNavigator stationNavigator;
+        private MushLobbyDogRoamer lapDog; // 벽난로 좌석에서 호출해 현재 무릎으로 올라오는 한 마리를 기억한다.
 
         private static readonly Dictionary<string, string> KoreanLabels = new Dictionary<string, string>
         {
@@ -121,6 +123,10 @@ namespace Mush.Lobby
         {
             customization = MushCustomizationSave.Load();
             ApplySavedCustomization();
+            MushLobbyFireplaceVfx.Install(transform.parent); // 누워 있던 FBX 벽난로를 세우고 가벼운 불꽃 파티클과 광원 흔들림을 설치한다.
+            MushLobbyFireplaceRestSpot.Install(transform.parent); // 벽난로 앞 좌우에 개별 예약 가능한 휴식 자리를 만들어 개들이 겹치지 않고 눕게 한다.
+            MushLobbyFetchBall.Install(lobbyCamera, dogs, transform.parent); // 오른쪽 개 놀이 구역의 거치대와 공 물어오기 놀이를 로비에 한 번만 설치한다.
+            stationNavigator = MushLobbyStationNavigator.Install(lobbyCamera, this, transform.parent); // Q/왼쪽 스틱 클릭으로 여는 좌식 고정 지점 이동 메뉴다.
             RefreshAllText();
         }
 
@@ -146,27 +152,47 @@ namespace Mush.Lobby
 
         private void Update()
         {
+            if (lapDog != null && (stationNavigator == null || !stationNavigator.IsSeatedAtFireplace))
+            {
+                lapDog.LeaveLap(); // 벽난로 좌석을 벗어나면 개가 카메라를 따라 날아오지 않고 의자 옆 바닥으로 내려간다.
+                lapDog = null;
+            }
+
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.qKey.wasPressedThisFrame)
+                stationNavigator?.ToggleMenu();
+
             Mouse mouse = Mouse.current;
             if (mouse != null && mouse.leftButton.wasPressedThisFrame && lobbyCamera != null)
             {
                 Ray ray = lobbyCamera.ScreenPointToRay(mouse.position.ReadValue());
-                if (Physics.Raycast(ray, out RaycastHit hit, 12f))
+                if (stationNavigator != null && stationNavigator.IsMenuOpen)
+                {
+                    stationNavigator.TryHandleDesktopClick(ray);
+                }
+                else if (Physics.Raycast(ray, out RaycastHit hit, 12f))
                 {
                     MushLobbyInteractable interactable = hit.collider.GetComponentInParent<MushLobbyInteractable>();
                     if (interactable != null)
                         interactable.Trigger();
                     else if (hit.collider.GetComponentInParent<MushLobbyShopItem>() is MushLobbyShopItem shopItem)
                         shopItem.Trigger();
+                    else if (hit.collider.GetComponentInParent<MushLobbyChairSeatInteractable>() is MushLobbyChairSeatInteractable chairSeat)
+                        chairSeat.Trigger();
                     else
                         hit.collider.GetComponentInParent<MushLobbyDogInteraction>()?.Pet();
                 }
             }
 
-            Keyboard keyboard = Keyboard.current;
             if (keyboard != null)
             {
                 if (keyboard.escapeKey.wasPressedThisFrame)
-                    ClosePanels();
+                {
+                    if (stationNavigator != null && stationNavigator.IsMenuOpen)
+                        stationNavigator.CloseMenu();
+                    else
+                        ClosePanels();
+                }
                 if (keyboard.spaceKey.wasPressedThisFrame)
                     CallDogs();
                 if (keyboard.enterKey.wasPressedThisFrame)
@@ -353,6 +379,33 @@ namespace Mush.Lobby
             if (dogs == null || lobbyCamera == null)
                 return;
 
+            if (stationNavigator != null && stationNavigator.IsSeatedAtFireplace)
+            {
+                if (lapDog == null || !lapDog.IsInLapRoutine)
+                {
+                    float nearestDistance = float.PositiveInfinity;
+                    MushLobbyDogRoamer nearestDog = null;
+                    foreach (MushLobbyDogRoamer dog in dogs)
+                    {
+                        if (dog == null || dog.IsFetching)
+                            continue;
+                        float distance = (dog.transform.position - lobbyCamera.transform.position).sqrMagnitude;
+                        if (distance >= nearestDistance)
+                            continue;
+                        nearestDistance = distance;
+                        nearestDog = dog;
+                    }
+                    if (nearestDog != null && nearestDog.CallToLap(lobbyCamera.transform))
+                        lapDog = nearestDog;
+                }
+
+                transientMessage = lapDog != null
+                    ? "개가 의자 옆으로 와서 무릎에 앉습니다"
+                    : "지금은 무릎으로 부를 수 있는 개가 없습니다";
+                RefreshAllText();
+                return; // 두 마리가 같은 무릎 위치에 겹치지 않도록 벽난로 좌석 호출은 한 마리만 처리한다.
+            }
+
             foreach (MushLobbyDogRoamer dog in dogs)
                 dog?.CallTo(lobbyCamera.transform);
             transientMessage = "개들이 이쪽으로 오고 있습니다";
@@ -409,14 +462,49 @@ namespace Mush.Lobby
             transientMessage = "로비 화면";
         }
 
+        public void ClosePanelsForTravel()
+        {
+            ClosePanels();
+            RefreshAllText();
+        }
+
+        public void SetStationMenuVisible(bool visible)
+        {
+            if (visible)
+            {
+                SetAllPanels(false);
+                SetBackgroundLobbyTextVisible(false);
+            }
+            else
+            {
+                SetBackgroundLobbyTextVisible(true);
+            }
+        }
+
         private void ShowOnly(GameObject panel)
         {
             SetAllPanels(false);
             if (panel != null)
             {
+                PositionPanelForCurrentView(panel);
                 panel.SetActive(true);
                 SetBackgroundLobbyTextVisible(false);
             }
+        }
+
+        private void PositionPanelForCurrentView(GameObject panel)
+        {
+            if (panel == null || lobbyCamera == null)
+                return;
+
+            Vector3 forward = Vector3.ProjectOnPlane(lobbyCamera.transform.forward, Vector3.up).normalized;
+            if (forward.sqrMagnitude < 0.001f)
+                forward = Vector3.ProjectOnPlane(lobbyCamera.transform.root.forward, Vector3.up).normalized;
+            if (forward.sqrMagnitude < 0.001f)
+                forward = Vector3.forward;
+
+            panel.transform.position = lobbyCamera.transform.position + forward * 1.20f - Vector3.up * 0.13f;
+            panel.transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
         }
 
         private void EnsureSharpCurveMapButton()

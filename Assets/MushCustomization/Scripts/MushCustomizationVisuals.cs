@@ -831,6 +831,7 @@ namespace Mush.Customization
     /// Keeps an equipped item on an animated dog part without inheriting the
     /// mesh object's non-uniform scale. This is important for lobby head tilts.
     /// </summary>
+    [DefaultExecutionOrder(1000)]
     internal sealed class MushDogAccessoryFollower : MonoBehaviour
     {
         private Transform trackedPart;

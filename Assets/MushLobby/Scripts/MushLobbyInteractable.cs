@@ -49,6 +49,8 @@ namespace Mush.Lobby
 
         private void Awake()
         {
+            ConfigureSelectionColliders();
+
             xrInteractable = GetComponent<XRSimpleInteractable>();
             if (xrInteractable != null)
             {
@@ -61,6 +63,26 @@ namespace Mush.Lobby
             {
                 restingColor = highlightRenderer.material.color;
                 hasColor = true;
+            }
+        }
+
+        private void OnEnable()
+        {
+            // OnEnable also runs after a Play Mode script reload, whereas Awake
+            // may not. This prevents an already-running scene from retaining
+            // the old solid map/shop/housing selection boxes.
+            ConfigureSelectionColliders();
+        }
+
+        private void ConfigureSelectionColliders()
+        {
+            // These colliders are only generous mouse/XR-ray selection zones.
+            // Leaving them solid makes thrown physics objects hit an invisible
+            // box well before reaching the visible model.
+            foreach (Collider selectionCollider in GetComponents<Collider>())
+            {
+                if (selectionCollider != null)
+                    selectionCollider.isTrigger = true;
             }
         }
 
