@@ -71,7 +71,7 @@ namespace Mush.Lobby
                 return;
             }
 
-            if (head == null || roamer == null || roamer.IsMoving || roamer.IsFetching)
+            if (head == null || roamer == null || roamer.IsMoving || roamer.IsFetching || roamer.IsFeeding)
             {
                 CaptureHandPositions();
                 return;
@@ -87,7 +87,7 @@ namespace Mush.Lobby
 
         public void Pet()
         {
-            if (petCooldown > 0f || roamer == null || roamer.IsFetching)
+            if (petCooldown > 0f || roamer == null || roamer.IsFetching || roamer.IsFeeding)
                 return;
 
             petCooldown = 0.45f;

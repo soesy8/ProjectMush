@@ -9,7 +9,7 @@ namespace Mush.Lobby
     [DisallowMultipleComponent]
     public sealed class MushLobbyStationNavigator : MonoBehaviour
     {
-        private const int FireplaceStationIndex = 5;
+        private const int FireplaceStationIndex = 6;
         private static readonly Vector3 FireplaceSeatPosition = new(-2.80f, 0f, -4.45f);
         private const float FireplaceYaw = 180f;
 
@@ -31,6 +31,7 @@ namespace Mush.Lobby
         {
             new("중앙 좌석", new Vector3(0f, 0f, 2.00f), 180f),
             new("개 놀이", new Vector3(2.55f, 0f, 1.45f), 225f),
+            new("개 먹이주기", new Vector3(2.65f, 0f, 0.95f), 180f),
             new("지도", new Vector3(0f, 0f, -4.35f), 180f),
             new("상점", new Vector3(2.20f, 0f, -2.45f), 90f),
             new("집 꾸미기", new Vector3(-2.20f, 0f, -2.45f), 270f),
@@ -109,7 +110,8 @@ namespace Mush.Lobby
                 float angle = Mathf.Atan2(axis.y, axis.x) * Mathf.Rad2Deg;
                 if (angle < 0f)
                     angle += 360f;
-                selectedIndex = Mathf.RoundToInt(Mathf.Repeat(90f - angle, 360f) / 60f) % Stations.Length;
+                float sectorAngle = 360f / Stations.Length;
+                selectedIndex = Mathf.RoundToInt(Mathf.Repeat(90f - angle, 360f) / sectorAngle) % Stations.Length;
                 RefreshSelectionVisuals();
             }
 
@@ -309,15 +311,16 @@ namespace Mush.Lobby
             menuRoot = rootObject.transform;
             menuRoot.SetParent(parent, true);
 
-            CreateCube("Menu Background", menuRoot, Vector3.zero, new Vector3(1.45f, 1.12f, 0.045f), background, true);
-            CreateText("Title", menuRoot, new Vector3(0f, 0.45f, -0.041f), 0.015f, "이동할 장소");
-            CreateText("Guide", menuRoot, new Vector3(0f, -0.46f, -0.041f), 0.007f, "왼쪽 스틱 방향 + 트리거   ·   PC: 마우스 클릭");
+            CreateCube("Menu Background", menuRoot, Vector3.zero, new Vector3(1.56f, 1.18f, 0.045f), background, true);
+            CreateText("Title", menuRoot, new Vector3(0f, 0.49f, -0.041f), 0.014f, "이동할 장소");
+            CreateText("Guide", menuRoot, new Vector3(0f, -0.50f, -0.041f), 0.0065f, "왼쪽 스틱 방향 + 트리거   ·   PC: 마우스 클릭");
 
-            const float radiusX = 0.48f;
-            const float radiusY = 0.29f;
+            const float radiusX = 0.54f;
+            const float radiusY = 0.32f;
+            float stationAngleStep = 360f / Stations.Length;
             for (int index = 0; index < Stations.Length; index++)
             {
-                float angle = (90f - index * 60f) * Mathf.Deg2Rad;
+                float angle = (90f - index * stationAngleStep) * Mathf.Deg2Rad;
                 Vector3 localPosition = new(
                     Mathf.Cos(angle) * radiusX,
                     Mathf.Sin(angle) * radiusY - 0.01f,
@@ -326,7 +329,7 @@ namespace Mush.Lobby
                     "Station Button - " + Stations[index].label,
                     menuRoot,
                     localPosition,
-                    new Vector3(0.40f, 0.14f, 0.055f),
+                    new Vector3(0.36f, 0.13f, 0.055f),
                     buttonMaterial,
                     true);
                 buttonObject.AddComponent<XRSimpleInteractable>();
@@ -337,7 +340,7 @@ namespace Mush.Lobby
                     "Station Label - " + Stations[index].label,
                     menuRoot,
                     localPosition + new Vector3(0f, 0f, -0.031f),
-                    0.009f,
+                    0.0078f,
                     Stations[index].label);
             }
 

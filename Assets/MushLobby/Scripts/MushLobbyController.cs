@@ -4,6 +4,7 @@ using Mush.Customization;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace Mush.Lobby
@@ -45,6 +46,8 @@ namespace Mush.Lobby
         private readonly List<MeshRenderer> suppressedLobbyTextRenderers = new();
         private MushLobbyStationNavigator stationNavigator;
         private MushLobbyDogRoamer lapDog; // 벽난로 좌석에서 호출해 현재 무릎으로 올라오는 한 마리를 기억한다.
+        private Vector2 previousPetPointerPosition;
+        private bool petPointerReady;
 
         private static readonly Dictionary<string, string> KoreanLabels = new Dictionary<string, string>
         {
@@ -126,6 +129,7 @@ namespace Mush.Lobby
             MushLobbyFireplaceVfx.Install(transform.parent); // 누워 있던 FBX 벽난로를 세우고 가벼운 불꽃 파티클과 광원 흔들림을 설치한다.
             MushLobbyFireplaceRestSpot.Install(transform.parent); // 벽난로 앞 좌우에 개별 예약 가능한 휴식 자리를 만들어 개들이 겹치지 않고 눕게 한다.
             MushLobbyFetchBall.Install(lobbyCamera, dogs, transform.parent); // 오른쪽 개 놀이 구역의 거치대와 공 물어오기 놀이를 로비에 한 번만 설치한다.
+            MushLobbyFeedingStation.Install(lobbyCamera, dogs, transform.parent); // 별도 먹이주기 지점에 직접 옮기고 기울여 채우는 사료통·밥그릇과 먹기 행동을 설치한다.
             stationNavigator = MushLobbyStationNavigator.Install(lobbyCamera, this, transform.parent); // Q/왼쪽 스틱 클릭으로 여는 좌식 고정 지점 이동 메뉴다.
             RefreshAllText();
         }
@@ -170,19 +174,26 @@ namespace Mush.Lobby
                 {
                     stationNavigator.TryHandleDesktopClick(ray);
                 }
-                else if (Physics.Raycast(ray, out RaycastHit hit, 12f))
+                else if (TryGetDogUnderPointer(ray, out MushLobbyDogInteraction pointedDog))
+                {
+                    pointedDog.Pet(); // PC에서는 화면 중앙이 아니라 실제 마우스 커서 아래의 개를 우선 쓰다듬는다.
+                }
+                else if (Physics.Raycast(ray, out RaycastHit hit, 12f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide))
                 {
                     MushLobbyInteractable interactable = hit.collider.GetComponentInParent<MushLobbyInteractable>();
                     if (interactable != null)
                         interactable.Trigger();
                     else if (hit.collider.GetComponentInParent<MushLobbyShopItem>() is MushLobbyShopItem shopItem)
                         shopItem.Trigger();
+                    else if (hit.collider.GetComponentInParent<MushLobbyFeedDispenser>() is MushLobbyFeedDispenser feedDispenser)
+                        feedDispenser.Trigger();
                     else if (hit.collider.GetComponentInParent<MushLobbyChairSeatInteractable>() is MushLobbyChairSeatInteractable chairSeat)
                         chairSeat.Trigger();
                     else
                         hit.collider.GetComponentInParent<MushLobbyDogInteraction>()?.Pet();
                 }
             }
+            HandleDesktopPointerPetting(mouse);
 
             if (keyboard != null)
             {
@@ -201,6 +212,50 @@ namespace Mush.Lobby
 
             if (callDogsVrAction != null && callDogsVrAction.WasPressedThisFrame()) // Quest 오른손 B 버튼이 이번 프레임에 새로 눌렸을 때만 한 번 호출한다.
                 CallDogs(); // 기존 스페이스 호출과 완전히 같은 함수를 사용하므로 개의 이동·도착·쓰다듬기 흐름은 바꾸지 않는다.
+        }
+
+        private void HandleDesktopPointerPetting(Mouse mouse)
+        {
+            if (XRSettings.isDeviceActive || mouse == null || lobbyCamera == null ||
+                (stationNavigator != null && stationNavigator.IsMenuOpen))
+            {
+                petPointerReady = false;
+                return;
+            }
+
+            Vector2 pointerPosition = mouse.position.ReadValue();
+            if (!petPointerReady || mouse.leftButton.wasPressedThisFrame)
+            {
+                previousPetPointerPosition = pointerPosition;
+                petPointerReady = true;
+                return;
+            }
+
+            Vector2 pointerDelta = pointerPosition - previousPetPointerPosition;
+            previousPetPointerPosition = pointerPosition;
+            if (!mouse.leftButton.isPressed || pointerDelta.sqrMagnitude < 2f * 2f)
+                return;
+
+            Ray pointerRay = lobbyCamera.ScreenPointToRay(pointerPosition);
+            if (TryGetDogUnderPointer(pointerRay, out MushLobbyDogInteraction dog))
+                dog.Pet(); // 좌클릭을 누른 채 커서를 개 위에서 움직이는 동안 실제 쓰다듬기 입력으로 처리한다.
+        }
+
+        private static bool TryGetDogUnderPointer(Ray pointerRay, out MushLobbyDogInteraction dog)
+        {
+            dog = null;
+            float nearestDistance = float.PositiveInfinity;
+            RaycastHit[] hits = Physics.RaycastAll(pointerRay, 12f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
+            foreach (RaycastHit hit in hits)
+            {
+                MushLobbyDogInteraction candidate = hit.collider.GetComponentInParent<MushLobbyDogInteraction>();
+                if (candidate == null || hit.distance >= nearestDistance)
+                    continue;
+
+                nearestDistance = hit.distance;
+                dog = candidate;
+            }
+            return dog != null;
         }
 
         private void LoadSelectedMap()

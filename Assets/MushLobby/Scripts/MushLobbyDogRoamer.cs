@@ -41,6 +41,8 @@ namespace Mush.Lobby
         private float nextIdleActionTime;
         private Vector3 visualRestPosition;
         private Quaternion visualRestRotation; // 절차식 수면 자세 뒤 원래 몸 방향으로 되돌릴 때 사용한다.
+        private Transform head;
+        private Quaternion headRestLocalRotation;
         private Quaternion tailRestRotation;
         private Transform[] fallbackLegs;
         private Quaternion[] fallbackLegRestRotations;
@@ -89,6 +91,15 @@ namespace Mush.Lobby
         private Vector3 lapMountStart; // 올라오는 포물선 보간의 시작 위치다.
         private Quaternion lapRotation = Quaternion.identity; // 무릎 위에서 플레이어와 같은 방향을 바라보는 회전이다.
         private float lapMountProgress; // 0~1 사이의 무릎 탑승 진행도다.
+        private float lapNextLookTime; // 무릎 위에서 다음에 플레이어를 돌아볼 시각이다.
+        private float lapLookEndTime; // 플레이어를 바라보는 짧은 동작이 끝날 시각이다.
+        private bool lapLookingAtPlayer;
+        private MushLobbyFeedingStation feedingStation; // 현재 이 개에게 밥그릇을 배정한 급식소다.
+        private int feedingBowlIndex = -1;
+        private Vector3 feedingWorld;
+        private Quaternion feedingRotation = Quaternion.identity;
+        private float feedingTimer;
+        private bool eatingFood;
 
         private static readonly List<MushLobbyDogRoamer> ActiveDogs = new(); // 로비에 살아 있는 개들을 모아 두 마리 상호작용에 사용한다.
 
@@ -107,6 +118,7 @@ namespace Mush.Lobby
 
         public bool IsMoving { get; private set; }
         public bool IsFetching => fetchBall != null;
+        public bool IsFeeding => feedingStation != null;
         public bool IsRestingAtFireplace => reservedFireplaceRest != null && sleepTimer > 0f; // 벽난로 앞에서 누운 채 쓰다듬기 반응을 분리할 때 사용한다.
         public bool IsOnLap => sittingOnLap;
         public bool IsInLapRoutine => lapTarget != null;
@@ -212,6 +224,9 @@ namespace Mush.Lobby
             bool malamute = name.IndexOf("Malamute", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                             name.IndexOf("Bori", System.StringComparison.OrdinalIgnoreCase) >= 0;
             string prefix = malamute ? "Malamute_" : "Husky_";
+            head = FindPart(visualRoot, prefix + "Head") ?? FindPart(visualRoot, "Head");
+            if (head != null)
+                headRestLocalRotation = head.localRotation;
             if (tail == null)
                 tail = FindPart(visualRoot, prefix + "Tail") ?? FindPart(visualRoot, "Tail");
             ballExcitementPhase = Mathf.Abs(GetInstanceID() % 17) * 0.37f;
@@ -320,7 +335,7 @@ namespace Mush.Lobby
             visualRoot = visual.transform;
 
             string prefix = malamute ? "Malamute_" : "Husky_";
-            Transform head = FindPart(visualRoot, prefix + "Head");
+            head = FindPart(visualRoot, prefix + "Head");
             Transform leftEye = FindPart(visualRoot, prefix + "Eye_L");
             Transform rightEye = FindPart(visualRoot, prefix + "Eye_R");
             Transform mouth = FindPart(visualRoot, prefix + "Mouth");
@@ -390,6 +405,12 @@ namespace Mush.Lobby
             if (lapTarget != null)
             {
                 UpdateLapMovement(); // 벽난로 무릎 호출은 일반 호출·수면·배회보다 우선하며 좌석을 떠날 때까지 유지한다.
+                return;
+            }
+
+            if (feedingStation != null)
+            {
+                UpdateFeedingMovement(); // 사료가 배정된 동안에는 다른 배회·호출 행동보다 밥그릇으로 가서 먹는 행동을 우선한다.
                 return;
             }
 
@@ -614,7 +635,8 @@ namespace Mush.Lobby
             {
                 if (other == null || other == this || other.called || other.sleepTimer > 0f ||
                     other.walkingToBed || other.enteringBed || other.leavingBed || other.HasReservedRestSpot() ||
-                    other.playPartner != null || other.reactionTimer > 0f || other.socialCooldown > 0f)
+                    other.playPartner != null || other.reactionTimer > 0f || other.socialCooldown > 0f ||
+                    other.feedingStation != null)
                     continue;
 
                 float duration = Random.Range(playDuration.x, playDuration.y);
@@ -693,7 +715,7 @@ namespace Mush.Lobby
                 OrientVisualFromGeometry();
                 poseCorrectionFrames--;
             }
-            if (sleepTimer <= 0f && !enteringBed && !leavingBed && !watchingHeldBall && lapTarget == null)
+            if (sleepTimer <= 0f && !enteringBed && !leavingBed && !watchingHeldBall && lapTarget == null && !eatingFood)
                 SnapPawsToFloor(); // 침대 위 수면/진입/퇴장 중에는 바닥 접지가 비주얼을 침대 아래로 끌어내리지 않게 한다.
             if (poseCorrectionFrames > 0 && visualRoot != null)
             {
@@ -702,11 +724,15 @@ namespace Mush.Lobby
             }
             if (watchingHeldBall && fetchBall != null)
                 ApplyHeldBallAttentionVisuals(); // 몸/Animator 보정이 끝난 뒤 폴짝과 고개 추적을 적용해야 모자 추적기가 같은 최종 자세를 따라간다.
+            if (sittingOnLap)
+                ApplyLapHeadLook(); // 몸은 무릎을 가로질러 그대로 둔 채 머리만 가끔 플레이어 쪽으로 돌린다.
+            else if (eatingFood)
+                ApplyFeedingHeadPose(); // 임시 모델도 사료를 먹을 때 머리를 그릇 쪽으로 숙여 서 있기만 하는 모습이 되지 않게 한다.
         }
 
         public void CallTo(Transform newTarget)
         {
-            if (fetchBall != null)
+            if (fetchBall != null || feedingStation != null)
                 return; // 물어오는 중에는 일반 호출이 공 담당 상태를 중간에 덮어쓰지 않게 한다.
             if (lapTarget != null)
                 ClearLapState(true); // 일반 호출로 바뀌면 먼저 의자 옆 바닥으로 안전하게 내려놓는다.
@@ -743,7 +769,7 @@ namespace Mush.Lobby
 
         public bool CallToLap(Transform newTarget)
         {
-            if (newTarget == null || fetchBall != null)
+            if (newTarget == null || fetchBall != null || feedingStation != null)
                 return false;
             if (lapTarget == newTarget)
                 return true; // 이미 같은 무릎으로 오거나 앉아 있으면 중복 탑승을 시작하지 않는다.
@@ -779,8 +805,14 @@ namespace Mush.Lobby
 
         private void CaptureLapPose()
         {
-            Vector3 forward = Vector3.ProjectOnPlane(lapTarget.forward, Vector3.up).normalized;
-            Vector3 right = Vector3.ProjectOnPlane(lapTarget.right, Vector3.up).normalized;
+            // Head/camera yaw changes independently while seated.  Using it as the
+            // lap axis left the dog hanging beside the chair as soon as the player
+            // looked toward the fireplace.  The seated rig is the stable body/chair
+            // reference; only the headset height is used for the vertical offset.
+            MushSeatedRigLock seatedBody = lapTarget.GetComponentInParent<MushSeatedRigLock>();
+            Transform bodyReference = seatedBody != null ? seatedBody.transform : lapTarget;
+            Vector3 forward = Vector3.ProjectOnPlane(bodyReference.forward, Vector3.up).normalized;
+            Vector3 right = Vector3.ProjectOnPlane(bodyReference.right, Vector3.up).normalized;
             if (forward.sqrMagnitude < 0.01f)
                 forward = Vector3.back;
             if (right.sqrMagnitude < 0.01f)
@@ -790,17 +822,20 @@ namespace Mush.Lobby
             float sideSign = Mathf.Abs(sideDot) > 0.05f
                 ? Mathf.Sign(sideDot)
                 : (Mathf.Max(0, ActiveDogs.IndexOf(this)) % 2 == 0 ? -1f : 1f);
-            Vector3 cameraFloor = lapTarget.position;
+            Vector3 cameraFloor = bodyReference.position;
             cameraFloor.y = transform.position.y;
             lapApproachWorld = cameraFloor + right * (sideSign * 0.90f) + forward * 0.04f;
 
-            lapWorld = lapTarget.position + forward * 0.34f - Vector3.up * 0.88f;
-            lapWorld.y = Mathf.Max(cameraFloor.y + 0.60f, lapWorld.y); // VR 카메라 높이가 달라도 개가 바닥이나 얼굴에 붙지 않게 무릎 높이를 제한한다.
-            lapRotation = Quaternion.LookRotation(forward, Vector3.up);
+            lapWorld = bodyReference.position + forward * 0.28f;
+            lapWorld.y = Mathf.Max(cameraFloor.y + 0.34f, lapTarget.position.y - 1.28f); // 의자 앞 공중이 아니라 좌석 바로 위의 실제 허벅지 높이로 내린다.
+            Vector3 acrossLap = right * (sideSign < 0f ? 1f : -1f);
+            lapRotation = Quaternion.LookRotation(acrossLap, Vector3.up); // 개의 몸이 플레이어 정면을 막지 않고 양쪽 무릎을 가로지르도록 옆으로 눕힌다.
             lapApproachReached = false;
             mountingLap = false;
             sittingOnLap = false;
             lapMountProgress = 0f;
+            lapLookingAtPlayer = false;
+            lapNextLookTime = Time.time + Random.Range(1.2f, 2.8f);
         }
 
         private void UpdateLapMovement()
@@ -838,13 +873,64 @@ namespace Mush.Lobby
                 sittingOnLap = true;
                 transform.SetPositionAndRotation(lapWorld, lapRotation);
                 tailWagTimer = Mathf.Max(tailWagTimer, 1.8f);
-                TriggerAnimation("Sit");
+                TriggerAnimation("LieDown");
             }
 
             transform.SetPositionAndRotation(lapWorld, lapRotation);
             IsMoving = false;
             SetAnimatorSpeed(0f);
             Animate(false);
+        }
+
+        private void ApplyLapHeadLook()
+        {
+            if (head == null || lapTarget == null)
+                return;
+
+            if (!lapLookingAtPlayer && Time.time >= lapNextLookTime)
+            {
+                lapLookingAtPlayer = true;
+                lapLookEndTime = Time.time + Random.Range(1.3f, 2.2f);
+            }
+            else if (lapLookingAtPlayer && Time.time >= lapLookEndTime)
+            {
+                lapLookingAtPlayer = false;
+                lapNextLookTime = Time.time + Random.Range(2.4f, 4.8f);
+            }
+
+            Quaternion restWorldRotation = head.parent != null
+                ? head.parent.rotation * headRestLocalRotation
+                : headRestLocalRotation;
+            Quaternion desiredWorldRotation = restWorldRotation;
+            if (lapLookingAtPlayer)
+            {
+                Vector3 towardPlayer = Vector3.ProjectOnPlane(lapTarget.position - head.position, Vector3.up);
+                if (towardPlayer.sqrMagnitude > 0.001f)
+                {
+                    float lookYaw = Mathf.Clamp(
+                        Vector3.SignedAngle(transform.forward, towardPlayer.normalized, Vector3.up),
+                        -58f,
+                        58f);
+                    desiredWorldRotation = Quaternion.AngleAxis(lookYaw, Vector3.up) * restWorldRotation;
+                }
+            }
+
+            float blend = 1f - Mathf.Exp(-5.5f * Time.deltaTime);
+            head.rotation = Quaternion.Slerp(head.rotation, desiredWorldRotation, blend);
+        }
+
+        private void ApplyFeedingHeadPose()
+        {
+            if (head == null)
+                return;
+
+            Quaternion restWorldRotation = head.parent != null
+                ? head.parent.rotation * headRestLocalRotation
+                : headRestLocalRotation;
+            float eatingNod = 27f + Mathf.Sin(animationTime * 4.8f) * 4f;
+            Quaternion desiredWorldRotation = Quaternion.AngleAxis(eatingNod, transform.right) * restWorldRotation;
+            float blend = 1f - Mathf.Exp(-7f * Time.deltaTime);
+            head.rotation = Quaternion.Slerp(head.rotation, desiredWorldRotation, blend);
         }
 
         private void ClearLapState(bool returnToFloor)
@@ -862,6 +948,9 @@ namespace Mush.Lobby
             mountingLap = false;
             sittingOnLap = false;
             lapMountProgress = 0f;
+            lapLookingAtPlayer = false;
+            if (head != null)
+                head.localRotation = headRestLocalRotation;
             if (animator != null)
                 animator.speed = 1f;
             IsMoving = false;
@@ -871,9 +960,69 @@ namespace Mush.Lobby
             hasNavDestination = false;
         }
 
+        public bool TryBeginFeeding(
+            MushLobbyFeedingStation station,
+            int bowlIndex,
+            Vector3 eatingPosition,
+            Quaternion eatingFacing)
+        {
+            if (station == null || fetchBall != null || lapTarget != null || feedingStation != null)
+                return false;
+
+            PrepareForBallActivity(); // 공 전용 이름이지만 수면·장난·호출을 안전하게 정리하는 공통 행동 초기화다.
+            feedingStation = station;
+            feedingBowlIndex = bowlIndex;
+            feedingWorld = eatingPosition;
+            feedingWorld.y = transform.position.y;
+            feedingRotation = eatingFacing;
+            feedingTimer = 0f;
+            eatingFood = false;
+            EnsureNavMeshAgentOnCurrentPosition();
+            hasNavDestination = false;
+            return true;
+        }
+
+        private void UpdateFeedingMovement()
+        {
+            if (!eatingFood)
+            {
+                if (!TryNavigateToWorld(feedingWorld, runSpeed, 0.82f, 0.24f, out bool arrived))
+                    MoveDirectlyToWorld(feedingWorld, runSpeed, 0.82f, 0.24f, out arrived);
+                if (!arrived)
+                    return;
+
+                eatingFood = true;
+                feedingTimer = 4.2f;
+                StopNavAgent(false);
+                transform.rotation = feedingRotation;
+                PlayEat();
+                GetComponent<MushLobbyDogExpression>()?.ShowLoveCelebration(); // 플레이어를 보며 먹기 시작할 때 머리 위로 하트가 올라온다.
+            }
+
+            feedingTimer -= Time.deltaTime;
+            transform.rotation = Quaternion.Slerp(transform.rotation, feedingRotation, Time.deltaTime * 8f);
+            IsMoving = false;
+            SetAnimatorSpeed(0f);
+            Animate(false);
+            if (feedingTimer > 0f)
+                return;
+
+            MushLobbyFeedingStation completedStation = feedingStation;
+            int completedBowl = feedingBowlIndex;
+            feedingStation = null;
+            feedingBowlIndex = -1;
+            eatingFood = false;
+            feedingTimer = 0f;
+            if (head != null)
+                head.localRotation = headRestLocalRotation; // 식사가 끝난 뒤 고개를 숙인 절차식 자세가 다음 행동까지 남지 않게 한다.
+            completedStation?.CompleteFeeding(completedBowl, this);
+            ResumeRoaming();
+            Celebrate();
+        }
+
         public bool TryBeginFetch(MushLobbyFetchBall ball)
         {
-            if (ball == null || (fetchBall != null && fetchBall != ball))
+            if (ball == null || feedingStation != null || (fetchBall != null && fetchBall != ball))
                 return false;
 
             PrepareForBallActivity();
@@ -890,7 +1039,7 @@ namespace Mush.Lobby
 
         public void WatchHeldBall(MushLobbyFetchBall ball)
         {
-            if (ball == null)
+            if (ball == null || feedingStation != null)
                 return;
 
             PrepareForBallActivity();
@@ -906,7 +1055,7 @@ namespace Mush.Lobby
 
         public void FollowFetchWinner(MushLobbyFetchBall ball)
         {
-            if (ball == null || (fetchBall != null && fetchBall != ball))
+            if (ball == null || feedingStation != null || (fetchBall != null && fetchBall != ball))
                 return;
 
             PrepareForBallActivity();
@@ -1257,6 +1406,11 @@ namespace Mush.Lobby
         public void PlayRestingPet()
         {
             tailWagTimer = Mathf.Max(tailWagTimer, 1.45f); // 벽난로 앞에서는 서는 Pet 애니메이션 대신 누운 자세와 꼬리 반응만 유지한다.
+            if (sittingOnLap)
+            {
+                lapLookingAtPlayer = true; // 무릎 위에서 쓰다듬으면 몸 전체를 돌리지 않고 고개만 플레이어 쪽으로 반응한다.
+                lapLookEndTime = Time.time + 1.8f;
+            }
             SetAnimatorSpeed(0f);
         }
 
@@ -1368,13 +1522,16 @@ namespace Mush.Lobby
                                  animator.runtimeAnimatorController != null && animator.avatar != null;
             bool proceduralSleeping = sleepTimer > 0f;
             bool proceduralLapSitting = sittingOnLap && !animatorReady;
+            bool proceduralFeeding = eatingFood && !animatorReady;
             if (visualRoot != null)
             {
                 float bedLift = (sleepTimer > 0f || enteringBed || leavingBed) ? sleepSurfaceLift : 0f; // 침대 행동 동안만 바닥보다 높은 침대 윗면 오프셋을 적용한다.
                 Vector3 desiredPosition = proceduralSleeping && !animatorReady
                     ? visualRestPosition + Vector3.up * bedLift + Vector3.down * proceduralSleepBodyDrop // 전용 Animator가 없으면 침대 위 높이를 유지하면서 절차식 눕기 자세만큼 몸을 낮춘다.
                     : proceduralLapSitting
-                        ? visualRestPosition + Vector3.down * 0.08f // Animator가 없는 임시 모델도 무릎 위에서 뒷부분을 낮춘 앉은 높이로 보이게 한다.
+                        ? visualRestPosition + Vector3.down * 0.14f // Animator가 없는 임시 모델도 무릎 위에서 몸을 충분히 낮춰 공중에 선 모습이 되지 않게 한다.
+                        : proceduralFeeding
+                            ? visualRestPosition + Vector3.down * 0.045f // 먹는 동안 몸도 아주 조금 낮춰 고개 숙임과 연결한다.
                         : visualRestPosition + Vector3.up * bedLift; // 실제 LieDown 애니메이션이 있으면 애니메이션 자세는 그대로 두고 전체 모델 높이만 침대 윗면으로 올린다.
                 visualRoot.localPosition = Vector3.Lerp(visualRoot.localPosition, desiredPosition, Time.deltaTime * 5f); // 수면과 기상 사이를 갑자기 튀지 않게 부드럽게 보간한다.
                 visualRoot.localRotation = Quaternion.Slerp(visualRoot.localRotation, visualRestRotation, Time.deltaTime * 7f);
@@ -1407,7 +1564,7 @@ namespace Mush.Lobby
                 float legRate = Mathf.Lerp(8.5f, 15.5f, runBlend);
                 float legSwing = Mathf.Lerp(15f, 24f, runBlend);
                 float sleepFold = index < 2 ? 52f : -46f;
-                float lapFold = index < 2 ? 8f : -58f;
+                float lapFold = index < 2 ? 44f : -48f;
                 float targetAngle = proceduralSleeping
                     ? sleepFold
                     : proceduralLapSitting
