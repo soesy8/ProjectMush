@@ -5,8 +5,9 @@ using UnityEngine.XR;
 namespace Mush.Lobby
 {
     /// <summary>
-    /// Desktop-only seated look. When a headset is active, normal headset
-    /// tracking remains in full control of the camera.
+    /// Desktop-only seated look driven by the arrow keys. WASD is reserved for
+    /// lobby locomotion. When a headset is active, normal headset tracking
+    /// remains in full control of the camera.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(10000)]
@@ -86,10 +87,13 @@ namespace Mush.Lobby
 
             float horizontal = 0f;
             float vertical = 0f;
-            if (keyboard.aKey.isPressed) horizontal -= 1f;
-            if (keyboard.dKey.isPressed) horizontal += 1f;
-            if (keyboard.wKey.isPressed) vertical += 1f;
-            if (keyboard.sKey.isPressed) vertical -= 1f;
+            if (!MushLobbyFeedDispenser.IsDesktopCanisterHeld)
+            {
+                if (keyboard.leftArrowKey.isPressed) horizontal -= 1f;
+                if (keyboard.rightArrowKey.isPressed) horizontal += 1f;
+            }
+            if (keyboard.upArrowKey.isPressed) vertical += 1f;
+            if (keyboard.downArrowKey.isPressed) vertical -= 1f;
 
             yaw += horizontal * lookSpeed * Time.deltaTime;
             pitch = Mathf.Clamp(pitch - vertical * lookSpeed * Time.deltaTime, minimumPitch, maximumPitch);

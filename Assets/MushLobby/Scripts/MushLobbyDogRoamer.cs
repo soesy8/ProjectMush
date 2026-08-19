@@ -1366,8 +1366,8 @@ namespace Mush.Lobby
             if (right.sqrMagnitude < 0.01f)
                 right = Vector3.right;
 
-            // 호출 버튼(B 또는 PC 테스트용 Space)을 누른 순간의 위치를 고정한다. WASD는
-            // 카메라 회전만 바꾸므로 이미 호출된 개의 목적지는 따라 움직이지 않는다.
+            // 호출 버튼(B 또는 PC 테스트용 Space)을 누른 순간의 위치를 고정한다. 이후
+            // WASD로 플레이어가 이동해도 이미 호출된 개의 목적지는 따라 움직이지 않는다.
             calledDestinationWorld = callTarget.position + forward * callDistance + right * callSideOffset;
             calledDestinationWorld.y = transform.position.y;
             calledLookPointWorld = callTarget.position;

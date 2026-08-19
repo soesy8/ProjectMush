@@ -3,13 +3,17 @@ using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using Keyboard = UnityEngine.InputSystem.Keyboard;
 
 namespace Mush.Lobby
 {
     [DisallowMultipleComponent]
     public sealed class MushLobbyStationNavigator : MonoBehaviour
     {
-        private const int FireplaceStationIndex = 6;
+        private const float LocomotionDeadzone = 0.20f;
+        private const float LobbyMoveSpeed = 1.20f;
+        private const float SnapTurnAngle = 30f;
+        private const float ChairUseDistance = 2.20f;
         private static readonly Vector3 FireplaceSeatPosition = new(-2.80f, 0f, -4.45f);
         private const float FireplaceYaw = 180f;
 
@@ -52,6 +56,8 @@ namespace Mush.Lobby
         private bool stickClickWasPressed;
         private bool triggerWasPressed;
         private bool seatedAtFireplace;
+        private bool rightStickSnapReady = true;
+        private bool locomotionWasActive;
 
         public bool IsMenuOpen => menuRoot != null && menuRoot.gameObject.activeSelf;
         public bool IsSeatedAtFireplace => seatedAtFireplace;
@@ -85,6 +91,8 @@ namespace Mush.Lobby
             {
                 stickClickWasPressed = false;
                 triggerWasPressed = false;
+                rightStickSnapReady = true;
+                HandleDesktopLocomotion();
                 return;
             }
 
@@ -92,7 +100,8 @@ namespace Mush.Lobby
             bool stickPressed = leftController.isValid &&
                                 leftController.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool stickValue) &&
                                 stickValue;
-            if (stickPressed && !stickClickWasPressed)
+            bool menuToggledThisFrame = stickPressed && !stickClickWasPressed;
+            if (menuToggledThisFrame)
                 ToggleMenu();
             stickClickWasPressed = stickPressed;
 
@@ -102,9 +111,15 @@ namespace Mush.Lobby
             if (!IsMenuOpen)
             {
                 triggerWasPressed = triggerPressed;
+                if (!menuToggledThisFrame)
+                    HandleVrLocomotion(leftController);
+                else
+                    locomotionWasActive = false;
                 return;
             }
 
+            locomotionWasActive = false;
+            rightStickSnapReady = true;
             if (leftController.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 axis) && axis.sqrMagnitude >= 0.20f)
             {
                 float angle = Mathf.Atan2(axis.y, axis.x) * Mathf.Rad2Deg;
@@ -118,6 +133,82 @@ namespace Mush.Lobby
             if (triggerPressed && !triggerWasPressed)
                 TravelTo(selectedIndex);
             triggerWasPressed = triggerPressed;
+        }
+
+        private void HandleDesktopLocomotion()
+        {
+            if (IsMenuOpen || MushLobbyFeedDispenser.IsDesktopCanisterHeld)
+            {
+                locomotionWasActive = false;
+                return;
+            }
+
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null)
+                return;
+
+            Vector2 moveInput = Vector2.zero;
+            if (keyboard.aKey.isPressed) moveInput.x -= 1f;
+            if (keyboard.dKey.isPressed) moveInput.x += 1f;
+            if (keyboard.wKey.isPressed) moveInput.y += 1f;
+            if (keyboard.sKey.isPressed) moveInput.y -= 1f;
+            ApplyLocomotion(moveInput);
+        }
+
+        private void HandleVrLocomotion(InputDevice leftController)
+        {
+            Vector2 moveInput = Vector2.zero;
+            if (leftController.isValid)
+                leftController.TryGetFeatureValue(CommonUsages.primary2DAxis, out moveInput);
+            ApplyLocomotion(moveInput);
+
+            InputDevice rightController = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+            Vector2 turnInput = Vector2.zero;
+            if (rightController.isValid)
+                rightController.TryGetFeatureValue(CommonUsages.primary2DAxis, out turnInput);
+            if (Mathf.Abs(turnInput.x) <= 0.35f)
+                rightStickSnapReady = true;
+            if (!rightStickSnapReady || Mathf.Abs(turnInput.x) < 0.75f || seatedRig == null)
+                return;
+
+            seatedRig.SnapTurnAroundCamera(lobbyCamera != null ? lobbyCamera.transform : null, Mathf.Sign(turnInput.x) * SnapTurnAngle);
+            rightStickSnapReady = false;
+            LeaveFixedStationState();
+        }
+
+        private void ApplyLocomotion(Vector2 input)
+        {
+            if (seatedRig == null || lobbyCamera == null || input.sqrMagnitude < LocomotionDeadzone * LocomotionDeadzone)
+            {
+                locomotionWasActive = false;
+                return;
+            }
+
+            input = Vector2.ClampMagnitude(input, 1f);
+            Vector3 forward = desktopLook != null && !XRSettings.isDeviceActive
+                ? desktopLook.CurrentWorldViewDirection
+                : lobbyCamera.transform.forward;
+            forward = Vector3.ProjectOnPlane(forward, Vector3.up).normalized;
+            if (forward.sqrMagnitude < 0.001f)
+                forward = Vector3.ProjectOnPlane(seatedRig.transform.forward, Vector3.up).normalized;
+            Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
+            Vector3 displacement = (forward * input.y + right * input.x) * (LobbyMoveSpeed * Time.deltaTime);
+            if (!seatedRig.TryMoveSeat(displacement, lobbyCamera.transform))
+            {
+                locomotionWasActive = false;
+                return;
+            }
+
+            if (!locomotionWasActive)
+                controller?.ClosePanelsForTravel();
+            locomotionWasActive = true;
+            LeaveFixedStationState();
+        }
+
+        private void LeaveFixedStationState()
+        {
+            currentStationIndex = -1;
+            seatedAtFireplace = false;
         }
 
         public void ToggleMenu()
@@ -141,7 +232,9 @@ namespace Mush.Lobby
             {
                 controller?.ClosePanelsForTravel();
                 controller?.SetStationMenuVisible(true);
-                selectedIndex = currentStationIndex;
+                selectedIndex = currentStationIndex >= 0
+                    ? currentStationIndex
+                    : FindNearestStationIndex(); // 직접 걸어온 뒤 메뉴를 열어도 유효한 가까운 장소가 선택된 상태로 시작한다.
                 PlaceMenuInFrontOfPlayer();
                 menuRoot.gameObject.SetActive(true);
                 RefreshSelectionVisuals();
@@ -151,6 +244,26 @@ namespace Mush.Lobby
                 menuRoot.gameObject.SetActive(false);
                 controller?.SetStationMenuVisible(false);
             }
+        }
+
+        private int FindNearestStationIndex()
+        {
+            if (lobbyCamera == null)
+                return 0;
+
+            Vector3 cameraPosition = lobbyCamera.transform.position;
+            int nearestIndex = 0;
+            float nearestDistance = float.PositiveInfinity;
+            for (int index = 0; index < Stations.Length; index++)
+            {
+                Vector3 difference = Stations[index].position - cameraPosition;
+                difference.y = 0f;
+                if (difference.sqrMagnitude >= nearestDistance)
+                    continue;
+                nearestDistance = difference.sqrMagnitude;
+                nearestIndex = index;
+            }
+            return nearestIndex;
         }
 
         public bool TryHandleDesktopClick(Ray pointerRay)
@@ -196,8 +309,13 @@ namespace Mush.Lobby
 
         public void TrySitAtFireplace()
         {
-            if (currentStationIndex != FireplaceStationIndex || seatedAtFireplace)
-                return; // 먼저 이동 메뉴에서 벽난로 위치로 온 경우에만 의자 선택을 좌석 이동으로 처리한다.
+            if (seatedAtFireplace || lobbyCamera == null)
+                return;
+
+            Vector3 cameraToSeat = FireplaceSeatPosition - lobbyCamera.transform.position;
+            cameraToSeat.y = 0f;
+            if (cameraToSeat.sqrMagnitude > ChairUseDistance * ChairUseDistance)
+                return; // 방 반대편에서 의자를 눌러 순간이동하지 않고, 직접 걸어 의자 근처에 온 경우에만 앉는다.
 
             MoveToStationPose(FireplaceSeatPosition, FireplaceYaw);
             seatedAtFireplace = true;

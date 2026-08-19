@@ -466,6 +466,7 @@ namespace Mush.Lobby
     public sealed class MushLobbyFeedDispenser : MonoBehaviour
     {
         private const float PourAngle = 48f;
+        private static MushLobbyFeedDispenser activeDesktopDispenser;
         private MushLobbyFeedingStation station;
         private XRGrabInteractable interactable;
         private Renderer highlightRenderer;
@@ -476,6 +477,9 @@ namespace Mush.Lobby
         private bool heldInVr;
         private bool heldOnDesktop;
         private float desktopTilt;
+
+        public static bool IsDesktopCanisterHeld =>
+            activeDesktopDispenser != null && activeDesktopDispenser.heldOnDesktop;
 
         public void Configure(MushLobbyFeedingStation newStation, Renderer newHighlightRenderer)
         {
@@ -546,6 +550,7 @@ namespace Mush.Lobby
                 return; // 집은 뒤의 좌클릭은 무시하고, 내려놓기는 사용자가 지정한 우클릭만 사용한다.
 
             heldOnDesktop = true;
+            activeDesktopDispenser = this;
             desktopTilt = 0f;
         }
 
@@ -566,6 +571,8 @@ namespace Mush.Lobby
         {
             heldInVr = XRSettings.isDeviceActive;
             heldOnDesktop = false;
+            if (activeDesktopDispenser == this)
+                activeDesktopDispenser = null;
         }
 
         private void OnSelectExited(SelectExitEventArgs args)
@@ -577,6 +584,8 @@ namespace Mush.Lobby
         private void ReturnToStand()
         {
             heldOnDesktop = false;
+            if (activeDesktopDispenser == this)
+                activeDesktopDispenser = null;
             desktopTilt = 0f;
             transform.SetParent(originalParent, false);
             transform.localPosition = originalLocalPosition;
@@ -604,6 +613,8 @@ namespace Mush.Lobby
 
         private void OnDestroy()
         {
+            if (activeDesktopDispenser == this)
+                activeDesktopDispenser = null;
             if (interactable == null)
                 return;
             interactable.selectEntered.RemoveListener(OnSelected);
