@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Replaces the broken straight V2 map presentation at runtime with a visible,
@@ -14,6 +15,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     private const float CourseLength = 960f;
     private const float SampleSpacing = 4f;
     private const float RoadHalfWidth = 6.5f;
+    private const float SharpCurveRoadHalfWidth = 3.25f;
     private const float TerrainHalfWidth = 105f;
     private const string RebuiltRootName = "Mush Rebuilt Curved World";
 
@@ -42,11 +44,12 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     public Vector3 StartForward { get; private set; } = Vector3.back;
     public Transform AmbientSnowTransform { get; private set; }
     public float LengthMeters => CourseLength;
-    public float RoadHalfWidthMeters => RoadHalfWidth;
+    public float RoadHalfWidthMeters => ActiveRoadHalfWidth;
     public bool IsSharpCurveMap => isSharpCurve;
     public float CurrentProgress01 => sharpProgress;
     public bool SharpDownhillSpeedBoostActive => isSharpCurve && sharpProgress >= 0.35f && sharpProgress <= 0.66f;
 
+    private float ActiveRoadHalfWidth => isSharpCurve ? SharpCurveRoadHalfWidth : RoadHalfWidth;
     private float ActiveTerrainHalfWidth => isSharpCurve ? 42f : TerrainHalfWidth;
 
     private readonly struct CurveEvent
@@ -206,7 +209,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             return false;
 
         float routeDistance = (nearestSegment + nearestT) * SampleSpacing;
-        bool onRoad = Mathf.Abs(signedLateralDistance) <= RoadHalfWidth + 0.25f;
+        bool onRoad = Mathf.Abs(signedLateralDistance) <= ActiveRoadHalfWidth + 0.25f;
         float surfaceHeight = onRoad
             ? routeCenter.y + 0.10f
             : TerrainHeight(routeDistance, signedLateralDistance, routeCenter.y);
@@ -283,13 +286,14 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     {
         if (isSharpCurve)
         {
-            // Positive curvature turns left from the initial -Z heading.  The
-            // sine-shaped events keep both ends tangent-continuous while still
-            // accumulating almost ninety degrees across each major bend.
-            curveEvents.Add(new CurveEvent(70f, 82f, -1.69f, false));  // left  ~88 degrees
-            curveEvents.Add(new CurveEvent(180f, 58f, 1.55f, false));  // right ~57 degrees
-            curveEvents.Add(new CurveEvent(246f, 58f, -1.62f, false)); // left  ~60 degrees
-            curveEvents.Add(new CurveEvent(720f, 78f, 1.79f, false));  // right ~89 degrees
+            // The hard map uses real hairpins rather than long scenic bends.
+            // Level-1 steering can still trace the centre line, while level 2
+            // must be released before entry because high-speed understeer is
+            // applied by MushSledKeyboardController.
+            curveEvents.Add(new CurveEvent(88f, 32f, -4.50f, false));  // left  ~92 degrees
+            curveEvents.Add(new CurveEvent(140f, 24f, 4.25f, false));  // right ~65 degrees
+            curveEvents.Add(new CurveEvent(172f, 24f, -4.45f, false)); // left  ~68 degrees
+            curveEvents.Add(new CurveEvent(720f, 32f, 4.65f, false));  // right ~95 degrees
             return;
         }
 
@@ -405,7 +409,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         GameObject roadObject = CreateMeshObject(
             "VISIBLE Curved Packed-Snow Road",
             rebuiltRoot,
-            BuildRibbonMesh(RoadHalfWidth, 0f, 0.10f),
+            BuildRibbonMesh(ActiveRoadHalfWidth, 0f, 0.10f),
             road,
             true);
         roadRenderer = roadObject.GetComponent<Renderer>();
@@ -504,7 +508,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private float TerrainHeight(float distance, float lateral, float routeHeight)
     {
-        float outsideRoad = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(RoadHalfWidth + 1.5f, 42f, Mathf.Abs(lateral)));
+        float outsideRoad = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(ActiveRoadHalfWidth + 1.5f, 42f, Mathf.Abs(lateral)));
         float rolling = Mathf.Sin(distance * 0.019f + lateral * 0.043f) * 1.4f +
                         Mathf.Sin(distance * 0.007f - lateral * 0.085f) * 0.75f;
         float distantRise = Mathf.Pow(
@@ -551,7 +555,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             for (int layer = 0; layer < perSide; layer++)
             {
                 float lateral = side * Mathf.Lerp(
-                    RoadHalfWidth + 8f + layer * 11f,
+                    ActiveRoadHalfWidth + 8f + layer * 11f,
                     ActiveTerrainHalfWidth - 8f,
                     (float)random.NextDouble());
                 float y = TerrainHeight(distance, lateral, routePoints[index].y);
@@ -577,7 +581,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         {
             for (int side = -1; side <= 1; side += 2)
             {
-                Vector3 position = routePoints[index] + RouteRight(index) * (side * (RoadHalfWidth + 1.15f));
+                Vector3 position = routePoints[index] + RouteRight(index) * (side * (ActiveRoadHalfWidth + 1.15f));
                 position.y += 0.62f;
                 CreateCube("Visible Route Beacon", rebuiltRoot, position, new Vector3(0.12f, 1.25f, 0.12f), post,
                     Quaternion.LookRotation(RouteTangent(index), Vector3.up));
@@ -656,7 +660,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             sun.type = LightType.Directional;
         }
         sun.enabled = true;
-        sun.shadows = LightShadows.Soft;
+        sun.shadows = LightShadows.None;
         sun.transform.rotation = Quaternion.Euler(35f, -28f, 0f);
 
         Shader skyShader = Shader.Find("Skybox/Procedural");
@@ -1122,8 +1126,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         filter.sharedMesh = mesh;
         MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
         renderer.sharedMaterial = material;
-        renderer.shadowCastingMode = ShadowCastingMode.On;
-        renderer.receiveShadows = true;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
         if (addCollider)
         {
             MeshCollider collider = gameObject.AddComponent<MeshCollider>();
@@ -1340,6 +1344,64 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         {
             if (Application.isPlaying) Destroy(mountainMesh);
             else DestroyImmediate(mountainMesh);
+        }
+    }
+}
+
+/// <summary>
+/// The Quest prototype deliberately spends its GPU budget on stereo rendering,
+/// weather and interaction feedback instead of realtime shadows.
+/// </summary>
+public static class MushShadowPerformance
+{
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void Install()
+    {
+        DisableGlobalShadowQuality();
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void ApplyAfterInitialSceneLoad()
+    {
+        DisableForLoadedScenes();
+    }
+
+    private static void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        DisableForScene(scene);
+    }
+
+    public static void DisableForLoadedScenes()
+    {
+        DisableGlobalShadowQuality();
+        for (int index = 0; index < SceneManager.sceneCount; index++)
+            DisableForScene(SceneManager.GetSceneAt(index));
+    }
+
+    private static void DisableGlobalShadowQuality()
+    {
+        QualitySettings.shadows = ShadowQuality.Disable;
+        QualitySettings.shadowDistance = 0f;
+        QualitySettings.shadowCascades = 0;
+    }
+
+    private static void DisableForScene(Scene scene)
+    {
+        if (!scene.IsValid() || !scene.isLoaded)
+            return;
+
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            foreach (Light light in root.GetComponentsInChildren<Light>(true))
+                light.shadows = LightShadows.None;
+
+            foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+            }
         }
     }
 }

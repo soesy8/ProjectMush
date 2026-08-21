@@ -131,6 +131,7 @@ namespace Mush.Lobby
             MushLobbyFetchBall.Install(lobbyCamera, dogs, transform.parent); // 오른쪽 개 놀이 구역의 거치대와 공 물어오기 놀이를 로비에 한 번만 설치한다.
             MushLobbyFeedingStation.Install(lobbyCamera, dogs, transform.parent); // 별도 먹이주기 지점에 직접 옮기고 기울여 채우는 사료통·밥그릇과 먹기 행동을 설치한다.
             stationNavigator = MushLobbyStationNavigator.Install(lobbyCamera, this, transform.parent); // Q/왼쪽 스틱 클릭으로 여는 좌식 고정 지점 이동 메뉴다.
+            MushShadowPerformance.DisableForLoadedScenes(); // 로비에서 런타임 생성한 벽난로·공·먹이주기 오브젝트까지 그림자 패스에서 제외한다.
             RefreshAllText();
         }
 

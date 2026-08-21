@@ -44,6 +44,8 @@ namespace Mush.Prototype
         [SerializeField, Min(0.1f)] private float steeringBuildRate = 2.4f;
         [SerializeField, Min(0.1f)] private float steeringReleaseRate = 4.5f;
         [SerializeField, Range(0f, 0.5f)] private float maximumHandPull = 0.24f;
+        [SerializeField, Min(1f)] private float sharpCurveMaximumTurnRate = 48f;
+        [SerializeField, Range(0.1f, 1f)] private float sharpCurveBoostTurnRateMultiplier = 0.42f;
 
         [Header("Temporary Dog Buff / Penalty")]
         [SerializeField, Min(0f)] private float dogEffectSpeedChange = 5f;
@@ -73,6 +75,8 @@ namespace Mush.Prototype
         private Vector3 rightMouseTarget;
         private bool mouseTargetsInitialized;
         private bool terrainSpeedLimited;
+        private bool offCourseRecoveryActive;
+        private float offCourseRecoveryAccelerationMultiplier = 1f;
         private float courseSpeedMultiplier = 1f;
         private MushCurvedMapRuntime courseSurface;
         private MushDogRideEffect activeDogEffect;
@@ -171,13 +175,28 @@ namespace Mush.Prototype
             float effectiveAcceleration = activeDogEffect == MushDogRideEffect.Penalty
                 ? acceleration * penaltyAccelerationMultiplier
                 : acceleration;
+            if (offCourseRecoveryActive)
+                effectiveAcceleration *= offCourseRecoveryAccelerationMultiplier;
             float speedChangeRate = targetSpeed >= currentSpeed
                 ? effectiveAcceleration
                 : terrainSpeedLimited ? Mathf.Max(deceleration, terrainLimitDeceleration) : deceleration;
             currentSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, speedChangeRate * Time.deltaTime);
 
             float speedSteeringFactor = Mathf.InverseLerp(0f, firstLevelSpeed, currentSpeed);
-            float yaw = currentSteering * maximumTurnRate * speedSteeringFactor * Time.deltaTime;
+            float activeTurnRate = maximumTurnRate;
+            if (courseSurface != null && courseSurface.IsSharpCurveMap)
+            {
+                // At level 1 the player has enough authority to take each
+                // hairpin with a deliberate full pull. At level 2 the runners
+                // understeer heavily, so holding boost through the whole map is
+                // no longer a viable racing line.
+                float highSpeed01 = Mathf.InverseLerp(firstLevelSpeed, secondLevelSpeed, currentSpeed);
+                activeTurnRate = sharpCurveMaximumTurnRate * Mathf.Lerp(
+                    1f,
+                    sharpCurveBoostTurnRateMultiplier,
+                    highSpeed01);
+            }
+            float yaw = currentSteering * activeTurnRate * speedSteeringFactor * Time.deltaTime;
             transform.Rotate(0f, yaw, 0f, Space.Self);
             MoveAlongGround(currentSpeed * Time.deltaTime);
         }
@@ -225,6 +244,23 @@ namespace Mush.Prototype
             terrainSpeedLimited = limited;
         }
 
+        public void ApplyOffCourseImpact(float retainedSpeedRatio, float recoveryAccelerationMultiplier)
+        {
+            terrainSpeedLimited = false;
+            currentSpeed *= Mathf.Clamp(retainedSpeedRatio, 0.05f, 1f);
+            offCourseRecoveryActive = true;
+            offCourseRecoveryAccelerationMultiplier = Mathf.Clamp(
+                recoveryAccelerationMultiplier,
+                0.1f,
+                1f);
+        }
+
+        public void ClearOffCourseImpactRecovery()
+        {
+            offCourseRecoveryActive = false;
+            offCourseRecoveryAccelerationMultiplier = 1f;
+        }
+
         public void SetCourseSpeedMultiplier(float multiplier)
         {
             float nextMultiplier = Mathf.Clamp(multiplier, 0.25f, 3f);
@@ -263,6 +299,7 @@ namespace Mush.Prototype
             currentSteering = 0f;
             externalSteeringInput = 0f;
             terrainSpeedLimited = false;
+            ClearOffCourseImpactRecovery();
             UpdateSteeringVisuals(0f, 0f);
         }
 
@@ -311,6 +348,10 @@ namespace Mush.Prototype
                 levelSpeed = level >= 2
                     ? terrainLimitedSecondLevelSpeed
                     : terrainLimitedFirstLevelSpeed;
+
+                // Off-road values are hard limits. The downhill multiplier and
+                // temporary +5 buff must not erase the difficult map's penalty.
+                return Mathf.Max(0.1f, levelSpeed);
             }
             else
             {

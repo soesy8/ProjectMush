@@ -982,8 +982,8 @@ namespace Mush.Lobby
             if (renderer != null)
             {
                 renderer.sharedMaterial = material;
-                renderer.shadowCastingMode = ShadowCastingMode.On;
-                renderer.receiveShadows = true;
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
             }
             if (!keepCollider && primitive.TryGetComponent(out Collider collider))
                 Destroy(collider);

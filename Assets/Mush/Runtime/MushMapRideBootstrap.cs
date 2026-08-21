@@ -50,8 +50,9 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, Min(0f)] private float resultStarIntervalSeconds = 0.42f;
 
     [Header("Off-course Speed")]
-    [SerializeField, Min(0.1f)] private float offCourseSpeed = 3f;
-    [SerializeField, Min(0.1f)] private float offCourseBoostSpeed = 5f;
+    [SerializeField, Range(0.05f, 1f)] private float offCourseImpactRetainedSpeed = 0.5f;
+    [SerializeField, Range(0.1f, 1f)] private float offCourseAccelerationMultiplier = 0.72f;
+    [SerializeField, Min(0f)] private float sharpCurveOffCourseTimePenalty = 4f;
     [SerializeField, Min(0f)] private float roadExitMargin = 0.12f;
     [SerializeField, Min(0f)] private float roadReturnInset = 0.45f;
 
@@ -65,6 +66,13 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, Min(0.05f)] private float questReinPullForFullTurn = 0.24f;
     [SerializeField, Min(0f)] private float questReinDeadZone = 0.035f;
     [SerializeField, Min(0.3f)] private float questRecalibrationHoldSeconds = 1.0f;
+
+    [Header("Quest 2 Haptics")]
+    [SerializeField] private bool enableQuestHaptics = true;
+    [SerializeField, Range(0f, 1f)] private float roadHapticAmplitude = 0.075f;
+    [SerializeField, Range(0f, 1f)] private float offCourseHapticAmplitude = 0.16f;
+    [SerializeField, Range(0f, 1f)] private float reinTensionHapticAmplitude = 0.30f;
+    [SerializeField, Min(0.03f)] private float drivingHapticInterval = 0.075f;
 
     private readonly List<DogRuntime> dogs = new();
     private readonly Dictionary<string, Material> runtimeMaterials = new(StringComparer.Ordinal);
@@ -98,6 +106,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private bool ridePositionInitialized;
     private bool returningToLobby;
     private bool offCourse;
+    private float sharpOffCoursePenaltyFeedbackUntil;
     private bool ridePaused;
     private bool questReinsCalibrated;
     private float questLeftNeutralZ;
@@ -106,6 +115,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private float questRecalibrationFeedbackUntil;
     private bool questRecalibrationArmed;
     private bool questRecalibrationInProgress;
+    private bool questBoostHapticHeld;
+    private bool sharpDownhillHapticActive;
+    private float nextQuestDrivingHapticTime;
+    private float questDrivingHapticSuppressedUntil;
     private bool hasRecoveryCheckpoint;
     private float recoveryRouteProgress;
     private float nextRecoveryCheckpointTime;
@@ -231,6 +244,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         ApplyRideDogCustomization();
         ConnectMapEffects(mapRoot, teamObject.transform);
         BuildMissionTimerDisplay();
+
+        // Procedural terrain, team models and UI have all been created now, so
+        // remove their shadow passes as well as the scene's serialized ones.
+        MushShadowPerformance.DisableForLoadedScenes();
 
         built = true;
         Debug.Log(
@@ -615,6 +632,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         {
             questRecalibrationHoldTime = 0f;
             questRecalibrationInProgress = false;
+            questBoostHapticHeld = false;
             rideController.SetBoost(false);
             rideController.SetExternalSteering(0f);
             return;
@@ -625,6 +643,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             CaptureQuestNeutralPosition();
             questRecalibrationArmed = false; // 처음 출발에 쓴 그립을 계속 누르고 있어도 곧바로 재보정되지 않게 한다.
             rideController.StartRide();
+            PulseQuestBothHands(0.34f, 0.12f);
         }
 
         if (!rideController.RideStarted)
@@ -635,7 +654,11 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (questRig.YButtonPressedThisFrame)
             rideController.ToggleDogPenalty();
 
-        rideController.SetBoost(questRig.LeftTriggerHeld || questRig.RightTriggerHeld);
+        bool boostHeld = questRig.LeftTriggerHeld || questRig.RightTriggerHeld;
+        if (boostHeld && !questBoostHapticHeld)
+            PulseQuestBothHands(0.24f, 0.08f);
+        questBoostHapticHeld = boostHeld;
+        rideController.SetBoost(boostHeld);
         if (!questReinsCalibrated)
             CaptureQuestNeutralPosition();
 
@@ -658,6 +681,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
                 questRecalibrationInProgress = false;
                 questRecalibrationArmed = false; // 완료 뒤 양손을 놓기 전까지 중복 재보정을 막는다.
                 questRecalibrationFeedbackUntil = Time.unscaledTime + 1.0f;
+                PulseQuestBothHands(0.48f, 0.14f);
                 Debug.Log("[Mush] Quest N Pos recalibrated.", this);
             }
             return;
@@ -670,6 +694,68 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             -1f,
             1f);
         rideController.SetExternalSteering(steering);
+        UpdateQuestDrivingHaptics(leftPull, rightPull);
+    }
+
+    private void UpdateQuestDrivingHaptics(float leftPull, float rightPull)
+    {
+        if (!enableQuestHaptics || questRig == null || !questRig.IsTracking ||
+            !rideController.RideStarted || Time.unscaledTime < nextQuestDrivingHapticTime ||
+            Time.unscaledTime < questDrivingHapticSuppressedUntil)
+            return;
+
+        float interval = offCourse
+            ? Mathf.Max(0.04f, drivingHapticInterval * 0.72f)
+            : Mathf.Max(0.04f, drivingHapticInterval);
+        nextQuestDrivingHapticTime = Time.unscaledTime + interval;
+
+        float speed01 = Mathf.InverseLerp(0f, rideController.SecondLevelSpeed, rideController.CurrentSpeed);
+        float surfaceAmplitude = Mathf.Lerp(0.018f, roadHapticAmplitude, speed01);
+        if (offCourse)
+            surfaceAmplitude = Mathf.Max(surfaceAmplitude, offCourseHapticAmplitude);
+
+        float fullPull = Mathf.Max(0.05f, questReinPullForFullTurn);
+        float leftTension = Mathf.Clamp01(leftPull / fullPull);
+        float rightTension = Mathf.Clamp01(rightPull / fullPull);
+        float leftAmplitude = Mathf.Clamp01(surfaceAmplitude + leftTension * reinTensionHapticAmplitude);
+        float rightAmplitude = Mathf.Clamp01(surfaceAmplitude + rightTension * reinTensionHapticAmplitude);
+        float pulseDuration = interval * 0.78f;
+        SendQuestHaptic(XRNode.LeftHand, leftAmplitude, pulseDuration);
+        SendQuestHaptic(XRNode.RightHand, rightAmplitude, pulseDuration);
+    }
+
+    private void PulseQuestBothHands(float amplitude, float duration)
+    {
+        if (!enableQuestHaptics || questRig == null || !questRig.IsTracking)
+            return;
+
+        float safeDuration = Mathf.Max(0.02f, duration);
+        questDrivingHapticSuppressedUntil = Mathf.Max(
+            questDrivingHapticSuppressedUntil,
+            Time.unscaledTime + safeDuration);
+        SendQuestHaptic(XRNode.LeftHand, amplitude, safeDuration);
+        SendQuestHaptic(XRNode.RightHand, amplitude, safeDuration);
+    }
+
+    private static void SendQuestHaptic(XRNode node, float amplitude, float duration)
+    {
+        UnityEngine.XR.InputDevice device = InputDevices.GetDeviceAtXRNode(node);
+        if (!device.isValid ||
+            !device.TryGetHapticCapabilities(out UnityEngine.XR.HapticCapabilities capabilities) ||
+            !capabilities.supportsImpulse)
+            return;
+
+        device.SendHapticImpulse(0u, Mathf.Clamp01(amplitude), Mathf.Max(0.02f, duration));
+    }
+
+    private static void StopQuestHaptics()
+    {
+        UnityEngine.XR.InputDevice left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+        UnityEngine.XR.InputDevice right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+        if (left.isValid)
+            left.StopHaptics();
+        if (right.isValid)
+            right.StopHaptics();
     }
 
     private void CaptureQuestNeutralPosition()
@@ -691,6 +777,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         Time.timeScale = paused ? 0f : 1f;
         rideController?.SetBoost(false);
         rideController?.SetExternalSteering(0f, paused || (questRig != null && questRig.IsTracking));
+        if (paused)
+            StopQuestHaptics();
+        else
+            PulseQuestBothHands(0.24f, 0.07f);
 
         if (paused && XRSettings.isDeviceActive)
         {
@@ -870,6 +960,12 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         {
             missionTimerText.text = "N POS OK";
             missionTimerText.color = new Color(0.35f, 1f, 0.55f);
+            return;
+        }
+        if (Time.unscaledTime < sharpOffCoursePenaltyFeedbackUntil)
+        {
+            missionTimerText.text = $"+{Mathf.CeilToInt(sharpCurveOffCourseTimePenalty):00}초";
+            missionTimerText.color = new Color(1f, 0.10f, 0.06f);
             return;
         }
 
@@ -1097,6 +1193,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             {
                 resultStarLanded[index] = true;
                 resultStarBursts[index]?.Emit(30);
+                PulseQuestBothHands(0.38f, 0.09f);
             }
         }
 
@@ -1521,7 +1618,27 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             return;
 
         offCourse = nextOffCourse;
-        rideController.SetTerrainSpeedLimit(offCourse, offCourseSpeed, offCourseBoostSpeed);
+        if (offCourse && curvedWorld.IsSharpCurveMap && missionTimerStarted)
+        {
+            missionElapsedSeconds += sharpCurveOffCourseTimePenalty;
+            sharpOffCoursePenaltyFeedbackUntil = Time.unscaledTime + 0.90f;
+        }
+
+        // Every course uses the same racing-style off-road response: momentum
+        // is lost on entry, but the sled can rebuild speed instead of being
+        // held at a permanent crawl. SharpCurve alone keeps the time penalty.
+        rideController.SetTerrainSpeedLimit(false);
+        if (offCourse)
+        {
+            PulseQuestBothHands(0.86f, 0.22f);
+            rideController.ApplyOffCourseImpact(
+                offCourseImpactRetainedSpeed,
+                offCourseAccelerationMultiplier);
+        }
+        else
+        {
+            rideController.ClearOffCourseImpactRecovery();
+        }
     }
 
     private void UpdateCourseSpeedMultiplier()
@@ -1529,7 +1646,14 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (rideController == null)
             return;
 
-        float multiplier = curvedWorld != null && curvedWorld.SharpDownhillSpeedBoostActive
+        bool downhillActive = curvedWorld != null && curvedWorld.SharpDownhillSpeedBoostActive;
+        if (downhillActive != sharpDownhillHapticActive)
+        {
+            sharpDownhillHapticActive = downhillActive;
+            PulseQuestBothHands(downhillActive ? 0.46f : 0.25f, downhillActive ? 0.18f : 0.08f);
+        }
+
+        float multiplier = downhillActive
             ? 1.5f
             : 1f;
         rideController.SetCourseSpeedMultiplier(multiplier);
@@ -1626,7 +1750,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             Quaternion.LookRotation(uprightForward, Vector3.up));
         rideController.ResetMotionForCourseRecovery();
         offCourse = false;
-        rideController.SetTerrainSpeedLimit(false, offCourseSpeed, offCourseBoostSpeed);
+        rideController.SetTerrainSpeedLimit(false);
         lastRidePosition = recoveryPosition;
         ridePositionInitialized = true;
         nextRecoveryCheckpointTime = Time.unscaledTime + recoveryCheckpointInterval;
@@ -1645,6 +1769,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         bool resumeFromPause = ridePaused;
         if (resumeFromPause)
             SetRidePaused(false);
+        PulseQuestBothHands(0.68f, 0.16f);
         Debug.Log($"[Mush] 코스 복귀: 진행도 {restoredRouteProgress * 100f:0.0}%", this);
     }
 
@@ -1736,6 +1861,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         rideController.SetExternalSteering(0f);
         rideController.enabled = false;
         StopRideEffectsForResult();
+        PulseQuestBothHands(0.56f, 0.20f);
 
         EnsureResultPanel();
         if (resultPanel != null && rideCamera != null)

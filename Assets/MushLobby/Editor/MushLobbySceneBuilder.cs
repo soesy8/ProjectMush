@@ -406,7 +406,7 @@ namespace Mush.Lobby.Editor
             directional.type = LightType.Directional;
             directional.color = new Color(0.72f, 0.82f, 1f);
             directional.intensity = 0.75f;
-            directional.shadows = LightShadows.Soft;
+            directional.shadows = LightShadows.None;
             moonlight.transform.rotation = Quaternion.Euler(38f, -18f, 0f);
 
             GameObject firelight = new GameObject("Fireplace Light");
@@ -416,7 +416,7 @@ namespace Mush.Lobby.Editor
             point.color = new Color(1f, 0.38f, 0.10f);
             point.intensity = 2.8f;
             point.range = 5.2f;
-            point.shadows = LightShadows.Soft;
+            point.shadows = LightShadows.None;
         }
 
         private static GameObject InstantiateLobbyModel(Transform parent)
