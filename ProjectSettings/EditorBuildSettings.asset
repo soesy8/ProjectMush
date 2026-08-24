@@ -7,6 +7,9 @@ EditorBuildSettings:
   m_Scenes:
   - enabled: 1
     path: Assets/Scenes/MushLobby.unity
+    guid: 62e2373f8b4ebc44894d7f9279312eba
+  - enabled: 1
+    path: Assets/Test_Lobby/Test_Lobby.unity
     guid: 200d4923331e0e14c89e8c2cda1f99c1
   - enabled: 1
     path: Assets/Scenes/MushStore.unity
