@@ -4,6 +4,12 @@
     "m_ObjectId": "a129a52d110640149edb0bd51d22fa45",
     "m_Properties": [
         {
+            "m_Id": "4b227eabb7504e6ca4ddc181762c5d04"
+        },
+        {
+            "m_Id": "9806eac19ac8444996b10a4b19cdaa51"
+        },
+        {
             "m_Id": "a2ba4e7058524ee4a2beb98593ff62e4"
         },
         {
@@ -38,6 +44,9 @@
         },
         {
             "m_Id": "fb927daffbda4e52a1888f8b89ed225b"
+        },
+        {
+            "m_Id": "fab735340aaa4bb3929cc3d3b360bb7d"
         }
     ],
     "m_Keywords": [],
@@ -51,6 +60,9 @@
         },
         {
             "m_Id": "204372d91aeb45d8a096b701578f25ba"
+        },
+        {
+            "m_Id": "9f5311c073b441c4b755d1ec567bf9f7"
         }
     ],
     "m_Nodes": [
@@ -1227,6 +1239,50 @@
 }
 
 {
+    "m_SGVersion": 1,
+    "m_Type": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty",
+    "m_ObjectId": "4b227eabb7504e6ca4ddc181762c5d04",
+    "m_Guid": {
+        "m_GuidSerialized": "1cceca9d-4af8-4c3e-b024-b2fb82829c7c"
+    },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
+    "m_Name": "Facet Contrast",
+    "m_DefaultRefNameVersion": 1,
+    "m_RefNameGeneratedByDisplayName": "Facet Contrast",
+    "m_DefaultReferenceName": "_Facet_Contrast",
+    "m_OverrideReferenceName": "",
+    "m_GeneratePropertyBlock": true,
+    "m_UseCustomSlotLabel": false,
+    "m_CustomSlotLabel": "",
+    "m_DismissedVersion": 0,
+    "m_Precision": 0,
+    "overrideHLSLDeclaration": false,
+    "hlslDeclarationOverride": 0,
+    "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
+    "m_Value": 1.350000023841858,
+    "m_FloatType": 1,
+    "m_LiteralFloatMode": false,
+    "m_RangeValues": {
+        "x": 1.0,
+        "y": 2.0
+    },
+    "m_SliderType": 0,
+    "m_SliderPower": 3.0,
+    "m_EnumType": 0,
+    "m_CSharpEnumString": "",
+    "m_EnumNames": [
+        "Default"
+    ],
+    "m_EnumValues": [
+        0
+    ]
+}
+
+{
     "m_SGVersion": 0,
     "m_Type": "UnityEditor.ShaderGraph.Texture2DInputMaterialSlot",
     "m_ObjectId": "4d298f0fda78431b8792e835dc7fc601",
@@ -2069,6 +2125,50 @@
 }
 
 {
+    "m_SGVersion": 1,
+    "m_Type": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty",
+    "m_ObjectId": "9806eac19ac8444996b10a4b19cdaa51",
+    "m_Guid": {
+        "m_GuidSerialized": "b9537a4e-c294-4ac3-9180-5dc6169c9ec4"
+    },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
+    "m_Name": "Facet Center",
+    "m_DefaultRefNameVersion": 1,
+    "m_RefNameGeneratedByDisplayName": "Facet Center",
+    "m_DefaultReferenceName": "_Facet_Center",
+    "m_OverrideReferenceName": "",
+    "m_GeneratePropertyBlock": true,
+    "m_UseCustomSlotLabel": false,
+    "m_CustomSlotLabel": "",
+    "m_DismissedVersion": 0,
+    "m_Precision": 0,
+    "overrideHLSLDeclaration": false,
+    "hlslDeclarationOverride": 0,
+    "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
+    "m_Value": 0.5,
+    "m_FloatType": 1,
+    "m_LiteralFloatMode": false,
+    "m_RangeValues": {
+        "x": 0.25,
+        "y": 0.75
+    },
+    "m_SliderType": 0,
+    "m_SliderPower": 3.0,
+    "m_EnumType": 0,
+    "m_CSharpEnumString": "",
+    "m_EnumNames": [
+        "Default"
+    ],
+    "m_EnumValues": [
+        0
+    ]
+}
+
+{
     "m_SGVersion": 0,
     "m_Type": "UnityEditor.ShaderGraph.Vector1MaterialSlot",
     "m_ObjectId": "98bd91e4d2524c859a46b5d22d3e6ac9",
@@ -2148,6 +2248,24 @@
     ],
     "m_EnumValues": [
         0
+    ]
+}
+
+{
+    "m_SGVersion": 0,
+    "m_Type": "UnityEditor.ShaderGraph.CategoryData",
+    "m_ObjectId": "9f5311c073b441c4b755d1ec567bf9f7",
+    "m_Name": "Facet",
+    "m_ChildObjectList": [
+        {
+            "m_Id": "fab735340aaa4bb3929cc3d3b360bb7d"
+        },
+        {
+            "m_Id": "4b227eabb7504e6ca4ddc181762c5d04"
+        },
+        {
+            "m_Id": "9806eac19ac8444996b10a4b19cdaa51"
+        }
     ]
 }
 
@@ -3517,6 +3635,50 @@
         "m_SerializableColors": []
     },
     "m_SerializedDescriptor": "VertexDescription.Position"
+}
+
+{
+    "m_SGVersion": 1,
+    "m_Type": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty",
+    "m_ObjectId": "fab735340aaa4bb3929cc3d3b360bb7d",
+    "m_Guid": {
+        "m_GuidSerialized": "b8e6130e-8ab5-44ad-a24f-cde7dc2a2432"
+    },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
+    "m_Name": "Facet Strength",
+    "m_DefaultRefNameVersion": 1,
+    "m_RefNameGeneratedByDisplayName": "Facet Strength",
+    "m_DefaultReferenceName": "_Facet_Strength",
+    "m_OverrideReferenceName": "",
+    "m_GeneratePropertyBlock": true,
+    "m_UseCustomSlotLabel": false,
+    "m_CustomSlotLabel": "",
+    "m_DismissedVersion": 0,
+    "m_Precision": 0,
+    "overrideHLSLDeclaration": false,
+    "hlslDeclarationOverride": 0,
+    "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
+    "m_Value": 0.3499999940395355,
+    "m_FloatType": 1,
+    "m_LiteralFloatMode": false,
+    "m_RangeValues": {
+        "x": 0.0,
+        "y": 1.0
+    },
+    "m_SliderType": 0,
+    "m_SliderPower": 3.0,
+    "m_EnumType": 0,
+    "m_CSharpEnumString": "",
+    "m_EnumNames": [
+        "Default"
+    ],
+    "m_EnumValues": [
+        0
+    ]
 }
 
 {
