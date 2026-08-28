@@ -105,6 +105,9 @@ Material:
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
+    - _Facet_Center: 0.5
+    - _Facet_Contrast: 1.75
+    - _Facet_Strength: 0.75
     - _GlossMapScale: 1
     - _Glossiness: 0.59999996
     - _GlossyReflections: 1
