@@ -81,8 +81,27 @@ namespace Mush.Lobby
             seatedRig = camera.GetComponentInParent<MushSeatedRigLock>();
             desktopLook = camera.GetComponentInParent<MushDesktopSeatedLook>();
             if (menuRoot == null)
+                menuRoot = FindDescendant(lobbyRoot != null ? lobbyRoot : owner.transform.root, "Lobby Station Travel Menu");
+            if (menuRoot == null)
                 BuildMenu(lobbyRoot != null ? lobbyRoot : owner.transform.root);
+            else
+                CacheMenuReferences();
             EnsureChairSeatInteraction(lobbyRoot != null ? lobbyRoot : owner.transform.root);
+        }
+
+        private void CacheMenuReferences()
+        {
+            MushLobbyStationButton[] sceneButtons = menuRoot.GetComponentsInChildren<MushLobbyStationButton>(true);
+            buttons.Clear();
+            for (int index = 0; index < sceneButtons.Length; index++)
+            {
+                MushLobbyStationButton button = sceneButtons[index];
+                button.Configure(this, index, button.GetComponent<Renderer>());
+                buttons.Add(button);
+            }
+            if (sceneButtons.Length > 0)
+                buttonMaterial = sceneButtons[0].GetComponent<Renderer>()?.sharedMaterial;
+            selectedMaterial = buttonMaterial;
         }
 
         private void Update()

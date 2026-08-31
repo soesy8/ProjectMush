@@ -51,6 +51,7 @@ namespace Mush.Lobby
             station.dogs = lobbyDogs;
             station.desktopCamera = lobbyCamera != null ? lobbyCamera : Camera.main;
             station.HideLegacyDogBowl(lobbyRoot);
+            station.CacheExistingFeedingPlace();
             if (station.fallingFoodParticles == null)
                 station.BuildFeedingPlace();
             return station;
@@ -264,6 +265,28 @@ namespace Mush.Lobby
             dispenser.Configure(this, canisterRenderer);
         }
 
+        private void CacheExistingFeedingPlace()
+        {
+            if (fallingFoodParticles == null)
+                fallingFoodParticles = FindDescendant(transform, "Falling Dog Food")?.GetComponent<ParticleSystem>();
+
+            for (int bowlIndex = 0; bowlIndex < BowlCount; bowlIndex++)
+            {
+                string bowlName = bowlIndex == 0 ? "Left Dog Food Bowl" : "Right Dog Food Bowl";
+                Transform bowl = FindDescendant(transform, bowlName);
+                if (bowl == null)
+                    continue;
+
+                bowlWorld[bowlIndex] = bowl.position + Vector3.up * 0.13f;
+                eatingWorld[bowlIndex] = bowl.position - transform.forward * 0.62f;
+                eatingRotation[bowlIndex] = Quaternion.LookRotation(transform.forward, Vector3.up);
+                string foodName = bowlIndex == 0 ? "Food Stored In Left Bowl" : "Food Stored In Right Bowl";
+                bowlFoodParticles[bowlIndex] = FindDescendant(transform, foodName)?.GetComponent<ParticleSystem>();
+            }
+
+            desktopHoldWorld = transform.TransformPoint(new Vector3(0f, 0.88f, 0.08f));
+        }
+
         private void BuildRoundBowl(Transform bowl, Material baseMaterial, Material rimMaterial)
         {
             CreateCylinder(
@@ -454,6 +477,8 @@ namespace Mush.Lobby
 
         private void OnDestroy()
         {
+            if (!Application.isPlaying)
+                return;
             foreach (Material material in ownedMaterials)
             {
                 if (material != null)

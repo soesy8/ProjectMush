@@ -9,6 +9,7 @@ namespace Mush.Lobby
     {
         [SerializeField] private Transform visualRoot;
         [SerializeField] private Transform tail;
+        [SerializeField, HideInInspector] private bool sceneAuthoredVisual;
         [SerializeField] private Vector2 areaMin = new Vector2(-1.25f, -0.15f);
         [SerializeField] private Vector2 areaMax = new Vector2(1.15f, 1.55f);
         [SerializeField] private float walkSpeed = 0.42f;
@@ -123,6 +124,38 @@ namespace Mush.Lobby
         public bool IsOnLap => sittingOnLap;
         public bool IsInLapRoutine => lapTarget != null;
         public Transform VisualRoot => visualRoot != null ? visualRoot : transform;
+        public bool HasSceneAuthoredVisual => sceneAuthoredVisual && visualRoot != null;
+
+        /// <summary>
+        /// Creates and prepares this dog's visible model in edit mode. Once
+        /// saved, Awake keeps the authored transform instead of moving the dog
+        /// to a camera-relative runtime preview position.
+        /// </summary>
+        public void BakeVisualIntoScene()
+        {
+            if (Application.isPlaying)
+                return;
+
+            EnsureRuntimeVisual();
+            CacheVisualParts();
+            CacheGroundSurfaces();
+            PlaceInFrontOfLobbyCamera();
+            OrientVisualFromGeometry();
+            NormalizeVisualBounds();
+            BuildLegPivots();
+            SnapPawsToFloor();
+            if (visualRoot != null)
+            {
+                visualRestPosition = visualRoot.localPosition;
+                visualRestRotation = visualRoot.localRotation;
+            }
+            if (tail != null)
+                tailRestRotation = tail.localRotation;
+            FitInteractionCollider();
+            EnsureAnimatorForAmbientLife();
+            EnsureNavMeshAgent();
+            sceneAuthoredVisual = visualRoot != null;
+        }
 
         public void Configure(Transform newVisualRoot, Transform newTail, Vector2 newAreaMin, Vector2 newAreaMax)
         {
@@ -147,11 +180,15 @@ namespace Mush.Lobby
             EnsureRuntimeVisual();
             CacheVisualParts();
             CacheGroundSurfaces(); // 로비 바닥과 러그를 한 번만 찾아 두고, 이후 매 프레임 전체 씬 검색을 하지 않게 한다.
-            PlaceInFrontOfLobbyCamera();
-            OrientVisualFromGeometry();
-            NormalizeVisualBounds();
+            if (!sceneAuthoredVisual)
+            {
+                PlaceInFrontOfLobbyCamera();
+                OrientVisualFromGeometry();
+                NormalizeVisualBounds();
+            }
             BuildLegPivots();
-            SnapPawsToFloor();
+            if (!sceneAuthoredVisual)
+                SnapPawsToFloor();
             if (visualRoot != null)
             {
                 visualRestPosition = visualRoot.localPosition;
@@ -355,9 +392,16 @@ namespace Mush.Lobby
             MushLobbyDogExpression expression = GetComponent<MushLobbyDogExpression>();
             if (expression == null)
                 expression = gameObject.AddComponent<MushLobbyDogExpression>();
-            Camera camera = Camera.main;
-            if (camera == null)
-                camera = Object.FindFirstObjectByType<Camera>(FindObjectsInactive.Include);
+            Camera camera = null;
+            if (gameObject.scene.IsValid() && gameObject.scene.isLoaded)
+            {
+                foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+                {
+                    camera = root.GetComponentInChildren<Camera>(true);
+                    if (camera != null)
+                        break;
+                }
+            }
             expression.Configure(this, head, leftEye, rightEye, mouth, camera);
 
             MushLobbyDogInteraction interaction = GetComponent<MushLobbyDogInteraction>();
@@ -1595,6 +1639,14 @@ namespace Mush.Lobby
             fallbackLegRestRotations = new Quaternion[legGroups.Length];
             for (int index = 0; index < legGroups.Length; index++)
             {
+                Transform existingPivot = FindExactChild(visualRoot, "Walk Pivot " + index);
+                if (existingPivot != null)
+                {
+                    fallbackLegs[index] = existingPivot;
+                    fallbackLegRestRotations[index] = existingPivot.localRotation;
+                    continue;
+                }
+
                 Transform upper = FindPart(visualRoot, legGroups[index][0]);
                 Transform lower = FindPart(visualRoot, legGroups[index][1]);
                 Transform paw = FindPart(visualRoot, legGroups[index][2]);
@@ -1616,6 +1668,18 @@ namespace Mush.Lobby
                 fallbackLegs[index] = pivot;
                 fallbackLegRestRotations[index] = pivot.localRotation;
             }
+        }
+
+        private static Transform FindExactChild(Transform root, string objectName)
+        {
+            if (root == null)
+                return null;
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name == objectName)
+                    return child;
+            }
+            return null;
         }
 
         private void FitInteractionCollider()

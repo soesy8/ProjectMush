@@ -504,9 +504,15 @@ namespace Mush.Prototype
 
         private void PrepareGuaranteedDesktopHands()
         {
-            desktopCamera = Camera.main;
-            if (desktopCamera == null)
-                desktopCamera = Object.FindFirstObjectByType<Camera>(FindObjectsInactive.Include);
+            if (desktopCamera == null && gameObject.scene.IsValid() && gameObject.scene.isLoaded)
+            {
+                foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+                {
+                    desktopCamera = root.GetComponentInChildren<Camera>(true);
+                    if (desktopCamera != null)
+                        break;
+                }
+            }
 
             leftControllerAnchor = leftHandVisual != null ? leftHandVisual.parent : FindChild("Left Controller");
             rightControllerAnchor = rightHandVisual != null ? rightHandVisual.parent : FindChild("Right Controller");

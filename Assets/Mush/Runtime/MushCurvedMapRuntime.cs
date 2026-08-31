@@ -13,19 +13,25 @@ using UnityEngine.XR;
 [DisallowMultipleComponent]
 public sealed class MushCurvedMapRuntime : MonoBehaviour
 {
-    private const float CourseLength = 960f;
-    private const float SampleSpacing = 4f;
     private const float RoadHalfWidth = 6.5f;
     private const float SharpCurveRoadHalfWidth = 3.25f;
     private const float TerrainHalfWidth = 105f;
-    private const string RebuiltRootName = "Mush Rebuilt Curved World";
+    public const string GeneratedWorldRootName = "Mush Rebuilt Curved World";
+    public const string CustomSceneContentRootName = "SCENE CONTENT - Add Models Here";
+    public const string RideTeamRootName = "Mush Ride Team";
 
     private readonly List<Vector3> routePoints = new();
-    private readonly List<CurveEvent> curveEvents = new();
     private readonly List<Material> runtimeMaterials = new();
     private bool built;
     private bool isSnowfield;
     private bool isSharpCurve;
+    private bool usesEditableTrack;
+    private bool overridesTrackWidths;
+    private int defaultCurveCount;
+    private float activeCourseLength = MushTrackPathUtility.DefaultCourseLength;
+    private float activeSampleSpacing = MushTrackPathUtility.DefaultSampleSpacing;
+    private float authoredRoadHalfWidth;
+    private float authoredTerrainHalfWidth;
     private Transform rebuiltRoot;
     private Mesh pineMesh;
     private Mesh mountainMesh;
@@ -44,30 +50,18 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     public Vector3 StartForward { get; private set; } = Vector3.back;
     public Transform AmbientSnowTransform { get; private set; }
-    public float LengthMeters => CourseLength;
+    public float LengthMeters => activeCourseLength;
     public float RoadHalfWidthMeters => ActiveRoadHalfWidth;
     public bool IsSharpCurveMap => isSharpCurve;
     public float CurrentProgress01 => sharpProgress;
     public bool SharpDownhillSpeedBoostActive => isSharpCurve && sharpProgress >= 0.35f && sharpProgress <= 0.66f;
 
-    private float ActiveRoadHalfWidth => isSharpCurve ? SharpCurveRoadHalfWidth : RoadHalfWidth;
-    private float ActiveTerrainHalfWidth => isSharpCurve ? 42f : TerrainHalfWidth;
-
-    private readonly struct CurveEvent
-    {
-        public readonly float start;
-        public readonly float length;
-        public readonly float strength;
-        public readonly bool sCurve;
-
-        public CurveEvent(float start, float length, float strength, bool sCurve)
-        {
-            this.start = start;
-            this.length = length;
-            this.strength = strength;
-            this.sCurve = sCurve;
-        }
-    }
+    private float ActiveRoadHalfWidth => overridesTrackWidths
+        ? authoredRoadHalfWidth
+        : isSharpCurve ? SharpCurveRoadHalfWidth : RoadHalfWidth;
+    private float ActiveTerrainHalfWidth => overridesTrackWidths
+        ? authoredTerrainHalfWidth
+        : isSharpCurve ? 42f : TerrainHalfWidth;
 
     public static MushCurvedMapRuntime EnsureBuilt(Transform mapRoot)
     {
@@ -86,34 +80,185 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (built)
             return;
 
-        isSharpCurve = name.Contains("SharpCurve", StringComparison.OrdinalIgnoreCase) ||
-                       gameObject.scene.name.Equals("SharpCurve", StringComparison.OrdinalIgnoreCase);
-        isSnowfield = !isSharpCurve &&
-                      (GetComponent<MushSnowfieldBlizzardController>() != null ||
-                       name.Contains("Snow", StringComparison.OrdinalIgnoreCase));
-        DisableImportedPresentation();
-
-        GameObject rootObject = new(RebuiltRootName);
-        rebuiltRoot = rootObject.transform;
-        rebuiltRoot.SetParent(transform, false);
-
-        BuildCurveSchedule();
-        BuildRoutePoints();
-        BuildCourseMeshes();
-        BuildScenery();
-        BuildSkyAndLighting();
-        BuildAmbientSnow();
-        PositionRouteMarkers();
+        ConfigureMapType();
+        BuildActiveRoute();
+        rebuiltRoot = transform.Find(GeneratedWorldRootName);
+        if (rebuiltRoot == null)
+        {
+            // Compatibility path for scenes that have not been opened once by
+            // the editor baker yet. As soon as the scene is baked, this branch
+            // is never reached and play mode adopts the saved hierarchy.
+            Debug.LogWarning(
+                $"[Mush] '{gameObject.scene.path}' has not been baked yet; generating a temporary compatibility world. " +
+                "Open the scene once and save it to make the hierarchy authoritative.",
+                this);
+            DisableImportedPresentation();
+            GameObject rootObject = new(GeneratedWorldRootName);
+            rebuiltRoot = rootObject.transform;
+            rebuiltRoot.SetParent(transform, false);
+            BuildCourseMeshes();
+            BuildScenery();
+            BuildSkyAndLighting();
+            BuildAmbientSnow();
+            PositionRouteMarkers();
+        }
+        else
+        {
+            CacheBakedWorldReferences();
+            ConfigureRuntimeEnvironmentControllers();
+        }
 
         built = true;
         Bounds roadBounds = roadRenderer != null ? roadRenderer.bounds : default;
         Bounds terrainBounds = terrainRenderer != null ? terrainRenderer.bounds : default;
         Debug.Log(
             $"[Mush Map Rebuild] Scene={gameObject.scene.path}, Type={(isSharpCurve ? "SHARP CURVE" : isSnowfield ? "SNOW" : "TREE")}, " +
-            $"Length={CourseLength:0}m, Samples={routePoints.Count}, Curves={curveEvents.Count}, " +
+            $"Track={(usesEditableTrack ? "EDITABLE" : "DEFAULT")}, Length={activeCourseLength:0}m, " +
+            $"Samples={routePoints.Count}, Curves={defaultCurveCount}, " +
             $"RoadBounds={roadBounds.size}, TerrainBounds={terrainBounds.size}, " +
             $"Renderers={rebuiltRoot.GetComponentsInChildren<Renderer>(true).Length}",
             this);
+    }
+
+    /// <summary>
+    /// Creates the actual gameplay world as ordinary scene objects. This is
+    /// editor authoring work, not a runtime preview: once saved, play mode uses
+    /// this exact hierarchy without recreating or replacing it.
+    /// </summary>
+    public void RebuildSceneWorld()
+    {
+        if (Application.isPlaying)
+            throw new InvalidOperationException("A baked Mush world can only be rebuilt outside play mode.");
+
+        built = false;
+        ConfigureMapType();
+        BuildActiveRoute();
+        Transform customContent = transform.Find(CustomSceneContentRootName);
+        if (customContent == null)
+        {
+            GameObject customContentObject = new(CustomSceneContentRootName);
+            customContent = customContentObject.transform;
+            customContent.SetParent(transform, false);
+        }
+        DisableImportedPresentation();
+
+        Transform previousRoot = transform.Find(GeneratedWorldRootName);
+        if (previousRoot != null)
+            DestroyImmediate(previousRoot.gameObject);
+
+        GameObject rootObject = new(GeneratedWorldRootName);
+        rebuiltRoot = rootObject.transform;
+        rebuiltRoot.SetParent(transform, false);
+
+        BuildCourseMeshes();
+        BuildScenery();
+        BuildSkyAndLighting();
+        BuildAmbientSnow();
+        PositionRouteMarkers();
+        built = true;
+    }
+
+    /// <summary>
+    /// The editor transfers generated meshes and materials into an AssetDatabase
+    /// container. They are no longer temporary resources owned by this component.
+    /// </summary>
+    public void ReleaseBakedResourceOwnership()
+    {
+        runtimeMaterials.Clear();
+        pineMesh = null;
+        mountainMesh = null;
+    }
+
+    private void ConfigureMapType()
+    {
+        isSharpCurve = name.Contains("SharpCurve", StringComparison.OrdinalIgnoreCase) ||
+                       gameObject.scene.name.Equals("SharpCurve", StringComparison.OrdinalIgnoreCase);
+        isSnowfield = !isSharpCurve &&
+                      (GetComponent<MushSnowfieldBlizzardController>() != null ||
+                       name.Contains("Snow", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void CacheBakedWorldReferences()
+    {
+        roadRenderer = FindGeneratedComponent<Renderer>("VISIBLE Curved Packed-Snow Road");
+        terrainRenderer = FindGeneratedComponent<Renderer>("VISIBLE Snow Terrain");
+        AmbientSnowTransform = FindGeneratedTransform("FX_AmbientSnow_Rebuilt");
+
+        if (!isSharpCurve)
+            return;
+
+        sharpSun = FindGeneratedComponent<Light>("Mush Rebuilt Sun") ?? FindSceneComponent<Light>();
+        sharpCamera = FindSceneComponent<Camera>();
+        sharpSky = RenderSettings.skybox;
+        sharpStars = FindGeneratedComponent<Renderer>("FX_StarDome_Rebuilt");
+        sharpMeteorShower = FindGeneratedComponent<ParticleSystem>("FX_SharpCurve_MeteorShower");
+        sharpAuroraRoot = FindGeneratedTransform("FX_SharpCurve_Aurora");
+        sharpAuroraSkyRenderer = FindGeneratedComponent<Renderer>("Aurora Sky Dome Renderer");
+    }
+
+    private void ConfigureRuntimeEnvironmentControllers()
+    {
+        Camera sceneCamera = FindSceneComponent<Camera>();
+        Light sun = FindGeneratedComponent<Light>("Mush Rebuilt Sun") ?? FindSceneComponent<Light>();
+        ParticleSystem snow = AmbientSnowTransform != null
+            ? AmbientSnowTransform.GetComponent<ParticleSystem>()
+            : null;
+
+        if (isSharpCurve)
+        {
+            ApplySharpCurveEnvironment(0f);
+            return;
+        }
+
+        if (isSnowfield)
+        {
+            MushSnowfieldBlizzardController controller = GetComponent<MushSnowfieldBlizzardController>();
+            controller?.ConfigureRuntimeWorld(sun, sceneCamera, RenderSettings.skybox, null, activeCourseLength);
+            controller?.SetSnowParticles(snow);
+        }
+        else
+        {
+            MushForestTimeCycleController controller = GetComponent<MushForestTimeCycleController>();
+            controller?.ConfigureRuntimeWorld(
+                sun,
+                sceneCamera,
+                RenderSettings.skybox,
+                FindGeneratedComponent<Renderer>("FX_StarDome_Rebuilt"),
+                activeCourseLength);
+        }
+    }
+
+    private Transform FindGeneratedTransform(string objectName)
+    {
+        if (rebuiltRoot == null)
+            return null;
+
+        foreach (Transform child in rebuiltRoot.GetComponentsInChildren<Transform>(true))
+        {
+            if (child.name.Equals(objectName, StringComparison.OrdinalIgnoreCase))
+                return child;
+        }
+        return null;
+    }
+
+    private T FindGeneratedComponent<T>(string objectName) where T : Component
+    {
+        Transform found = FindGeneratedTransform(objectName);
+        return found != null ? found.GetComponent<T>() : null;
+    }
+
+    private T FindSceneComponent<T>() where T : Component
+    {
+        if (!gameObject.scene.IsValid() || !gameObject.scene.isLoaded)
+            return null;
+
+        foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+        {
+            T component = root.GetComponentInChildren<T>(true);
+            if (component != null)
+                return component;
+        }
+        return null;
     }
 
     /// <summary>
@@ -209,7 +354,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (Mathf.Abs(signedLateralDistance) > ActiveTerrainHalfWidth)
             return false;
 
-        float routeDistance = (nearestSegment + nearestT) * SampleSpacing;
+        float routeDistance = (nearestSegment + nearestT) * activeSampleSpacing;
         bool onRoad = Mathf.Abs(signedLateralDistance) <= ActiveRoadHalfWidth + 0.25f;
         float surfaceHeight = onRoad
             ? routeCenter.y + 0.10f
@@ -226,15 +371,15 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         {
             const float derivativeStep = 1f;
             float beforeDistance = Mathf.Max(0f, routeDistance - derivativeStep);
-            float afterDistance = Mathf.Min(CourseLength, routeDistance + derivativeStep);
+            float afterDistance = Mathf.Min(activeCourseLength, routeDistance + derivativeStep);
             float beforeHeight = TerrainHeight(
                 beforeDistance,
                 signedLateralDistance,
-                RouteHeight(beforeDistance));
+                RouteCenterHeightAtDistance(beforeDistance));
             float afterHeight = TerrainHeight(
                 afterDistance,
                 signedLateralDistance,
-                RouteHeight(afterDistance));
+                RouteCenterHeightAtDistance(afterDistance));
             localForward = (flatForward * (afterDistance - beforeDistance) +
                             Vector3.up * (afterHeight - beforeHeight)).normalized;
 
@@ -262,9 +407,12 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private void DisableImportedPresentation()
     {
+        Transform customContent = transform.Find(CustomSceneContentRootName);
         foreach (Transform child in transform.GetComponentsInChildren<Transform>(true))
         {
-            if (child == transform || child.name == RebuiltRootName)
+            if (child == transform || child.name == GeneratedWorldRootName ||
+                child.name == RideTeamRootName ||
+                (customContent != null && (child == customContent || child.IsChildOf(customContent))))
                 continue;
 
             if (child.name.Equals("FX_Blizzard_V2", StringComparison.OrdinalIgnoreCase) ||
@@ -273,123 +421,83 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         }
 
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
-            renderer.enabled = false;
+        {
+            if (childIsRideTeam(renderer.transform))
+                continue;
+            if (customContent == null || !renderer.transform.IsChildOf(customContent))
+                renderer.enabled = false;
+        }
         foreach (Collider collider in GetComponentsInChildren<Collider>(true))
-            collider.enabled = false;
+        {
+            if (childIsRideTeam(collider.transform))
+                continue;
+            if (customContent == null || !collider.transform.IsChildOf(customContent))
+                collider.enabled = false;
+        }
         foreach (ParticleSystem particles in GetComponentsInChildren<ParticleSystem>(true))
         {
+            if (childIsRideTeam(particles.transform) ||
+                (customContent != null && particles.transform.IsChildOf(customContent)))
+                continue;
             particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             particles.gameObject.SetActive(false);
         }
     }
 
-    private void BuildCurveSchedule()
+    private bool childIsRideTeam(Transform candidate)
     {
-        if (isSharpCurve)
-        {
-            // The hard map uses real hairpins rather than long scenic bends.
-            // Level-1 steering can still trace the centre line, while level 2
-            // must be released before entry because high-speed understeer is
-            // applied by MushSledKeyboardController.
-            curveEvents.Add(new CurveEvent(88f, 32f, -4.50f, false));  // left  ~92 degrees
-            curveEvents.Add(new CurveEvent(140f, 24f, 4.25f, false));  // right ~65 degrees
-            curveEvents.Add(new CurveEvent(172f, 24f, -4.45f, false)); // left  ~68 degrees
-            curveEvents.Add(new CurveEvent(720f, 32f, 4.65f, false));  // right ~95 degrees
-            return;
-        }
-
-        System.Random random = new(isSnowfield ? 27183 : 91457);
-        float cursor = 48f;
-        int direction = random.NextDouble() < 0.5 ? -1 : 1;
-        while (cursor < CourseLength - 80f)
-        {
-            cursor += random.Next(28, 66);
-            bool sCurve = random.NextDouble() < 0.34;
-            float length = sCurve ? random.Next(80, 132) : random.Next(58, 146);
-            length = Mathf.Min(length, CourseLength - 45f - cursor);
-            if (length < 35f)
-                break;
-
-            float strength = Mathf.Lerp(0.18f, sCurve ? 0.48f : 0.36f, (float)random.NextDouble());
-            curveEvents.Add(new CurveEvent(cursor, length, strength * direction, sCurve));
-            direction *= -1;
-            cursor += length;
-        }
+        if (candidate == null)
+            return false;
+        Transform team = transform.Find(RideTeamRootName);
+        return team != null && (candidate == team || candidate.IsChildOf(team));
     }
 
-    private void BuildRoutePoints()
+    private void BuildActiveRoute()
     {
-        int sampleCount = Mathf.RoundToInt(CourseLength / SampleSpacing) + 1;
-        Vector3 position = Vector3.zero;
-        float headingRadians = 0f;
-        routePoints.Add(new Vector3(0f, RouteHeight(0f), 0f));
+        routePoints.Clear();
+        usesEditableTrack = false;
+        overridesTrackWidths = false;
+        defaultCurveCount = 0;
 
-        for (int index = 1; index < sampleCount; index++)
+        MushTrackAuthoring authoring = MushTrackAuthoring.FindFor(transform);
+        if (authoring != null && authoring.TryBuildSampledRoute(
+                routePoints,
+                out activeCourseLength,
+                out activeSampleSpacing))
         {
-            float distance = index * SampleSpacing;
-            float curvatureDegreesPerMeter = EvaluateCurvature(distance);
-            headingRadians += curvatureDegreesPerMeter * SampleSpacing * Mathf.Deg2Rad;
-            float headingLimit = isSharpCurve ? 170f : 52f;
-            headingRadians = Mathf.Clamp(
-                headingRadians,
-                -headingLimit * Mathf.Deg2Rad,
-                headingLimit * Mathf.Deg2Rad);
-
-            Vector3 forward = new(Mathf.Sin(headingRadians), 0f, -Mathf.Cos(headingRadians));
-            position += forward * SampleSpacing;
-            position.y = RouteHeight(distance);
-            routePoints.Add(position);
+            usesEditableTrack = true;
+            overridesTrackWidths = authoring.OverridesTrackWidths;
+            authoredRoadHalfWidth = Mathf.Max(0.5f, authoring.RoadHalfWidth);
+            authoredTerrainHalfWidth = Mathf.Max(authoring.TerrainHalfWidth, authoredRoadHalfWidth + 4f);
+        }
+        else
+        {
+            MushTrackPreset preset = isSharpCurve
+                ? MushTrackPreset.SharpCurve
+                : isSnowfield ? MushTrackPreset.Snowfield : MushTrackPreset.Forest;
+            MushTrackPathUtility.BuildDefaultRoute(preset, routePoints, out defaultCurveCount);
+            activeCourseLength = MushTrackPathUtility.DefaultCourseLength;
+            activeSampleSpacing = MushTrackPathUtility.DefaultSampleSpacing;
         }
 
-        if (routePoints.Count > 1)
-            StartForward = Vector3.ProjectOnPlane(routePoints[1] - routePoints[0], Vector3.up).normalized;
+        if (routePoints.Count < 2)
+            throw new InvalidOperationException("Track generation requires at least two route samples.");
+
+        StartForward = Vector3.ProjectOnPlane(routePoints[1] - routePoints[0], Vector3.up).normalized;
+        if (StartForward.sqrMagnitude < 0.0001f)
+            StartForward = Vector3.back;
     }
 
-    private float EvaluateCurvature(float distance)
+    private float RouteCenterHeightAtDistance(float distance)
     {
-        float curvature = 0f;
-        for (int index = 0; index < curveEvents.Count; index++)
-        {
-            CurveEvent curve = curveEvents[index];
-            if (distance < curve.start || distance > curve.start + curve.length)
-                continue;
+        if (routePoints.Count == 0)
+            return 0f;
+        if (routePoints.Count == 1 || activeSampleSpacing <= 0.0001f)
+            return routePoints[0].y;
 
-            float t = Mathf.InverseLerp(curve.start, curve.start + curve.length, distance);
-            float wave = curve.sCurve ? Mathf.Sin(t * Mathf.PI * 2f) : Mathf.Sin(t * Mathf.PI);
-            curvature += curve.strength * wave;
-        }
-        return curvature;
-    }
-
-    private float RouteHeight(float distance)
-    {
-        if (isSharpCurve)
-        {
-            const float plateauHeight = 78f;
-            const float crestHeight = 84f;
-            const float valleyHeight = -42f;
-            if (distance < 320f)
-                return plateauHeight + Mathf.Sin(distance * 0.018f) * 1.25f;
-            if (distance < 350f)
-            {
-                float crest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(320f, 350f, distance));
-                return Mathf.Lerp(plateauHeight, crestHeight, crest);
-            }
-            if (distance < 620f)
-            {
-                // SmoothStep reaches roughly a 35-degree maximum grade here:
-                // dramatic enough to read in VR without creating a vertical
-                // collider wall that the ground follower could miss.
-                float descent = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(350f, 620f, distance));
-                return Mathf.Lerp(crestHeight, valleyHeight, descent);
-            }
-
-            float settle = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(620f, 690f, distance));
-            return valleyHeight + Mathf.Sin(distance * 0.014f) * 0.22f * settle;
-        }
-
-        float fadeIn = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 70f, distance));
-        return fadeIn * (Mathf.Sin(distance * 0.0105f) * 1.7f + Mathf.Sin(distance * 0.027f) * 0.48f);
+        float routeIndex = Mathf.Clamp(distance / activeSampleSpacing, 0f, routePoints.Count - 1f);
+        int startIndex = Mathf.Min(Mathf.FloorToInt(routeIndex), routePoints.Count - 2);
+        return Mathf.Lerp(routePoints[startIndex].y, routePoints[startIndex + 1].y, routeIndex - startIndex);
     }
 
     private void BuildCourseMeshes()
@@ -432,7 +540,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             Vector3 center = routePoints[index] + right * lateralOffset + Vector3.up * yLift;
             vertices[index * 2] = center - right * halfWidth;
             vertices[index * 2 + 1] = center + right * halfWidth;
-            float v = index * SampleSpacing * 0.1f;
+            float v = index * activeSampleSpacing * 0.1f;
             uv[index * 2] = new Vector2(0f, v);
             uv[index * 2 + 1] = new Vector2(1f, v);
 
@@ -468,7 +576,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
         for (int row = 0; row < rows; row++)
         {
-            float distance = row * SampleSpacing;
+            float distance = row * activeSampleSpacing;
             Vector3 right = RouteRight(row);
             for (int column = 0; column < columns; column++)
             {
@@ -550,7 +658,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
         for (int index = 8; index < routePoints.Count - 8; index += treeStep)
         {
-            float distance = index * SampleSpacing;
+            float distance = index * activeSampleSpacing;
             int perSide = isSnowfield ? 1 : 2;
             for (int side = -1; side <= 1; side += 2)
             for (int layer = 0; layer < perSide; layer++)
@@ -595,7 +703,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             {
                 float lateral = side * 88f;
                 Vector3 position = routePoints[index] + RouteRight(index) * lateral;
-                position.y = TerrainHeight(index * SampleSpacing, lateral, routePoints[index].y) - 1f;
+                position.y = TerrainHeight(index * activeSampleSpacing, lateral, routePoints[index].y) - 1f;
                 float size = Mathf.Lerp(13f, 28f, (float)random.NextDouble());
                 CreateMeshObject("Distant Snow Mountain", rebuiltRoot, mountainMesh, mountain, false, position,
                     Quaternion.Euler(0f, random.Next(0, 360), 0f),
@@ -612,7 +720,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
                 int side = (index / 55) % 2 == 0 ? -1 : 1;
                 float lateral = side * 25f;
                 Vector3 position = routePoints[index] + RouteRight(index) * lateral;
-                position.y = TerrainHeight(index * SampleSpacing, lateral, routePoints[index].y);
+                position.y = TerrainHeight(index * activeSampleSpacing, lateral, routePoints[index].y);
                 BuildCabin(position, RouteTangent(index), cabinWall, cabinRoof);
             }
         }
@@ -646,17 +754,24 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     private void BuildSkyAndLighting()
     {
         Light sun = null;
-        foreach (Light light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+        foreach (GameObject root in gameObject.scene.GetRootGameObjects())
         {
-            if (light.type == LightType.Directional)
+            foreach (Light light in root.GetComponentsInChildren<Light>(true))
             {
-                sun = light;
-                break;
+                if (light.type == LightType.Directional)
+                {
+                    sun = light;
+                    break;
+                }
             }
+            if (sun != null)
+                break;
         }
         if (sun == null)
         {
             GameObject sunObject = new("Mush Rebuilt Sun");
+            if (!Application.isPlaying && rebuiltRoot != null)
+                sunObject.transform.SetParent(rebuiltRoot, false);
             sun = sunObject.AddComponent<Light>();
             sun.type = LightType.Directional;
         }
@@ -688,7 +803,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             stars.enabled = false;
         }
 
-        Camera sceneCamera = Camera.main ?? FindFirstObjectByType<Camera>(FindObjectsInactive.Include);
+        Camera sceneCamera = FindSceneComponent<Camera>();
         if (sceneCamera != null)
         {
             sceneCamera.clearFlags = CameraClearFlags.Skybox;
@@ -709,12 +824,14 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         else if (isSnowfield)
         {
             MushSnowfieldBlizzardController controller = GetComponent<MushSnowfieldBlizzardController>();
-            controller?.ConfigureRuntimeWorld(sun, sceneCamera, sky, null, CourseLength);
+            if (Application.isPlaying)
+                controller?.ConfigureRuntimeWorld(sun, sceneCamera, sky, null, activeCourseLength);
         }
         else
         {
             MushForestTimeCycleController controller = GetComponent<MushForestTimeCycleController>();
-            controller?.ConfigureRuntimeWorld(sun, sceneCamera, sky, stars, CourseLength);
+            if (Application.isPlaying)
+                controller?.ConfigureRuntimeWorld(sun, sceneCamera, sky, stars, activeCourseLength);
         }
     }
 
@@ -762,7 +879,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (isSnowfield)
         {
             MushSnowfieldBlizzardController controller = GetComponent<MushSnowfieldBlizzardController>();
-            controller?.SetSnowParticles(particles);
+            if (Application.isPlaying)
+                controller?.SetSnowParticles(particles);
         }
     }
 
@@ -908,7 +1026,10 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         auroraSky.transform.localScale = Vector3.one * 840f;
         Collider auroraCollider = auroraSky.GetComponent<Collider>();
         if (auroraCollider != null)
-            Destroy(auroraCollider);
+        {
+            if (Application.isPlaying) Destroy(auroraCollider);
+            else DestroyImmediate(auroraCollider);
+        }
 
         Shader auroraShader = Resources.Load<Shader>("MushSkyAurora") ?? Shader.Find("Mush/Sky Aurora");
         if (auroraShader != null)
@@ -935,7 +1056,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private void ApplySharpCurveEnvironment(float progress)
     {
-        sharpCamera ??= Camera.main ?? FindFirstObjectByType<Camera>(FindObjectsInactive.Include);
+        sharpCamera ??= FindSceneComponent<Camera>();
         Color daySky = new(0.50f, 0.68f, 0.90f);
         Color sunsetSky = new(0.52f, 0.22f, 0.30f);
         Color nightSky = new(0.012f, 0.025f, 0.092f);
@@ -1091,7 +1212,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     private void SetOrCreateMarker(string markerName, Vector3 position, Vector3 forward)
     {
         Transform found = null;
-        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        Transform searchRoot = Application.isPlaying ? transform : rebuiltRoot;
+        foreach (Transform child in searchRoot.GetComponentsInChildren<Transform>(true))
         {
             if (!child.name.Equals(markerName, StringComparison.OrdinalIgnoreCase))
                 continue;
