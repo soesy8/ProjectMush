@@ -580,6 +580,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             cameraObject.AddComponent<UniversalAdditionalCameraData>();
         }
 
+        MushVrRenderPerformance.ConfigureCamera(rideCamera);
+
         rideCamera.transform.SetParent(team, false);
         bool santaSled = customization?.equippedSledBody == MushCustomizationIds.SledSanta;
         cameraBaseLocalPosition = santaSled

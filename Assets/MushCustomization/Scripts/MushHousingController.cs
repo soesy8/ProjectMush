@@ -85,6 +85,7 @@ namespace Mush.Customization
 
             GameObject cameraObject = new("Housing Preview Camera"); // 하우징 화면 전용 카메라를 런타임에 만든다.
             Camera camera = cameraObject.AddComponent<Camera>(); // 장착된 의자·탁자·침대를 실제 배치와 비슷한 구도로 보여 줄 카메라다.
+            MushVrRenderPerformance.ConfigureCamera(camera); // OpenXR 자동 동적 해상도가 이 VR 카메라에도 적용되게 한다.
             previewCamera = camera; // VR 전환과 UI 월드 캔버스 설정에서도 같은 카메라를 쓰도록 필드에 저장한다.
             camera.clearFlags = CameraClearFlags.SolidColor; // 미리보기 방 밖은 단색으로 정리해 로비와 UI가 뒤섞여 보이지 않게 한다.
             camera.backgroundColor = new Color(0.12f, 0.10f, 0.11f); // 산장 내부와 어울리는 어두운 배경색을 사용한다.

@@ -83,6 +83,7 @@ namespace Mush.Customization
 
             GameObject cameraObject = new("Customization Preview Camera");
             previewCamera = cameraObject.AddComponent<Camera>();
+            MushVrRenderPerformance.ConfigureCamera(previewCamera);
             previewCamera.clearFlags = CameraClearFlags.SolidColor;
             previewCamera.backgroundColor = new Color(0.085f, 0.13f, 0.19f);
             previewCamera.fieldOfView = 42f;

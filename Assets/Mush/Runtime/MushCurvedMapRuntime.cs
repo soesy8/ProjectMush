@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using UnityEngine.XR;
 
 /// <summary>
 /// Replaces the broken straight V2 map presentation at runtime with a visible,
@@ -1403,5 +1404,51 @@ public static class MushShadowPerformance
                 renderer.receiveShadows = false;
             }
         }
+    }
+}
+
+/// <summary>
+/// Applies the Unity 6 SRP foveation level and opts VR cameras into automatic
+/// viewport dynamic resolution. OpenXR owns the actual resolution changes.
+/// </summary>
+public static class MushVrRenderPerformance
+{
+    private const float MediumFoveationLevel = 0.5f;
+    private static readonly List<XRDisplaySubsystem> Displays = new();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void Install()
+    {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+        ApplyToLoadedContent();
+    }
+
+    public static void ConfigureCamera(Camera camera)
+    {
+        if (camera != null)
+            camera.allowDynamicResolution = true;
+    }
+
+    private static void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        ApplyToLoadedContent();
+    }
+
+    private static void ApplyToLoadedContent()
+    {
+        Displays.Clear();
+        SubsystemManager.GetSubsystems(Displays);
+        foreach (XRDisplaySubsystem display in Displays)
+        {
+            if (display != null)
+                display.foveatedRenderingLevel = MediumFoveationLevel;
+        }
+
+        Camera[] cameras = UnityEngine.Object.FindObjectsByType<Camera>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        foreach (Camera camera in cameras)
+            ConfigureCamera(camera);
     }
 }
