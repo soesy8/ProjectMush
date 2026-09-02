@@ -810,7 +810,10 @@ namespace Mush.Customization
                 if (!matches)
                     continue;
                 child.gameObject.SetActive(false);
-                UnityEngine.Object.Destroy(child.gameObject);
+                if (Application.isPlaying)
+                    UnityEngine.Object.Destroy(child.gameObject);
+                else
+                    UnityEngine.Object.DestroyImmediate(child.gameObject);
             }
         }
 

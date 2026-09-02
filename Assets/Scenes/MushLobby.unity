@@ -3079,7 +3079,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 215672255}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 54039661}
+  m_Script: {fileID: 11500000, guid: 7f30eb00b76b49f7b5dd55d83772ea41, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mush.Lobby.MushLobbyStationButton
 --- !u!114 &215672258
@@ -4670,7 +4670,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 330892769}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 54039661}
+  m_Script: {fileID: 11500000, guid: 7f30eb00b76b49f7b5dd55d83772ea41, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mush.Lobby.MushLobbyStationButton
 --- !u!114 &330892772
@@ -25849,7 +25849,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 790672081}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 917017656}
+  m_Script: {fileID: 11500000, guid: c6b472df0f0e44c48f91b2bc3b3a08e1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mush.Lobby.MushLobbyFeedDispenser
 --- !u!114 &790672084
@@ -26166,7 +26166,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 804448358}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 54039661}
+  m_Script: {fileID: 11500000, guid: 7f30eb00b76b49f7b5dd55d83772ea41, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mush.Lobby.MushLobbyStationButton
 --- !u!114 &804448361
@@ -36949,7 +36949,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1289602913}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 54039661}
+  m_Script: {fileID: 11500000, guid: 7f30eb00b76b49f7b5dd55d83772ea41, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mush.Lobby.MushLobbyStationButton
 --- !u!114 &1289602916
@@ -40177,7 +40177,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1440531693}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 54039661}
+  m_Script: {fileID: 11500000, guid: 7f30eb00b76b49f7b5dd55d83772ea41, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mush.Lobby.MushLobbyStationButton
 --- !u!114 &1440531696
@@ -46962,7 +46962,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1774370760}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 54039661}
+  m_Script: {fileID: 11500000, guid: 7f30eb00b76b49f7b5dd55d83772ea41, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mush.Lobby.MushLobbyStationButton
 --- !u!114 &1774370763
@@ -49281,7 +49281,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1901266574}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 54039661}
+  m_Script: {fileID: 11500000, guid: 7f30eb00b76b49f7b5dd55d83772ea41, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mush.Lobby.MushLobbyStationButton
 --- !u!114 &1901266577

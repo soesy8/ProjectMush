@@ -10,9 +10,9 @@ public sealed class MushTrackAuthoringEditor : Editor
 {
     private readonly List<Vector3> previewRoute = new();
     private readonly List<Vector3> previewControlPoints = new();
-    private SerializedProperty presetProperty;
-    private SerializedProperty targetMapRootNameProperty;
+    private readonly List<Vector3> previewTerrainPoints = new();
     private SerializedProperty useEditablePathProperty;
+    private SerializedProperty useEditableTerrainProperty;
     private SerializedProperty sampleSpacingProperty;
     private SerializedProperty overrideTrackWidthsProperty;
     private SerializedProperty roadHalfWidthProperty;
@@ -23,14 +23,24 @@ public sealed class MushTrackAuthoringEditor : Editor
     private SerializedProperty customTerrainVisualProperty;
     private SerializedProperty roadMaterialOverrideProperty;
     private SerializedProperty terrainMaterialOverrideProperty;
+    private SerializedProperty roadTextureOverrideProperty;
+    private SerializedProperty terrainTextureOverrideProperty;
+    private SerializedProperty generateProceduralEnvironmentProperty;
     private int selectedPoint = -1;
-    private bool editMode;
+    private int selectedTerrainPoint = -1;
+    private EditTarget editTarget;
+
+    private enum EditTarget
+    {
+        None,
+        Track,
+        Terrain,
+    }
 
     private void OnEnable()
     {
-        presetProperty = serializedObject.FindProperty("preset");
-        targetMapRootNameProperty = serializedObject.FindProperty("targetMapRootName");
         useEditablePathProperty = serializedObject.FindProperty("useEditablePath");
+        useEditableTerrainProperty = serializedObject.FindProperty("useEditableTerrain");
         sampleSpacingProperty = serializedObject.FindProperty("sampleSpacing");
         overrideTrackWidthsProperty = serializedObject.FindProperty("overrideTrackWidths");
         roadHalfWidthProperty = serializedObject.FindProperty("roadHalfWidth");
@@ -41,7 +51,24 @@ public sealed class MushTrackAuthoringEditor : Editor
         customTerrainVisualProperty = serializedObject.FindProperty("customTerrainVisual");
         roadMaterialOverrideProperty = serializedObject.FindProperty("roadMaterialOverride");
         terrainMaterialOverrideProperty = serializedObject.FindProperty("terrainMaterialOverride");
-        editMode = true;
+        roadTextureOverrideProperty = serializedObject.FindProperty("roadTextureOverride");
+        terrainTextureOverrideProperty = serializedObject.FindProperty("terrainTextureOverride");
+        generateProceduralEnvironmentProperty = serializedObject.FindProperty("generateProceduralEnvironment");
+        editTarget = EditTarget.None;
+
+        MushTrackAuthoring authoring = target as MushTrackAuthoring;
+        EditorApplication.delayCall += () =>
+        {
+            if (authoring == null)
+                return;
+            bool upgradedStarterLayout = authoring.UpgradeStarterLayoutIfNeeded();
+            if (upgradedStarterLayout)
+            {
+                EditorUtility.SetDirty(authoring);
+                MushTrackEditorWorldPreview.RebuildFullWorld(authoring);
+            }
+            MushTrackEditorWorldPreview.EnsureEditableMapReady(authoring, false);
+        };
     }
 
     public override void OnInspectorGUI()
@@ -50,10 +77,8 @@ public sealed class MushTrackAuthoringEditor : Editor
         serializedObject.Update();
 
         EditorGUILayout.HelpBox(
-            "포인트 편집 중에는 도로·지형만 갱신되고 나무·바위 같은 주변 오브젝트는 움직이지 않습니다. 주변 오브젝트를 현재 경로에 다시 맞추려면 아래의 별도 버튼을 사용해 주세요. 새 모델은 'SCENE CONTENT - Add Models Here' 아래에 두면 항상 보존됩니다.",
+            "카메라와 라이트만 있는 새 씬에서도 GameObject > Mush > Map Editor를 실행하면 도로·지형·플레이어가 바로 만들어집니다. 도로와 지형은 각각 씬 뷰 포인트로 편집합니다.",
             MessageType.Info);
-        EditorGUILayout.PropertyField(presetProperty, new GUIContent("기본 트랙 종류"));
-        EditorGUILayout.PropertyField(targetMapRootNameProperty, new GUIContent("대상 맵 루트 이름"));
         EditorGUILayout.PropertyField(sampleSpacingProperty, new GUIContent("메시 샘플 간격 (m)"));
         EditorGUILayout.PropertyField(overrideTrackWidthsProperty, new GUIContent("트랙 폭 직접 지정"));
         if (overrideTrackWidthsProperty.boolValue)
@@ -65,7 +90,7 @@ public sealed class MushTrackAuthoringEditor : Editor
         }
 
         EditorGUILayout.Space(8f);
-        EditorGUILayout.LabelField("최종 도로·지형 모델", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("도로·지형 교체", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(
             useDeformableRoadModuleProperty,
             new GUIContent("경로 변형 도로 모델 사용"));
@@ -86,10 +111,10 @@ public sealed class MushTrackAuthoringEditor : Editor
 
         EditorGUILayout.PropertyField(
             customRoadVisualProperty,
-            new GUIContent("도로 모델 오브젝트 (씬)"));
+            new GUIContent("도로 모델 (Prefab/FBX/씬 오브젝트)"));
         EditorGUILayout.PropertyField(
             customTerrainVisualProperty,
-            new GUIContent("지형 모델 오브젝트 (씬)"));
+            new GUIContent("지형 모델 (Prefab/FBX/씬 오브젝트)"));
 
         // Inspector에 현재 표시된 새 참조를 읽습니다. 이 값은 아직 ApplyModifiedProperties 전이어도 SerializedProperty 안에는 반영되어 있습니다.
         GameObject currentRoadVisual = customRoadVisualProperty.objectReferenceValue as GameObject;
@@ -98,26 +123,58 @@ public sealed class MushTrackAuthoringEditor : Editor
             previousRoadVisual != currentRoadVisual || previousTerrainVisual != currentTerrainVisual;
         EditorGUILayout.PropertyField(
             roadMaterialOverrideProperty,
-            new GUIContent("임시 도로 재질 교체"));
+            new GUIContent("도로 머티리얼"));
         EditorGUILayout.PropertyField(
             terrainMaterialOverrideProperty,
-            new GUIContent("임시 지형 재질 교체"));
+            new GUIContent("지형 머티리얼"));
+        EditorGUILayout.PropertyField(
+            roadTextureOverrideProperty,
+            new GUIContent("도로 텍스처"));
+        EditorGUILayout.PropertyField(
+            terrainTextureOverrideProperty,
+            new GUIContent("지형 텍스처"));
         EditorGUILayout.HelpBox(
-            "10m 도로 모듈은 '경로 변형 도로 모듈'에 프로젝트의 FBX/Prefab 원본을 연결하면 트랙을 따라 자동으로 휘어집니다. 별도로 완성한 고정형 모델은 씬의 'SCENE CONTENT - Add Models Here' 아래에 배치하고 도로/지형 모델 오브젝트 슬롯에 연결합니다. 임시 메시의 Collider와 트랙 경로는 게임 판정을 위해 유지됩니다.",
+            "프로젝트의 Prefab/FBX를 모델 슬롯에 바로 넣을 수 있습니다. 모델·머티리얼·텍스처 슬롯을 비우면 원래 단색 도로와 지형으로 즉시 돌아옵니다. 별도 오브젝트와 VFX는 'SCENE CONTENT - Add Models Here' 아래에 배치하면 재생성해도 보존됩니다.",
             MessageType.None);
-        DrawSceneVisualWarning(customRoadVisualProperty, "도로");
-        DrawSceneVisualWarning(customTerrainVisualProperty, "지형");
+
+        bool previousProceduralEnvironment = generateProceduralEnvironmentProperty.boolValue;
+        EditorGUILayout.PropertyField(
+            generateProceduralEnvironmentProperty,
+            new GUIContent("자동 배경 생성 (나무/산/하늘/VFX)"));
 
         EditorGUILayout.Space(8f);
-        if (GUILayout.Button(editMode ? "경로 편집 종료 (Esc)" : "경로 편집 시작"))
+        EditorGUILayout.LabelField("씬 뷰 포인트 편집", EditorStyles.boldLabel);
+        using (new EditorGUILayout.HorizontalScope())
         {
-            editMode = !editMode;
-            SceneView.RepaintAll();
+            if (GUILayout.Button(editTarget == EditTarget.Track
+                    ? "도로 편집 종료 (Esc)"
+                    : "도로 포인트 편집"))
+            {
+                editTarget = editTarget == EditTarget.Track ? EditTarget.None : EditTarget.Track;
+                SceneView.RepaintAll();
+            }
+            if (GUILayout.Button(editTarget == EditTarget.Terrain
+                    ? "지형 편집 종료 (Esc)"
+                    : "지형 포인트 편집"))
+            {
+                editTarget = editTarget == EditTarget.Terrain ? EditTarget.None : EditTarget.Terrain;
+                if (editTarget == EditTarget.Terrain)
+                {
+                    selectedTerrainPoint = Mathf.Clamp(
+                        selectedTerrainPoint,
+                        0,
+                        Mathf.Max(0, authoring.TerrainControlPointCount - 1));
+                    FocusTerrainPoint(authoring, selectedTerrainPoint);
+                }
+                SceneView.RepaintAll();
+            }
         }
-        if (editMode)
+        if (editTarget != EditTarget.None)
         {
             EditorGUILayout.HelpBox(
-                "편집 중에는 메시를 클릭해도 선택이 풀리지 않습니다. 청록색 선 위에서 Shift+클릭하면 포인트가 추가되고, 선택한 포인트는 Delete 키로 삭제됩니다.",
+                editTarget == EditTarget.Terrain
+                    ? "지형 편집 중에는 보이는 지형 아무 곳에서나 Shift+클릭해 경계 포인트를 추가할 수 있습니다. 주황색 사각 포인트는 이동할 수 있고 Delete 키로 삭제합니다."
+                    : "도로 선 위에서 Shift+클릭하면 포인트가 추가되고, 선택한 포인트는 Delete 키로 삭제됩니다.",
                 MessageType.None);
         }
 
@@ -137,12 +194,12 @@ public sealed class MushTrackAuthoringEditor : Editor
                 serializedObject.Update();
             }
             if (GUILayout.Button(authoring.ControlPointCount >= 2
-                    ? "기본 트랙으로 편집 포인트 다시 만들기"
-                    : "기본 트랙을 편집 포인트로 변환"))
+                    ? "기본 직선으로 편집 포인트 다시 만들기"
+                    : "기본 직선을 편집 포인트로 변환"))
             {
                 serializedObject.ApplyModifiedProperties();
                 Undo.RecordObject(authoring, "Convert Mush Track To Editable Path");
-                authoring.BakeDefaultPath();
+                authoring.BakeSuggestedDefaultPath();
                 selectedPoint = 0;
                 EditorUtility.SetDirty(authoring);
                 MushTrackEditorWorldPreview.RequestRebuild(authoring);
@@ -192,7 +249,7 @@ public sealed class MushTrackAuthoringEditor : Editor
                 {
                     serializedObject.ApplyModifiedProperties();
                     Undo.RecordObject(authoring, "Reset Mush Track Path");
-                    authoring.BakeDefaultPath();
+                    authoring.BakeSuggestedDefaultPath();
                     selectedPoint = 0;
                     EditorUtility.SetDirty(authoring);
                     MushTrackEditorWorldPreview.RequestRebuild(authoring);
@@ -211,11 +268,115 @@ public sealed class MushTrackAuthoringEditor : Editor
             }
         }
 
+        EditorGUILayout.Space(8f);
+        bool terrainEditable = useEditableTerrainProperty.boolValue;
+        EditorGUILayout.LabelField(
+            "지형 경계 상태",
+            terrainEditable
+                ? $"편집 지형 ({authoring.TerrainControlPointCount}개 포인트)"
+                : "도로 폭을 따라가는 기본 지형");
+
+        if (!terrainEditable)
+        {
+            if (authoring.TerrainControlPointCount >= 3 && GUILayout.Button("보존된 지형 포인트 다시 사용"))
+            {
+                serializedObject.ApplyModifiedProperties();
+                Undo.RecordObject(authoring, "Enable Mush Editable Terrain");
+                authoring.SetEditableTerrainEnabled(true);
+                selectedTerrainPoint = 0;
+                editTarget = EditTarget.Terrain;
+                EditorUtility.SetDirty(authoring);
+                MushTrackEditorWorldPreview.RequestRebuild(authoring);
+                FocusTerrainPoint(authoring, selectedTerrainPoint);
+                serializedObject.Update();
+            }
+            if (GUILayout.Button(authoring.TerrainControlPointCount >= 3
+                    ? "현재 도로 둘레로 지형 포인트 다시 만들기"
+                    : "현재 도로 둘레에 지형 포인트 만들기"))
+            {
+                serializedObject.ApplyModifiedProperties();
+                Undo.RecordObject(authoring, "Create Mush Terrain Boundary");
+                authoring.BakeDefaultTerrain();
+                selectedTerrainPoint = 0;
+                editTarget = EditTarget.Terrain;
+                EditorUtility.SetDirty(authoring);
+                MushTrackEditorWorldPreview.RequestRebuild(authoring);
+                FocusTerrainPoint(authoring, selectedTerrainPoint);
+                serializedObject.Update();
+            }
+        }
+        else
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("선택 뒤에 지형 포인트 추가"))
+                {
+                    serializedObject.ApplyModifiedProperties();
+                    Undo.RecordObject(authoring, "Add Mush Terrain Point");
+                    selectedTerrainPoint = authoring.InsertTerrainControlPointAfter(
+                        selectedTerrainPoint >= 0
+                            ? selectedTerrainPoint
+                            : authoring.TerrainControlPointCount - 1);
+                    editTarget = EditTarget.Terrain;
+                    EditorUtility.SetDirty(authoring);
+                    MushTrackEditorWorldPreview.RequestRebuild(authoring);
+                    FocusTerrainPoint(authoring, selectedTerrainPoint);
+                    serializedObject.Update();
+                }
+                using (new EditorGUI.DisabledScope(
+                           authoring.TerrainControlPointCount <= 3 || selectedTerrainPoint < 0))
+                {
+                    if (GUILayout.Button("선택 지형 포인트 삭제"))
+                    {
+                        serializedObject.ApplyModifiedProperties();
+                        Undo.RecordObject(authoring, "Delete Mush Terrain Point");
+                        selectedTerrainPoint = authoring.RemoveTerrainControlPoint(selectedTerrainPoint);
+                        EditorUtility.SetDirty(authoring);
+                        MushTrackEditorWorldPreview.RequestRebuild(authoring);
+                        serializedObject.Update();
+                    }
+                }
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("지형 포인트 방향 뒤집기"))
+                {
+                    serializedObject.ApplyModifiedProperties();
+                    Undo.RecordObject(authoring, "Reverse Mush Terrain Boundary");
+                    selectedTerrainPoint = authoring.ReverseTerrainControlPoints(selectedTerrainPoint);
+                    EditorUtility.SetDirty(authoring);
+                    MushTrackEditorWorldPreview.RequestRebuild(authoring);
+                    serializedObject.Update();
+                }
+                if (GUILayout.Button("현재 도로 둘레로 지형 다시 만들기"))
+                {
+                    serializedObject.ApplyModifiedProperties();
+                    Undo.RecordObject(authoring, "Reset Mush Terrain Boundary");
+                    authoring.BakeDefaultTerrain();
+                    selectedTerrainPoint = 0;
+                    EditorUtility.SetDirty(authoring);
+                    MushTrackEditorWorldPreview.RequestRebuild(authoring);
+                    serializedObject.Update();
+                }
+            }
+
+            if (GUILayout.Button("편집 지형 사용 중지 (포인트는 보존)"))
+            {
+                serializedObject.ApplyModifiedProperties();
+                Undo.RecordObject(authoring, "Disable Mush Editable Terrain");
+                authoring.SetEditableTerrainEnabled(false);
+                EditorUtility.SetDirty(authoring);
+                MushTrackEditorWorldPreview.RequestRebuild(authoring);
+                serializedObject.Update();
+            }
+        }
+
         Transform mapRoot = authoring.ResolveMapRoot();
         if (mapRoot == null)
         {
             EditorGUILayout.HelpBox(
-                "대상 맵 루트를 찾지 못했습니다. 씬의 맵 루트 이름과 '대상 맵 루트 이름'을 맞춰 주세요.",
+                "편집할 맵을 찾지 못했습니다. 이 컴포넌트를 맵 루트 오브젝트에 붙여 주세요.",
                 MessageType.Warning);
         }
         else
@@ -248,7 +409,11 @@ public sealed class MushTrackAuthoringEditor : Editor
         }
 
         // 슬롯 변경을 포함한 Inspector 값 변경이 있으면 생성 도로/지형의 표시 여부까지 다시 계산합니다.
-        if (propertiesChanged)
+        bool proceduralEnvironmentChanged =
+            previousProceduralEnvironment != generateProceduralEnvironmentProperty.boolValue;
+        if (proceduralEnvironmentChanged)
+            MushTrackEditorWorldPreview.RebuildFullWorld(authoring);
+        else if (propertiesChanged)
             MushTrackEditorWorldPreview.RequestRebuild(authoring);
     }
 
@@ -314,8 +479,34 @@ public sealed class MushTrackAuthoringEditor : Editor
             }
         }
 
+        ParticleSystem[] particles = root.GetComponentsInChildren<ParticleSystem>(true);
+        if (particles.Length > 0)
+        {
+            Undo.RecordObjects(particles, enabled ? "Show Mush Scene VFX" : "Hide Mush Scene VFX");
+            for (int index = 0; index < particles.Length; index++)
+            {
+                if (enabled)
+                    particles[index].Play(true);
+                else
+                    particles[index].Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                EditorUtility.SetDirty(particles[index]);
+            }
+        }
+
         EditorSceneManager.MarkSceneDirty(root.scene);
         SceneView.RepaintAll();
+    }
+
+    private static void FocusTerrainPoint(MushTrackAuthoring authoring, int pointIndex)
+    {
+        Transform mapRoot = authoring != null ? authoring.ResolveMapRoot() : null;
+        if (mapRoot == null || pointIndex < 0 || pointIndex >= authoring.TerrainControlPointCount)
+            return;
+
+        Vector3 worldPoint = mapRoot.TransformPoint(authoring.GetTerrainControlPoint(pointIndex));
+        SceneView sceneView = SceneView.lastActiveSceneView;
+        if (sceneView != null)
+            sceneView.Frame(new Bounds(worldPoint, Vector3.one * 14f), false);
     }
 
     private void OnSceneGUI()
@@ -357,7 +548,21 @@ public sealed class MushTrackAuthoringEditor : Editor
         Handles.DrawAAPolyLine(2f, worldLeftRoadEdge);
         Handles.DrawAAPolyLine(2f, worldRightRoadEdge);
 
-        if (!editMode)
+        authoring.CopyTerrainControlPointPreview(previewTerrainPoints);
+        if (previewTerrainPoints.Count >= 3)
+        {
+            Vector3[] worldTerrainBoundary = new Vector3[previewTerrainPoints.Count + 1];
+            for (int index = 0; index < previewTerrainPoints.Count; index++)
+            {
+                worldTerrainBoundary[index] = mapRoot.TransformPoint(
+                    previewTerrainPoints[index] + Vector3.up * 0.10f);
+            }
+            worldTerrainBoundary[^1] = worldTerrainBoundary[0];
+            Handles.color = new Color(0.96f, 0.68f, 0.16f, 0.82f);
+            Handles.DrawAAPolyLine(3f, worldTerrainBoundary);
+        }
+
+        if (editTarget == EditTarget.None)
             return;
 
         Event currentEvent = Event.current;
@@ -370,16 +575,24 @@ public sealed class MushTrackAuthoringEditor : Editor
         Handles.BeginGUI();
         GUI.Label(
             new Rect(12f, 12f, 430f, 42f),
-            "트랙 편집 중 · Shift+클릭: 추가 · Delete: 삭제 · 놓으면 도로 반영 · Esc: 종료",
+            editTarget == EditTarget.Track
+                ? "도로 편집 중 · Shift+클릭: 추가 · Delete: 삭제 · 놓으면 반영 · Esc: 종료"
+                : "지형 편집 중 · 지형 아무 곳 Shift+클릭: 추가 · Delete: 삭제 · Esc: 종료",
             EditorStyles.helpBox);
         Handles.EndGUI();
 
         if (currentEvent.type == EventType.KeyDown && currentEvent.keyCode == KeyCode.Escape)
         {
-            editMode = false;
+            editTarget = EditTarget.None;
             currentEvent.Use();
             Repaint();
             SceneView.RepaintAll();
+            return;
+        }
+
+        if (editTarget == EditTarget.Terrain)
+        {
+            HandleTerrainSceneGUI(authoring, mapRoot, currentEvent);
             return;
         }
 
@@ -401,7 +614,7 @@ public sealed class MushTrackAuthoringEditor : Editor
         {
             Undo.RecordObject(authoring, "Add Mush Track Point");
             if (!authoring.UsesEditablePath)
-                authoring.BakeDefaultPath();
+                authoring.BakeSuggestedDefaultPath();
             selectedPoint = authoring.InsertControlPointAfter(segmentIndex);
             authoring.SetControlPoint(selectedPoint, localPoint);
             EditorUtility.SetDirty(authoring);
@@ -438,10 +651,207 @@ public sealed class MushTrackAuthoringEditor : Editor
 
         Undo.RecordObject(authoring, "Move Mush Track Point");
         if (!authoring.UsesEditablePath)
-            authoring.BakeDefaultPath();
+            authoring.BakeSuggestedDefaultPath();
         authoring.SetControlPoint(selectedPoint, mapRoot.InverseTransformPoint(movedWorldPoint));
         EditorUtility.SetDirty(authoring);
         MushTrackEditorWorldPreview.RequestRebuild(authoring);
+    }
+
+    private void HandleTerrainSceneGUI(
+        MushTrackAuthoring authoring,
+        Transform mapRoot,
+        Event currentEvent)
+    {
+        if (previewTerrainPoints.Count < 3)
+            return;
+
+        if (currentEvent.type == EventType.KeyDown &&
+            (currentEvent.keyCode == KeyCode.Delete || currentEvent.keyCode == KeyCode.Backspace) &&
+            selectedTerrainPoint >= 0 && authoring.TerrainControlPointCount > 3)
+        {
+            Undo.RecordObject(authoring, "Delete Mush Terrain Point");
+            selectedTerrainPoint = authoring.RemoveTerrainControlPoint(selectedTerrainPoint);
+            EditorUtility.SetDirty(authoring);
+            MushTrackEditorWorldPreview.RequestRebuild(authoring);
+            currentEvent.Use();
+            return;
+        }
+
+        if (currentEvent.type == EventType.MouseDown && currentEvent.button == 0 &&
+            currentEvent.shift && !currentEvent.alt &&
+            TryGetTerrainPointInsertion(
+                mapRoot,
+                currentEvent.mousePosition,
+                out int edgeIndex,
+                out Vector3 localPoint))
+        {
+            Undo.RecordObject(authoring, "Add Mush Terrain Point");
+            if (!authoring.UsesEditableTerrain)
+                authoring.BakeDefaultTerrain();
+            selectedTerrainPoint = authoring.InsertTerrainControlPointAfter(edgeIndex);
+            authoring.SetTerrainControlPoint(selectedTerrainPoint, localPoint);
+            EditorUtility.SetDirty(authoring);
+            MushTrackEditorWorldPreview.RequestRebuild(authoring);
+            currentEvent.Use();
+            Repaint();
+            return;
+        }
+
+        for (int index = 0; index < previewTerrainPoints.Count; index++)
+        {
+            Vector3 worldPoint = mapRoot.TransformPoint(previewTerrainPoints[index]);
+            float size = HandleUtility.GetHandleSize(worldPoint) * 0.085f;
+            Handles.color = index == selectedTerrainPoint
+                ? new Color(1f, 0.30f, 0.08f)
+                : authoring.UsesEditableTerrain
+                    ? new Color(1f, 0.68f, 0.12f)
+                    : new Color(0.72f, 0.88f, 0.22f);
+            if (Handles.Button(worldPoint, Quaternion.identity, size, size * 1.3f, Handles.CubeHandleCap))
+            {
+                selectedTerrainPoint = index;
+                Repaint();
+            }
+        }
+
+        if (selectedTerrainPoint < 0 || selectedTerrainPoint >= previewTerrainPoints.Count)
+            return;
+
+        Vector3 selectedWorldPoint = mapRoot.TransformPoint(previewTerrainPoints[selectedTerrainPoint]);
+        Handles.Label(
+            selectedWorldPoint + Vector3.up * HandleUtility.GetHandleSize(selectedWorldPoint) * 0.14f,
+            $"지형 포인트 {selectedTerrainPoint + 1}/{previewTerrainPoints.Count}");
+        EditorGUI.BeginChangeCheck();
+        Vector3 movedWorldPoint = Handles.PositionHandle(selectedWorldPoint, Quaternion.identity);
+        if (!EditorGUI.EndChangeCheck())
+            return;
+
+        Undo.RecordObject(authoring, "Move Mush Terrain Point");
+        if (!authoring.UsesEditableTerrain)
+            authoring.BakeDefaultTerrain();
+        authoring.SetTerrainControlPoint(
+            selectedTerrainPoint,
+            mapRoot.InverseTransformPoint(movedWorldPoint));
+        EditorUtility.SetDirty(authoring);
+        MushTrackEditorWorldPreview.RequestRebuild(authoring);
+    }
+
+    private bool TryGetTerrainPointInsertion(
+        Transform mapRoot,
+        Vector2 mousePosition,
+        out int edgeIndex,
+        out Vector3 localPoint)
+    {
+        const float maximumDistancePixels = 24f;
+        edgeIndex = -1;
+        localPoint = default;
+        float nearestDistance = float.PositiveInfinity;
+
+        for (int index = 0; index < previewTerrainPoints.Count; index++)
+        {
+            int nextIndex = (index + 1) % previewTerrainPoints.Count;
+            Vector3 localStart = previewTerrainPoints[index];
+            Vector3 localEnd = previewTerrainPoints[nextIndex];
+            Vector2 start = HandleUtility.WorldToGUIPoint(mapRoot.TransformPoint(localStart));
+            Vector2 end = HandleUtility.WorldToGUIPoint(mapRoot.TransformPoint(localEnd));
+            Vector2 segment = end - start;
+            float segmentLengthSqr = segment.sqrMagnitude;
+            float t = segmentLengthSqr > 0.001f
+                ? Mathf.Clamp01(Vector2.Dot(mousePosition - start, segment) / segmentLengthSqr)
+                : 0f;
+            float distance = Vector2.Distance(mousePosition, start + segment * t);
+            if (distance >= nearestDistance)
+                continue;
+
+            nearestDistance = distance;
+            edgeIndex = index;
+            localPoint = Vector3.Lerp(localStart, localEnd, t);
+        }
+
+        if (edgeIndex >= 0 && nearestDistance <= maximumDistancePixels)
+            return true;
+
+        if (!TryGetTerrainPlacementPoint(mapRoot, mousePosition, out localPoint))
+            return false;
+
+        edgeIndex = FindNearestTerrainEdge(localPoint);
+        return edgeIndex >= 0;
+    }
+
+    private bool TryGetTerrainPlacementPoint(
+        Transform mapRoot,
+        Vector2 mousePosition,
+        out Vector3 localPoint)
+    {
+        Ray ray = HandleUtility.GUIPointToWorldRay(mousePosition);
+        RaycastHit[] hits = Physics.RaycastAll(
+            ray,
+            10000f,
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Ignore);
+        float nearestDistance = float.PositiveInfinity;
+        Vector3 nearestPoint = default;
+        bool foundTerrain = false;
+        for (int index = 0; index < hits.Length; index++)
+        {
+            RaycastHit hit = hits[index];
+            Transform hitTransform = hit.collider != null ? hit.collider.transform : null;
+            if (hitTransform == null ||
+                (hitTransform != mapRoot && !hitTransform.IsChildOf(mapRoot)) ||
+                !hitTransform.name.Equals("VISIBLE Snow Terrain", System.StringComparison.Ordinal))
+            {
+                continue;
+            }
+            if (hit.distance >= nearestDistance)
+                continue;
+            nearestDistance = hit.distance;
+            nearestPoint = hit.point;
+            foundTerrain = true;
+        }
+
+        if (foundTerrain)
+        {
+            localPoint = mapRoot.InverseTransformPoint(nearestPoint);
+            return true;
+        }
+
+        float averageHeight = 0f;
+        for (int index = 0; index < previewTerrainPoints.Count; index++)
+            averageHeight += previewTerrainPoints[index].y;
+        averageHeight /= Mathf.Max(1, previewTerrainPoints.Count);
+        Plane editingPlane = new(
+            mapRoot.up,
+            mapRoot.TransformPoint(new Vector3(0f, averageHeight, 0f)));
+        if (editingPlane.Raycast(ray, out float enter))
+        {
+            localPoint = mapRoot.InverseTransformPoint(ray.GetPoint(enter));
+            return true;
+        }
+
+        localPoint = default;
+        return false;
+    }
+
+    private int FindNearestTerrainEdge(Vector3 localPoint)
+    {
+        int edgeIndex = -1;
+        float nearestSqrDistance = float.PositiveInfinity;
+        Vector2 point = new(localPoint.x, localPoint.z);
+        for (int index = 0; index < previewTerrainPoints.Count; index++)
+        {
+            Vector3 start3 = previewTerrainPoints[index];
+            Vector3 end3 = previewTerrainPoints[(index + 1) % previewTerrainPoints.Count];
+            Vector2 start = new(start3.x, start3.z);
+            Vector2 segment = new(end3.x - start3.x, end3.z - start3.z);
+            float t = segment.sqrMagnitude > 0.0001f
+                ? Mathf.Clamp01(Vector2.Dot(point - start, segment) / segment.sqrMagnitude)
+                : 0f;
+            float sqrDistance = (point - (start + segment * t)).sqrMagnitude;
+            if (sqrDistance >= nearestSqrDistance)
+                continue;
+            nearestSqrDistance = sqrDistance;
+            edgeIndex = index;
+        }
+        return edgeIndex;
     }
 
     private bool TryGetPointInsertion(
@@ -503,16 +913,6 @@ public sealed class MushTrackAuthoringEditor : Editor
         return length;
     }
 
-    private static void DrawSceneVisualWarning(SerializedProperty property, string label)
-    {
-        GameObject assignedObject = property.objectReferenceValue as GameObject;
-        if (assignedObject != null && !assignedObject.scene.IsValid())
-        {
-            EditorGUILayout.HelpBox(
-                $"{label} 슬롯에는 프로젝트의 Prefab/FBX 원본이 아니라 씬에 배치한 인스턴스를 연결해 주세요.",
-                MessageType.Warning);
-        }
-    }
 }
 
 [InitializeOnLoad]
@@ -668,7 +1068,7 @@ public static class MushTrackEditorWorldPreview
         MushTrackAuthoring authoring = FindTrackInScene(SceneManager.GetActiveScene());
         if (authoring == null)
         {
-            EditorUtility.DisplayDialog("Mush Map", "현재 신에서 TRACK EDIT 오브젝트를 찾지 못했습니다.", "확인");
+            EditorUtility.DisplayDialog("Mush Map", "현재 씬에서 맵 편집 컴포넌트를 찾지 못했습니다.", "확인");
             return;
         }
 
@@ -678,8 +1078,60 @@ public static class MushTrackEditorWorldPreview
 
     public static void RebuildFullWorld(MushTrackAuthoring authoring)
     {
-        RebuildSceneWorld(authoring, true);
+        bool canSaveScene = authoring != null &&
+                            !string.IsNullOrEmpty(authoring.gameObject.scene.path);
+        RebuildSceneWorld(authoring, canSaveScene);
         AssetDatabase.SaveAssets();
+    }
+
+    public static void EnsureEditableMapReady(MushTrackAuthoring authoring, bool saveScene)
+    {
+        if (authoring == null || EditorApplication.isPlayingOrWillChangePlaymode || rebuilding)
+            return;
+
+        Transform mapRoot = authoring.ResolveMapRoot();
+        if (mapRoot == null || mapRoot.gameObject.scene != authoring.gameObject.scene)
+            return;
+
+        MushCurvedMapRuntime runtime = mapRoot.GetComponent<MushCurvedMapRuntime>();
+        if (runtime == null)
+            runtime = Undo.AddComponent<MushCurvedMapRuntime>(mapRoot.gameObject);
+
+        MushMapRideBootstrap bootstrap = FindBootstrapInScene(authoring.gameObject.scene);
+        if (bootstrap == null)
+            bootstrap = Undo.AddComponent<MushMapRideBootstrap>(mapRoot.gameObject);
+
+        if (mapRoot.Find(MushCurvedMapRuntime.GeneratedWorldRootName) == null ||
+            !runtime.HasCurrentBakedWorldVersion)
+        {
+            RebuildSceneWorld(
+                authoring,
+                saveScene && !string.IsNullOrEmpty(authoring.gameObject.scene.path));
+        }
+
+        if (mapRoot.Find(MushCurvedMapRuntime.RideTeamRootName) == null)
+            bootstrap.BakeRideTeamIntoScene();
+        else
+            bootstrap.RepairEditModeBakedColliders();
+
+        EditorUtility.SetDirty(authoring);
+        EditorUtility.SetDirty(runtime);
+        EditorUtility.SetDirty(bootstrap);
+        EditorSceneManager.MarkSceneDirty(authoring.gameObject.scene);
+        if (saveScene && !string.IsNullOrEmpty(authoring.gameObject.scene.path))
+            EditorSceneManager.SaveScene(authoring.gameObject.scene);
+        SceneView.RepaintAll();
+    }
+
+    private static MushMapRideBootstrap FindBootstrapInScene(Scene scene)
+    {
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            MushMapRideBootstrap bootstrap = root.GetComponentInChildren<MushMapRideBootstrap>(true);
+            if (bootstrap != null)
+                return bootstrap;
+        }
+        return null;
     }
 
     public static void BakeAllMapsFromCommandLine()
@@ -699,7 +1151,7 @@ public static class MushTrackEditorWorldPreview
             Scene scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
             MushTrackAuthoring authoring = FindTrackInScene(scene);
             if (authoring == null)
-                throw new MissingReferenceException($"TRACK EDIT authoring object is missing from {scenePath}.");
+                throw new MissingReferenceException($"Map authoring component is missing from {scenePath}.");
 
             RebuildSceneWorld(authoring, true);
             EditorSceneManager.SaveScene(scene);
@@ -1000,5 +1452,27 @@ public static class MushTrackEditorWorldPreview
             AssetDatabase.CreateFolder("Assets", "Mush");
         if (!AssetDatabase.IsValidFolder(GeneratedAssetFolder))
             AssetDatabase.CreateFolder("Assets/Mush", "GeneratedMaps");
+    }
+}
+
+public static class MushEditableMapCreationMenu
+{
+    [MenuItem("Mush/Maps/Create Map Editor In Current Scene", false, 1)]
+    [MenuItem("GameObject/Mush/Map Editor (Road + Terrain + Player)", false, 10)]
+    [MenuItem("GameObject/Mush/Editable Map", false, 11)]
+    private static void CreateEditableMap(MenuCommand command)
+    {
+        GameObject mapObject = new("Mush Map Editor");
+        Undo.RegisterCreatedObjectUndo(mapObject, "Create Editable Mush Map");
+
+        Undo.AddComponent<MushCurvedMapRuntime>(mapObject);
+        Undo.AddComponent<MushMapRideBootstrap>(mapObject);
+        MushTrackAuthoring authoring = Undo.AddComponent<MushTrackAuthoring>(mapObject);
+        authoring.ConfigureNewMapDefaults();
+        EditorUtility.SetDirty(authoring);
+        Selection.activeGameObject = mapObject;
+
+        MushTrackEditorWorldPreview.EnsureEditableMapReady(authoring, false);
+        EditorGUIUtility.PingObject(mapObject);
     }
 }

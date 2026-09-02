@@ -60862,8 +60862,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a8c1d2e3f4a5467890abcdef12345678, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MushTrackAuthoring
-  preset: 0
-  targetMapRootName: Mush_Map_Snowfield_V2
+  mapRoot: {fileID: 2139845406}
   useEditablePath: 0
   sampleSpacing: 4
   overrideTrackWidths: 0
@@ -60874,6 +60873,8 @@ MonoBehaviour:
   customTerrainVisual: {fileID: 0}
   roadMaterialOverride: {fileID: 0}
   terrainMaterialOverride: {fileID: 0}
+  roadTextureOverride: {fileID: 0}
+  terrainTextureOverride: {fileID: 0}
   controlPoints: []
 --- !u!4 &2139845406 stripped
 Transform:
@@ -60891,7 +60892,7 @@ GameObject:
   - component: {fileID: 2140000002}
   - component: {fileID: 2135000004}
   m_Layer: 0
-  m_Name: TRACK EDIT - Snowfield
+  m_Name: MAP EDITOR
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

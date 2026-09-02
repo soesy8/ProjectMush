@@ -289,6 +289,34 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         built = false;
         BuildRideTeam();
+        RepairEditModeBakedColliders();
+    }
+
+    public void RepairEditModeBakedColliders()
+    {
+        if (Application.isPlaying)
+            return;
+
+        Transform team = rideTeam != null
+            ? rideTeam
+            : FindDeepChild(transform, MushCurvedMapRuntime.RideTeamRootName);
+        if (team == null)
+            return;
+
+        foreach (Transform child in team.GetComponentsInChildren<Transform>(true))
+        {
+            Collider[] colliders = child.GetComponents<Collider>();
+            bool questButton = child.GetComponent<MushQuestRayAction>() != null;
+            for (int index = colliders.Length - 1; index >= 0; index--)
+            {
+                Collider collider = colliders[index];
+                bool keepQuestButtonCollider = questButton && index == 0;
+                bool keepDisabledImportedCollider = !collider.enabled;
+                if (keepQuestButtonCollider || keepDisabledImportedCollider)
+                    continue;
+                DestroyImmediate(collider);
+            }
+        }
     }
 
     private bool TryBindSavedRideTeam(Transform mapRoot)
@@ -467,6 +495,14 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
     private Transform FindMapRoot()
     {
+        MushCurvedMapRuntime localRuntime = GetComponent<MushCurvedMapRuntime>();
+        if (localRuntime != null)
+            return localRuntime.transform;
+
+        MushCurvedMapRuntime parentRuntime = GetComponentInParent<MushCurvedMapRuntime>();
+        if (parentRuntime != null)
+            return parentRuntime.transform;
+
         if (gameObject.scene.IsValid() && gameObject.scene.isLoaded)
         {
             foreach (GameObject root in gameObject.scene.GetRootGameObjects())
@@ -478,6 +514,17 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
                 MushForestTimeCycleController forest = root.GetComponentInChildren<MushForestTimeCycleController>(true);
                 if (forest != null)
                     return forest.transform;
+            }
+
+            foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+            {
+                MushTrackAuthoring editor = root.GetComponentInChildren<MushTrackAuthoring>(true);
+                if (editor != null)
+                    return editor.ResolveMapRoot();
+
+                MushCurvedMapRuntime runtime = root.GetComponentInChildren<MushCurvedMapRuntime>(true);
+                if (runtime != null)
+                    return runtime.transform;
             }
 
             foreach (GameObject root in gameObject.scene.GetRootGameObjects())
@@ -2646,8 +2693,18 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         primitive.GetComponent<Renderer>().sharedMaterial = material;
         Collider collider = primitive.GetComponent<Collider>();
         if (collider != null)
-            Destroy(collider);
+            DestroyForCurrentMode(collider);
         return primitive;
+    }
+
+    private static void DestroyForCurrentMode(UnityEngine.Object target)
+    {
+        if (target == null)
+            return;
+        if (Application.isPlaying)
+            Destroy(target);
+        else
+            DestroyImmediate(target);
     }
 
     private void ApplySledMaterials(GameObject root)
@@ -2770,11 +2827,11 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (ridePaused)
             Time.timeScale = 1f;
         if (resultStarMesh != null)
-            Destroy(resultStarMesh);
+            DestroyForCurrentMode(resultStarMesh);
         foreach (Material material in runtimeMaterials.Values)
         {
             if (material != null)
-                Destroy(material);
+                DestroyForCurrentMode(material);
         }
         runtimeMaterials.Clear();
     }

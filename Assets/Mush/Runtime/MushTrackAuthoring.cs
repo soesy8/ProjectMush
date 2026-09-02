@@ -1,14 +1,6 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-
-public enum MushTrackPreset
-{
-    Snowfield,
-    Forest,
-    SharpCurve
-}
 
 /// <summary>
 /// Scene-owned prototype track data. Control points are stored in the target
@@ -16,10 +8,10 @@ public enum MushTrackPreset
 /// gameplay route.
 /// </summary>
 [DisallowMultipleComponent]
+[AddComponentMenu("Mush/Mush Map Editor")]
 public sealed class MushTrackAuthoring : MonoBehaviour
 {
-    [SerializeField] private MushTrackPreset preset;
-    [SerializeField] private string targetMapRootName = "Mush_Map_Snowfield_V2";
+    [SerializeField, HideInInspector] private Transform mapRoot;
     [SerializeField] private bool useEditablePath;
     [SerializeField, Min(1f)] private float sampleSpacing = MushTrackPathUtility.DefaultSampleSpacing;
     [SerializeField] private bool overrideTrackWidths;
@@ -31,12 +23,23 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     [SerializeField] private GameObject customTerrainVisual;
     [SerializeField] private Material roadMaterialOverride;
     [SerializeField] private Material terrainMaterialOverride;
+    [SerializeField] private Texture roadTextureOverride;
+    [SerializeField] private Texture terrainTextureOverride;
     [SerializeField] private List<Vector3> controlPoints = new();
+    [SerializeField] private bool useEditableTerrain;
+    [SerializeField] private List<Vector3> terrainControlPoints = new();
+    [SerializeField] private bool generateProceduralEnvironment = true;
+    [SerializeField, HideInInspector] private int starterLayoutVersion;
 
-    public MushTrackPreset Preset => preset;
-    public string TargetMapRootName => targetMapRootName;
+    private const int CurrentStarterLayoutVersion = 1;
+    private const float StarterCourseLength = 160f;
+    private const float StarterTerrainHalfWidth = 30f;
+
     public bool UsesEditablePath => useEditablePath && controlPoints.Count >= 2;
+    public bool UsesEditableTerrain => useEditableTerrain && terrainControlPoints.Count >= 3;
     public int ControlPointCount => controlPoints.Count;
+    public int TerrainControlPointCount => terrainControlPoints.Count;
+    public bool GenerateProceduralEnvironment => generateProceduralEnvironment;
     public float RoadHalfWidth => roadHalfWidth;
     public float TerrainHalfWidth => terrainHalfWidth;
     public bool OverridesTrackWidths => overrideTrackWidths;
@@ -46,12 +49,68 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     public GameObject CustomTerrainVisual => customTerrainVisual;
     public Material RoadMaterialOverride => roadMaterialOverride;
     public Material TerrainMaterialOverride => terrainMaterialOverride;
-    public bool HasCustomRoadVisual => IsUsableSceneVisual(customRoadVisual);
-    public bool HasCustomTerrainVisual => IsUsableSceneVisual(customTerrainVisual);
+    public Texture RoadTextureOverride => roadTextureOverride;
+    public Texture TerrainTextureOverride => terrainTextureOverride;
+    public bool HasCustomRoadVisual => customRoadVisual != null;
+    public bool HasCustomTerrainVisual => customTerrainVisual != null;
     public bool HasDeformableRoadModule => deformableRoadModule != null;
     public float PreviewRoadHalfWidth => overrideTrackWidths
         ? Mathf.Max(0.5f, roadHalfWidth)
-        : preset == MushTrackPreset.SharpCurve ? 3.25f : 6.5f;
+        : 6.5f;
+
+    private void Reset()
+    {
+        ConfigureNewMapDefaults();
+    }
+
+    public void ConfigureNewMapDefaults()
+    {
+        mapRoot = transform;
+        generateProceduralEnvironment = false;
+        overrideTrackWidths = true;
+        roadHalfWidth = 6.5f;
+        terrainHalfWidth = StarterTerrainHalfWidth;
+        controlPoints.Clear();
+        controlPoints.Add(Vector3.zero);
+        controlPoints.Add(new Vector3(0f, 0f, -StarterCourseLength));
+        useEditablePath = true;
+        BakeDefaultTerrain();
+        starterLayoutVersion = CurrentStarterLayoutVersion;
+    }
+
+    public bool UpgradeStarterLayoutIfNeeded()
+    {
+        if (starterLayoutVersion >= CurrentStarterLayoutVersion)
+            return false;
+
+        starterLayoutVersion = CurrentStarterLayoutVersion;
+        if (!name.Equals("Mush Map Editor", System.StringComparison.Ordinal) ||
+            controlPoints.Count != 2 ||
+            Vector3.Distance(controlPoints[0], Vector3.zero) > 0.01f ||
+            Vector3.Distance(
+                controlPoints[1],
+                new Vector3(0f, 0f, -MushTrackPathUtility.DefaultCourseLength)) > 0.01f)
+        {
+            return false;
+        }
+
+        ConfigureNewMapDefaults();
+        return true;
+    }
+
+    public void BakeSuggestedDefaultPath()
+    {
+        if (name.Equals("Mush Map Editor", System.StringComparison.Ordinal))
+        {
+            controlPoints.Clear();
+            controlPoints.Add(Vector3.zero);
+            controlPoints.Add(new Vector3(0f, 0f, -StarterCourseLength));
+            useEditablePath = true;
+            return;
+        }
+
+        BakeDefaultPath();
+    }
 
     public static MushTrackAuthoring FindFor(Transform mapRoot)
     {
@@ -72,25 +131,50 @@ public sealed class MushTrackAuthoring : MonoBehaviour
 
     public bool AppliesTo(Transform mapRoot)
     {
-        return mapRoot != null &&
-               gameObject.scene == mapRoot.gameObject.scene &&
-               targetMapRootName.Equals(mapRoot.name, StringComparison.OrdinalIgnoreCase);
+        return mapRoot != null && ResolveMapRoot() == mapRoot;
     }
 
     public Transform ResolveMapRoot()
     {
+        if (mapRoot != null && mapRoot.gameObject.scene == gameObject.scene)
+            return mapRoot;
+
+        MushCurvedMapRuntime localRuntime = GetComponent<MushCurvedMapRuntime>();
+        if (localRuntime != null)
+            return transform;
+
+        MushCurvedMapRuntime parentRuntime = GetComponentInParent<MushCurvedMapRuntime>();
+        if (parentRuntime != null)
+            return parentRuntime.transform;
+
         Scene scene = gameObject.scene;
         if (!scene.IsValid() || !scene.isLoaded)
             return null;
 
+        Transform onlyRuntimeRoot = null;
+        int runtimeRootCount = 0;
         GameObject[] roots = scene.GetRootGameObjects();
         for (int index = 0; index < roots.Length; index++)
         {
-            Transform match = FindNamedTransform(roots[index].transform, targetMapRootName);
-            if (match != null)
-                return match;
+            MushCurvedMapRuntime[] runtimes = roots[index].GetComponentsInChildren<MushCurvedMapRuntime>(true);
+            for (int runtimeIndex = 0; runtimeIndex < runtimes.Length; runtimeIndex++)
+            {
+                runtimeRootCount++;
+                onlyRuntimeRoot = runtimes[runtimeIndex].transform;
+            }
         }
-        return null;
+
+        if (runtimeRootCount == 1)
+            return onlyRuntimeRoot;
+
+        // A newly added component owns the object it is attached to. This is
+        // the normal authoring path and requires no map ID or map category.
+        return transform;
+    }
+
+    public void SetMapRoot(Transform root)
+    {
+        mapRoot = root;
     }
 
     public bool TryBuildSampledRoute(
@@ -125,7 +209,7 @@ public sealed class MushTrackAuthoring : MonoBehaviour
                 return;
         }
 
-        MushTrackPathUtility.BuildDefaultRoute(preset, output, out _);
+        MushTrackPathUtility.BuildDefaultRoute(output);
     }
 
     public void CopyEditableControlPointPreview(List<Vector3> output)
@@ -137,7 +221,29 @@ public sealed class MushTrackAuthoring : MonoBehaviour
             return;
         }
 
-        MushTrackPathUtility.BuildEditableDefaultRoute(preset, output, 0.75f);
+        MushTrackPathUtility.BuildEditableDefaultRoute(output);
+    }
+
+    public void CopyTerrainControlPointPreview(List<Vector3> output)
+    {
+        output.Clear();
+        if (UsesEditableTerrain)
+        {
+            output.AddRange(terrainControlPoints);
+            return;
+        }
+
+        BuildDefaultTerrainBoundary(output);
+    }
+
+    public bool TryCopyTerrainBoundary(List<Vector3> output)
+    {
+        output.Clear();
+        if (!UsesEditableTerrain)
+            return false;
+
+        output.AddRange(terrainControlPoints);
+        return true;
     }
 
     public Vector3 GetControlPoint(int index) => controlPoints[index];
@@ -148,10 +254,16 @@ public sealed class MushTrackAuthoring : MonoBehaviour
             controlPoints[index] = point;
     }
 
-    public void BakeDefaultPath(float simplificationTolerance = 0.75f)
+    public void BakeDefaultPath()
     {
-        MushTrackPathUtility.BuildEditableDefaultRoute(preset, controlPoints, simplificationTolerance);
+        MushTrackPathUtility.BuildEditableDefaultRoute(controlPoints);
         useEditablePath = controlPoints.Count >= 2;
+    }
+
+    public void BakeDefaultTerrain()
+    {
+        BuildDefaultTerrainBoundary(terrainControlPoints);
+        useEditableTerrain = terrainControlPoints.Count >= 3;
     }
 
     public void SetEditablePathEnabled(bool enabled)
@@ -159,9 +271,19 @@ public sealed class MushTrackAuthoring : MonoBehaviour
         useEditablePath = enabled && controlPoints.Count >= 2;
     }
 
+    public void SetEditableTerrainEnabled(bool enabled)
+    {
+        useEditableTerrain = enabled && terrainControlPoints.Count >= 3;
+    }
+
     public void SetDeformableRoadModule(GameObject module)
     {
         deformableRoadModule = module;
+    }
+
+    public void SetProceduralEnvironmentEnabled(bool enabled)
+    {
+        generateProceduralEnvironment = enabled;
     }
 
     public int InsertControlPointAfter(int index)
@@ -198,28 +320,93 @@ public sealed class MushTrackAuthoring : MonoBehaviour
         return controlPoints.Count > 0 ? controlPoints.Count - 1 - selectedIndex : -1;
     }
 
-    private bool IsUsableSceneVisual(GameObject candidate)
+    public Vector3 GetTerrainControlPoint(int index) => terrainControlPoints[index];
+
+    public void SetTerrainControlPoint(int index, Vector3 point)
     {
-        return candidate != null &&
-               candidate.scene.IsValid() &&
-               candidate.scene == gameObject.scene;
+        if (index >= 0 && index < terrainControlPoints.Count)
+            terrainControlPoints[index] = point;
     }
 
-    private static Transform FindNamedTransform(Transform current, string objectName)
+    public int InsertTerrainControlPointAfter(int index)
     {
-        if ((current.gameObject.hideFlags & HideFlags.DontSaveInEditor) != 0)
-            return null;
-        if (current.name.Equals(objectName, StringComparison.OrdinalIgnoreCase))
-            return current;
-
-        for (int index = 0; index < current.childCount; index++)
+        if (terrainControlPoints.Count < 3)
         {
-            Transform match = FindNamedTransform(current.GetChild(index), objectName);
-            if (match != null)
-                return match;
+            BakeDefaultTerrain();
+            return Mathf.Clamp(index, 0, terrainControlPoints.Count - 1);
         }
-        return null;
+
+        index = Mathf.Clamp(index, 0, terrainControlPoints.Count - 1);
+        int nextIndex = (index + 1) % terrainControlPoints.Count;
+        Vector3 point = Vector3.Lerp(
+            terrainControlPoints[index],
+            terrainControlPoints[nextIndex],
+            0.5f);
+        terrainControlPoints.Insert(index + 1, point);
+        useEditableTerrain = true;
+        return index + 1;
     }
+
+    public int RemoveTerrainControlPoint(int index)
+    {
+        if (terrainControlPoints.Count <= 3 || index < 0 || index >= terrainControlPoints.Count)
+            return Mathf.Clamp(index, 0, terrainControlPoints.Count - 1);
+
+        terrainControlPoints.RemoveAt(index);
+        return Mathf.Clamp(index, 0, terrainControlPoints.Count - 1);
+    }
+
+    public int ReverseTerrainControlPoints(int selectedIndex)
+    {
+        terrainControlPoints.Reverse();
+        return terrainControlPoints.Count > 0
+            ? terrainControlPoints.Count - 1 - selectedIndex
+            : -1;
+    }
+
+    private void BuildDefaultTerrainBoundary(List<Vector3> output)
+    {
+        output.Clear();
+        List<Vector3> route = new();
+        if (controlPoints.Count >= 2)
+            route.AddRange(controlPoints);
+        else
+            MushTrackPathUtility.BuildEditableDefaultRoute(route);
+
+        if (route.Count < 2)
+            return;
+
+        float halfWidth = overrideTrackWidths
+            ? Mathf.Max(terrainHalfWidth, roadHalfWidth + 4f)
+            : 105f;
+        float endPadding = Mathf.Clamp(halfWidth * 0.20f, 12f, 30f);
+        List<Vector3> leftEdge = new(route.Count);
+        List<Vector3> rightEdge = new(route.Count);
+        for (int index = 0; index < route.Count; index++)
+        {
+            int previous = Mathf.Max(0, index - 1);
+            int next = Mathf.Min(route.Count - 1, index + 1);
+            Vector3 tangent = Vector3.ProjectOnPlane(route[next] - route[previous], Vector3.up).normalized;
+            if (tangent.sqrMagnitude < 0.0001f)
+                tangent = Vector3.back;
+
+            Vector3 center = route[index];
+            if (index == 0)
+                center -= tangent * endPadding;
+            else if (index == route.Count - 1)
+                center += tangent * endPadding;
+            center.y = route[index].y - 0.18f;
+
+            Vector3 right = Vector3.Cross(Vector3.up, tangent).normalized;
+            leftEdge.Add(center - right * halfWidth);
+            rightEdge.Add(center + right * halfWidth);
+        }
+
+        output.AddRange(leftEdge);
+        for (int index = rightEdge.Count - 1; index >= 0; index--)
+            output.Add(rightEdge[index]);
+    }
+
 }
 
 public static class MushTrackPathUtility
@@ -227,59 +414,19 @@ public static class MushTrackPathUtility
     public const float DefaultCourseLength = 960f;
     public const float DefaultSampleSpacing = 4f;
 
-    private readonly struct CurveEvent
-    {
-        public readonly float Start;
-        public readonly float Length;
-        public readonly float Strength;
-        public readonly bool IsSCurve;
-
-        public CurveEvent(float start, float length, float strength, bool isSCurve)
-        {
-            Start = start;
-            Length = length;
-            Strength = strength;
-            IsSCurve = isSCurve;
-        }
-    }
-
-    public static void BuildDefaultRoute(MushTrackPreset preset, List<Vector3> output, out int curveCount)
+    public static void BuildDefaultRoute(List<Vector3> output)
     {
         output.Clear();
-        List<CurveEvent> curves = new();
-        BuildCurveSchedule(preset, curves);
-        curveCount = curves.Count;
-
         int sampleCount = Mathf.RoundToInt(DefaultCourseLength / DefaultSampleSpacing) + 1;
-        Vector3 position = Vector3.zero;
-        float headingRadians = 0f;
-        output.Add(new Vector3(0f, RouteHeight(preset, 0f), 0f));
-
-        for (int index = 1; index < sampleCount; index++)
-        {
-            float distance = index * DefaultSampleSpacing;
-            headingRadians += EvaluateCurvature(curves, distance) * DefaultSampleSpacing * Mathf.Deg2Rad;
-            float headingLimit = preset == MushTrackPreset.SharpCurve ? 170f : 52f;
-            headingRadians = Mathf.Clamp(
-                headingRadians,
-                -headingLimit * Mathf.Deg2Rad,
-                headingLimit * Mathf.Deg2Rad);
-
-            Vector3 forward = new(Mathf.Sin(headingRadians), 0f, -Mathf.Cos(headingRadians));
-            position += forward * DefaultSampleSpacing;
-            position.y = RouteHeight(preset, distance);
-            output.Add(position);
-        }
+        for (int index = 0; index < sampleCount; index++)
+            output.Add(new Vector3(0f, 0f, -index * DefaultSampleSpacing));
     }
 
-    public static void BuildEditableDefaultRoute(
-        MushTrackPreset preset,
-        List<Vector3> output,
-        float simplificationTolerance)
+    public static void BuildEditableDefaultRoute(List<Vector3> output)
     {
-        List<Vector3> source = new();
-        BuildDefaultRoute(preset, source, out _);
-        SimplifyPolyline(source, Mathf.Max(0.05f, simplificationTolerance), output);
+        output.Clear();
+        output.Add(Vector3.zero);
+        output.Add(new Vector3(0f, 0f, -DefaultCourseLength));
     }
 
     public static bool BuildUniformRoute(
@@ -413,129 +560,4 @@ public static class MushTrackPathUtility
         return Vector3.LerpUnclamped(from, to, (time - fromTime) / range);
     }
 
-    private static void BuildCurveSchedule(MushTrackPreset preset, List<CurveEvent> curves)
-    {
-        if (preset == MushTrackPreset.SharpCurve)
-        {
-            curves.Add(new CurveEvent(88f, 32f, -4.50f, false));
-            curves.Add(new CurveEvent(140f, 24f, 4.25f, false));
-            curves.Add(new CurveEvent(172f, 24f, -4.45f, false));
-            curves.Add(new CurveEvent(720f, 32f, 4.65f, false));
-            return;
-        }
-
-        System.Random random = new(preset == MushTrackPreset.Snowfield ? 27183 : 91457);
-        float cursor = 48f;
-        int direction = random.NextDouble() < 0.5 ? -1 : 1;
-        while (cursor < DefaultCourseLength - 80f)
-        {
-            cursor += random.Next(28, 66);
-            bool isSCurve = random.NextDouble() < 0.34;
-            float length = isSCurve ? random.Next(80, 132) : random.Next(58, 146);
-            length = Mathf.Min(length, DefaultCourseLength - 45f - cursor);
-            if (length < 35f)
-                break;
-
-            float strength = Mathf.Lerp(0.18f, isSCurve ? 0.48f : 0.36f, (float)random.NextDouble());
-            curves.Add(new CurveEvent(cursor, length, strength * direction, isSCurve));
-            direction *= -1;
-            cursor += length;
-        }
-    }
-
-    private static float EvaluateCurvature(List<CurveEvent> curves, float distance)
-    {
-        float curvature = 0f;
-        for (int index = 0; index < curves.Count; index++)
-        {
-            CurveEvent curve = curves[index];
-            if (distance < curve.Start || distance > curve.Start + curve.Length)
-                continue;
-
-            float t = Mathf.InverseLerp(curve.Start, curve.Start + curve.Length, distance);
-            float wave = curve.IsSCurve ? Mathf.Sin(t * Mathf.PI * 2f) : Mathf.Sin(t * Mathf.PI);
-            curvature += curve.Strength * wave;
-        }
-        return curvature;
-    }
-
-    private static float RouteHeight(MushTrackPreset preset, float distance)
-    {
-        if (preset == MushTrackPreset.SharpCurve)
-        {
-            const float plateauHeight = 78f;
-            const float crestHeight = 84f;
-            const float valleyHeight = -42f;
-            if (distance < 320f)
-                return plateauHeight + Mathf.Sin(distance * 0.018f) * 1.25f;
-            if (distance < 350f)
-            {
-                float crest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(320f, 350f, distance));
-                return Mathf.Lerp(plateauHeight, crestHeight, crest);
-            }
-            if (distance < 620f)
-            {
-                float descent = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(350f, 620f, distance));
-                return Mathf.Lerp(crestHeight, valleyHeight, descent);
-            }
-
-            float settle = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(620f, 690f, distance));
-            return valleyHeight + Mathf.Sin(distance * 0.014f) * 0.22f * settle;
-        }
-
-        float fadeIn = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 70f, distance));
-        return fadeIn * (Mathf.Sin(distance * 0.0105f) * 1.7f + Mathf.Sin(distance * 0.027f) * 0.48f);
-    }
-
-    private static void SimplifyPolyline(IReadOnlyList<Vector3> source, float tolerance, List<Vector3> output)
-    {
-        output.Clear();
-        if (source == null || source.Count < 2)
-            return;
-
-        bool[] keep = new bool[source.Count];
-        keep[0] = true;
-        keep[^1] = true;
-        MarkPolylinePoints(source, 0, source.Count - 1, tolerance * tolerance, keep);
-        for (int index = 0; index < source.Count; index++)
-        {
-            if (keep[index])
-                output.Add(source[index]);
-        }
-    }
-
-    private static void MarkPolylinePoints(
-        IReadOnlyList<Vector3> source,
-        int startIndex,
-        int endIndex,
-        float toleranceSqr,
-        bool[] keep)
-    {
-        if (endIndex <= startIndex + 1)
-            return;
-
-        Vector3 start = source[startIndex];
-        Vector3 segment = source[endIndex] - start;
-        float segmentLengthSqr = segment.sqrMagnitude;
-        float farthestDistanceSqr = 0f;
-        int farthestIndex = -1;
-        for (int index = startIndex + 1; index < endIndex; index++)
-        {
-            float t = segmentLengthSqr > 0.0001f
-                ? Mathf.Clamp01(Vector3.Dot(source[index] - start, segment) / segmentLengthSqr)
-                : 0f;
-            float distanceSqr = (source[index] - (start + segment * t)).sqrMagnitude;
-            if (distanceSqr <= farthestDistanceSqr)
-                continue;
-            farthestDistanceSqr = distanceSqr;
-            farthestIndex = index;
-        }
-
-        if (farthestIndex < 0 || farthestDistanceSqr <= toleranceSqr)
-            return;
-
-        keep[farthestIndex] = true;
-        MarkPolylinePoints(source, startIndex, farthestIndex, toleranceSqr, keep);
-        MarkPolylinePoints(source, farthestIndex, endIndex, toleranceSqr, keep);
-    }
 }

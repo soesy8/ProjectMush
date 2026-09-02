@@ -57,7 +57,7 @@ namespace Mush.UI
             RectTransform rect = skin.GetComponent<RectTransform>();
             if (rect == null)
             {
-                Object.Destroy(skin);
+                DestroyForCurrentMode(skin);
                 return null;
             }
 
@@ -98,7 +98,7 @@ namespace Mush.UI
             RectTransform rect = panel.GetComponent<RectTransform>();
             if (rect == null)
             {
-                Object.Destroy(panel);
+                DestroyForCurrentMode(panel);
                 return null;
             }
 
@@ -139,6 +139,16 @@ namespace Mush.UI
                 sampleText.gameObject.SetActive(false);
 
             return inside != null ? inside.GetComponent<Image>() : panel.GetComponentInChildren<Image>(true);
+        }
+
+        private static void DestroyForCurrentMode(Object target)
+        {
+            if (target == null)
+                return;
+            if (Application.isPlaying)
+                Object.Destroy(target);
+            else
+                Object.DestroyImmediate(target);
         }
 
         private static void ArrangeCornerLeaf(

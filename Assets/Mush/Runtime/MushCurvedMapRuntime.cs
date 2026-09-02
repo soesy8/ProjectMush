@@ -14,23 +14,26 @@ using UnityEngine.XR;
 public sealed class MushCurvedMapRuntime : MonoBehaviour
 {
     private const float RoadHalfWidth = 6.5f;
-    private const float SharpCurveRoadHalfWidth = 3.25f;
     private const float TerrainHalfWidth = 105f;
-    public const int CurrentBakedWorldVersion = 7;
+    private const string CustomRoadVisualPrefix = "CUSTOM SLOT - Road - ";
+    private const string CustomTerrainVisualPrefix = "CUSTOM SLOT - Terrain - ";
+    public const int CurrentBakedWorldVersion = 8;
     public const string GeneratedWorldRootName = "Mush Rebuilt Curved World";
     public const string DeformedRoadRootName = "VISIBLE Deformed Snow Road Module";
     public const string CustomSceneContentRootName = "SCENE CONTENT - Add Models Here";
     public const string RideTeamRootName = "Mush Ride Team";
 
     private readonly List<Vector3> routePoints = new();
+    private readonly List<Vector3> terrainBoundaryPoints = new();
+    private readonly List<int> terrainTriangleIndices = new();
     private readonly List<Material> runtimeMaterials = new();
     [SerializeField, HideInInspector] private int bakedWorldVersion;
     private bool built;
     private bool isSnowfield;
     private bool isSharpCurve;
     private bool usesEditableTrack;
+    private bool usesEditableTerrain;
     private bool overridesTrackWidths;
-    private int defaultCurveCount;
     private float activeCourseLength = MushTrackPathUtility.DefaultCourseLength;
     private float activeSampleSpacing = MushTrackPathUtility.DefaultSampleSpacing;
     private float authoredRoadHalfWidth;
@@ -63,10 +66,10 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private float ActiveRoadHalfWidth => overridesTrackWidths
         ? authoredRoadHalfWidth
-        : isSharpCurve ? SharpCurveRoadHalfWidth : RoadHalfWidth;
+        : RoadHalfWidth;
     private float ActiveTerrainHalfWidth => overridesTrackWidths
         ? authoredTerrainHalfWidth
-        : isSharpCurve ? 42f : TerrainHalfWidth;
+        : TerrainHalfWidth;
 
     public static MushCurvedMapRuntime EnsureBuilt(Transform mapRoot)
     {
@@ -85,7 +88,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (built)
             return;
 
-        ConfigureMapType();
+        ConfigureOptionalSceneFeatures();
         BuildActiveRoute();
         rebuiltRoot = transform.Find(GeneratedWorldRootName);
         if (rebuiltRoot == null)
@@ -102,9 +105,12 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             rebuiltRoot = rootObject.transform;
             rebuiltRoot.SetParent(transform, false);
             BuildCourseMeshes();
-            BuildScenery();
-            BuildSkyAndLighting();
-            BuildAmbientSnow();
+            if (activeAuthoring == null || activeAuthoring.GenerateProceduralEnvironment)
+            {
+                BuildScenery();
+                BuildSkyAndLighting();
+                BuildAmbientSnow();
+            }
             PositionRouteMarkers();
         }
         else
@@ -118,9 +124,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         Bounds roadBounds = roadRenderer != null ? roadRenderer.bounds : default;
         Bounds terrainBounds = terrainRenderer != null ? terrainRenderer.bounds : default;
         Debug.Log(
-            $"[Mush Map Rebuild] Scene={gameObject.scene.path}, Type={(isSharpCurve ? "SHARP CURVE" : isSnowfield ? "SNOW" : "TREE")}, " +
+            $"[Mush Map Rebuild] Scene={gameObject.scene.path}, " +
             $"Track={(usesEditableTrack ? "EDITABLE" : "DEFAULT")}, Length={activeCourseLength:0}m, " +
-            $"Samples={routePoints.Count}, Curves={defaultCurveCount}, " +
+            $"Samples={routePoints.Count}, " +
             $"RoadBounds={roadBounds.size}, TerrainBounds={terrainBounds.size}, " +
             $"Renderers={rebuiltRoot.GetComponentsInChildren<Renderer>(true).Length}",
             this);
@@ -137,7 +143,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             throw new InvalidOperationException("A baked Mush world can only be rebuilt outside play mode.");
 
         built = false;
-        ConfigureMapType();
+        ConfigureOptionalSceneFeatures();
         BuildActiveRoute();
         Transform customContent = transform.Find(CustomSceneContentRootName);
         if (customContent == null)
@@ -157,9 +163,12 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         rebuiltRoot.SetParent(transform, false);
 
         BuildCourseMeshes();
-        BuildScenery();
-        BuildSkyAndLighting();
-        BuildAmbientSnow();
+        if (activeAuthoring == null || activeAuthoring.GenerateProceduralEnvironment)
+        {
+            BuildScenery();
+            BuildSkyAndLighting();
+            BuildAmbientSnow();
+        }
         PositionRouteMarkers();
         bakedWorldVersion = CurrentBakedWorldVersion;
         built = true;
@@ -176,7 +185,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             throw new InvalidOperationException("A baked Mush course can only be rebuilt outside play mode.");
 
         built = false;
-        ConfigureMapType();
+        ConfigureOptionalSceneFeatures();
         BuildActiveRoute();
         rebuiltRoot = transform.Find(GeneratedWorldRootName);
         if (rebuiltRoot == null)
@@ -185,8 +194,6 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             return;
         }
 
-        Material existingSnow = FindGeneratedComponent<Renderer>("VISIBLE Snow Terrain")?.sharedMaterial;
-        Material existingRoad = FindGeneratedComponent<Renderer>("VISIBLE Curved Packed-Snow Road")?.sharedMaterial;
         Material existingTrack = FindGeneratedComponent<Renderer>("Left Sled Track")?.sharedMaterial;
         DestroyGeneratedCourseObject("VISIBLE Snow Terrain");
         DestroyGeneratedCourseObject("VISIBLE Curved Packed-Snow Road");
@@ -196,7 +203,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         terrainRenderer = null;
         roadRenderer = null;
 
-        BuildCourseMeshes(existingSnow, existingRoad, existingTrack);
+        BuildCourseMeshes(existingTrack);
         PositionRouteMarkers();
         bakedWorldVersion = CurrentBakedWorldVersion;
         built = true;
@@ -220,8 +227,11 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         mountainMesh = null;
     }
 
-    private void ConfigureMapType()
+    private void ConfigureOptionalSceneFeatures()
     {
+        // These flags preserve optional effects in the existing gameplay
+        // scenes. They never participate in creating, identifying, or opening
+        // a map; authoring has no map category.
         isSharpCurve = name.Contains("SharpCurve", StringComparison.OrdinalIgnoreCase) ||
                        gameObject.scene.name.Equals("SharpCurve", StringComparison.OrdinalIgnoreCase);
         isSnowfield = !isSharpCurve &&
@@ -402,21 +412,43 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             flatForward = Vector3.back;
         Vector3 localRight = Vector3.Cross(Vector3.up, flatForward).normalized;
         signedLateralDistance = Vector3.Dot(localPosition - routeCenter, localRight);
-        if (Mathf.Abs(signedLateralDistance) > ActiveTerrainHalfWidth)
-            return false;
 
         float routeDistance = (nearestSegment + nearestT) * activeSampleSpacing;
         bool onRoad = Mathf.Abs(signedLateralDistance) <= ActiveRoadHalfWidth + 0.25f;
-        float surfaceHeight = onRoad
-            ? routeCenter.y + 0.10f
-            : TerrainHeight(routeDistance, signedLateralDistance, routeCenter.y);
+        float surfaceHeight;
+        Vector3 authoredTerrainNormal = Vector3.up;
+        if (onRoad)
+        {
+            surfaceHeight = routeCenter.y + 0.10f;
+        }
+        else if (usesEditableTerrain)
+        {
+            if (!TryGetEditableTerrainSurface(point, out surfaceHeight, out authoredTerrainNormal))
+                return false;
+        }
+        else
+        {
+            if (Mathf.Abs(signedLateralDistance) > ActiveTerrainHalfWidth)
+                return false;
+            surfaceHeight = TerrainHeight(routeDistance, signedLateralDistance, routeCenter.y);
+        }
 
         Vector3 localForward;
         Vector3 localSurfaceRight;
+        Vector3 localNormal;
         if (onRoad)
         {
             localForward = (endPoint - startPoint).normalized;
             localSurfaceRight = localRight;
+            localNormal = Vector3.Cross(localForward, localSurfaceRight).normalized;
+        }
+        else if (usesEditableTerrain)
+        {
+            localNormal = authoredTerrainNormal;
+            localForward = Vector3.ProjectOnPlane(flatForward, localNormal).normalized;
+            if (localForward.sqrMagnitude < 0.0001f)
+                localForward = flatForward;
+            localSurfaceRight = Vector3.Cross(localNormal, localForward).normalized;
         }
         else
         {
@@ -444,9 +476,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
                 routeCenter.y);
             localSurfaceRight = (localRight * (derivativeStep * 2f) +
                                  Vector3.up * (rightHeight - leftHeight)).normalized;
+            localNormal = Vector3.Cross(localForward, localSurfaceRight).normalized;
         }
 
-        Vector3 localNormal = Vector3.Cross(localForward, localSurfaceRight).normalized;
         if (localNormal.y < 0f)
             localNormal = -localNormal;
 
@@ -473,14 +505,14 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
         {
-            if (childIsRideTeam(renderer.transform))
+            if (childIsRideTeam(renderer.transform) || IsAssignedSceneVisual(renderer.transform))
                 continue;
             if (customContent == null || !renderer.transform.IsChildOf(customContent))
                 renderer.enabled = false;
         }
         foreach (Collider collider in GetComponentsInChildren<Collider>(true))
         {
-            if (childIsRideTeam(collider.transform))
+            if (childIsRideTeam(collider.transform) || IsAssignedSceneVisual(collider.transform))
                 continue;
             if (customContent == null || !collider.transform.IsChildOf(customContent))
                 collider.enabled = false;
@@ -488,6 +520,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         foreach (ParticleSystem particles in GetComponentsInChildren<ParticleSystem>(true))
         {
             if (childIsRideTeam(particles.transform) ||
+                IsAssignedSceneVisual(particles.transform) ||
                 (customContent != null && particles.transform.IsChildOf(customContent)))
                 continue;
             particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
@@ -503,36 +536,72 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return team != null && (candidate == team || candidate.IsChildOf(team));
     }
 
+    private bool IsAssignedSceneVisual(Transform candidate)
+    {
+        if (candidate == null || activeAuthoring == null)
+            return false;
+
+        return IsSameOrChild(candidate, activeAuthoring.CustomRoadVisual) ||
+               IsSameOrChild(candidate, activeAuthoring.CustomTerrainVisual);
+    }
+
+    private static bool IsSameOrChild(Transform candidate, GameObject root)
+    {
+        if (root == null || !root.scene.IsValid())
+            return false;
+        return candidate == root.transform || candidate.IsChildOf(root.transform);
+    }
+
     private void BuildActiveRoute()
     {
         routePoints.Clear();
+        terrainBoundaryPoints.Clear();
+        terrainTriangleIndices.Clear();
         usesEditableTrack = false;
+        usesEditableTerrain = false;
         overridesTrackWidths = false;
-        defaultCurveCount = 0;
 
         activeAuthoring = MushTrackAuthoring.FindFor(transform);
+        if (activeAuthoring != null)
+        {
+            overridesTrackWidths = activeAuthoring.OverridesTrackWidths;
+            authoredRoadHalfWidth = Mathf.Max(0.5f, activeAuthoring.RoadHalfWidth);
+            authoredTerrainHalfWidth = Mathf.Max(activeAuthoring.TerrainHalfWidth, authoredRoadHalfWidth + 4f);
+        }
+
         if (activeAuthoring != null && activeAuthoring.TryBuildSampledRoute(
                 routePoints,
                 out activeCourseLength,
                 out activeSampleSpacing))
         {
             usesEditableTrack = true;
-            overridesTrackWidths = activeAuthoring.OverridesTrackWidths;
-            authoredRoadHalfWidth = Mathf.Max(0.5f, activeAuthoring.RoadHalfWidth);
-            authoredTerrainHalfWidth = Mathf.Max(activeAuthoring.TerrainHalfWidth, authoredRoadHalfWidth + 4f);
         }
         else
         {
-            MushTrackPreset preset = isSharpCurve
-                ? MushTrackPreset.SharpCurve
-                : isSnowfield ? MushTrackPreset.Snowfield : MushTrackPreset.Forest;
-            MushTrackPathUtility.BuildDefaultRoute(preset, routePoints, out defaultCurveCount);
+            MushTrackPathUtility.BuildDefaultRoute(routePoints);
             activeCourseLength = MushTrackPathUtility.DefaultCourseLength;
             activeSampleSpacing = MushTrackPathUtility.DefaultSampleSpacing;
         }
 
         if (routePoints.Count < 2)
             throw new InvalidOperationException("Track generation requires at least two route samples.");
+
+        if (activeAuthoring != null &&
+            activeAuthoring.TryCopyTerrainBoundary(terrainBoundaryPoints))
+        {
+            NormalizeTerrainBoundaryWinding(terrainBoundaryPoints);
+            usesEditableTerrain = TryTriangulateTerrainBoundary(
+                terrainBoundaryPoints,
+                terrainTriangleIndices);
+            if (!usesEditableTerrain)
+            {
+                terrainBoundaryPoints.Clear();
+                terrainTriangleIndices.Clear();
+                Debug.LogWarning(
+                    "[Mush] 편집 지형 경계가 서로 교차하거나 면적이 없습니다. 기본 지형으로 표시합니다.",
+                    this);
+            }
+        }
 
         StartForward = Vector3.ProjectOnPlane(routePoints[1] - routePoints[0], Vector3.up).normalized;
         if (StartForward.sqrMagnitude < 0.0001f)
@@ -551,27 +620,20 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return Mathf.Lerp(routePoints[startIndex].y, routePoints[startIndex + 1].y, routeIndex - startIndex);
     }
 
-    private void BuildCourseMeshes(
-        Material existingSnow = null,
-        Material existingRoad = null,
-        Material existingTrack = null)
+    private void BuildCourseMeshes(Material existingTrack = null)
     {
-        Material snow = activeAuthoring != null && activeAuthoring.TerrainMaterialOverride != null
-            ? activeAuthoring.TerrainMaterialOverride
-            : existingSnow != null
-                ? existingSnow
-            : CreateLitMaterial(
-                "Rebuilt Snow Terrain",
-                isSnowfield ? new Color(0.84f, 0.91f, 0.98f) : new Color(0.77f, 0.87f, 0.94f),
-                0.12f);
-        Material road = activeAuthoring != null && activeAuthoring.RoadMaterialOverride != null
-            ? activeAuthoring.RoadMaterialOverride
-            : existingRoad != null
-                ? existingRoad
-            : CreateLitMaterial(
-                "Rebuilt Packed Snow Road",
-                isSnowfield ? new Color(0.27f, 0.39f, 0.53f) : new Color(0.23f, 0.34f, 0.43f),
-                0.18f);
+        Material snow = CreateCourseMaterial(
+            activeAuthoring != null ? activeAuthoring.TerrainMaterialOverride : null,
+            activeAuthoring != null ? activeAuthoring.TerrainTextureOverride : null,
+            "Rebuilt Default Terrain",
+            new Color(0.78f, 0.88f, 0.96f),
+            0.12f);
+        Material road = CreateCourseMaterial(
+            activeAuthoring != null ? activeAuthoring.RoadMaterialOverride : null,
+            activeAuthoring != null ? activeAuthoring.RoadTextureOverride : null,
+            "Rebuilt Default Road",
+            new Color(0.27f, 0.39f, 0.53f),
+            0.18f);
         Material track = existingTrack != null
             ? existingTrack
             : CreateLitMaterial(
@@ -603,8 +665,14 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         bool hasDeformedRoad = deformedRoadRoot != null &&
                                activeAuthoring != null &&
                                activeAuthoring.UsesDeformableRoadModule;
-        bool hasCustomRoad = activeAuthoring != null && activeAuthoring.HasCustomRoadVisual;
-        bool hasCustomTerrain = activeAuthoring != null && activeAuthoring.HasCustomTerrainVisual;
+        GameObject customRoad = ResolveCustomVisual(
+            activeAuthoring != null ? activeAuthoring.CustomRoadVisual : null,
+            CustomRoadVisualPrefix);
+        GameObject customTerrain = ResolveCustomVisual(
+            activeAuthoring != null ? activeAuthoring.CustomTerrainVisual : null,
+            CustomTerrainVisualPrefix);
+        bool hasCustomRoad = customRoad != null;
+        bool hasCustomTerrain = customTerrain != null;
 
         // 고정형 커스텀 도로가 선택되어 있으면 그 모델만 보여주고,
         // None으로 돌아오면 경로 변형 도로 모듈이 있을 때는 그 도로를 다시 보여줍니다.
@@ -631,9 +699,93 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         // 슬롯을 None으로 바꿨을 때 이전 모델을 숨기는 처리는 Editor 쪽에서 이전 참조를 기억해 처리합니다.
         if (activeAuthoring != null)
         {
-            SetVisualRenderersEnabled(activeAuthoring.CustomRoadVisual, hasCustomRoad);
-            SetVisualRenderersEnabled(activeAuthoring.CustomTerrainVisual, hasCustomTerrain);
+            SetVisualRenderersEnabled(customRoad, hasCustomRoad);
+            SetVisualRenderersEnabled(customTerrain, hasCustomTerrain);
         }
+    }
+
+    private GameObject ResolveCustomVisual(GameObject source, string generatedPrefix)
+    {
+        Transform customContent = transform.Find(CustomSceneContentRootName);
+        if (customContent == null)
+        {
+            GameObject customContentObject = new(CustomSceneContentRootName);
+            customContent = customContentObject.transform;
+            customContent.SetParent(transform, false);
+        }
+
+        if (source != null && source.scene.IsValid())
+        {
+            RemoveGeneratedVisualInstances(customContent, generatedPrefix, null);
+            return source;
+        }
+
+        string expectedName = source != null ? generatedPrefix + source.name : null;
+        GameObject reusable = RemoveGeneratedVisualInstances(customContent, generatedPrefix, expectedName);
+        if (source == null)
+            return null;
+        if (reusable != null)
+            return reusable;
+
+        GameObject instance = Instantiate(source, customContent, false);
+        instance.name = expectedName;
+        return instance;
+    }
+
+    private static GameObject RemoveGeneratedVisualInstances(
+        Transform customContent,
+        string generatedPrefix,
+        string keepName)
+    {
+        GameObject keep = null;
+        for (int index = customContent.childCount - 1; index >= 0; index--)
+        {
+            Transform child = customContent.GetChild(index);
+            if (!child.name.StartsWith(generatedPrefix, StringComparison.Ordinal))
+                continue;
+            if (keep == null && !string.IsNullOrEmpty(keepName) && child.name == keepName)
+            {
+                keep = child.gameObject;
+                continue;
+            }
+
+            if (Application.isPlaying)
+                Destroy(child.gameObject);
+            else
+                DestroyImmediate(child.gameObject);
+        }
+        return keep;
+    }
+
+    private Material CreateCourseMaterial(
+        Material materialOverride,
+        Texture textureOverride,
+        string materialName,
+        Color fallbackColor,
+        float smoothness)
+    {
+        if (materialOverride != null && textureOverride == null)
+            return materialOverride;
+
+        Material material;
+        if (materialOverride != null)
+        {
+            material = new Material(materialOverride) { name = materialName };
+            runtimeMaterials.Add(material);
+        }
+        else
+        {
+            material = CreateLitMaterial(materialName, fallbackColor, smoothness);
+        }
+
+        if (textureOverride != null)
+        {
+            if (material.HasProperty("_BaseMap"))
+                material.SetTexture("_BaseMap", textureOverride);
+            if (material.HasProperty("_MainTex"))
+                material.SetTexture("_MainTex", textureOverride);
+        }
+        return material;
     }
 
     private static void SetVisualRenderersEnabled(Transform visualRoot, bool enabled)
@@ -1221,7 +1373,199 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return mesh;
     }
 
+    private static void NormalizeTerrainBoundaryWinding(List<Vector3> points)
+    {
+        for (int index = points.Count - 1; index >= 0; index--)
+        {
+            int previous = (index - 1 + points.Count) % points.Count;
+            Vector2 point = new(points[index].x, points[index].z);
+            Vector2 previousPoint = new(points[previous].x, points[previous].z);
+            if (points.Count > 3 && (point - previousPoint).sqrMagnitude < 0.0001f)
+                points.RemoveAt(index);
+        }
+
+        float signedAreaTwice = 0f;
+        for (int index = 0; index < points.Count; index++)
+        {
+            Vector3 current = points[index];
+            Vector3 next = points[(index + 1) % points.Count];
+            signedAreaTwice += current.x * next.z - current.z * next.x;
+        }
+
+        // XZ 좌표의 시계 방향 정점은 Unity의 위쪽(+Y) 노멀을 만듭니다.
+        if (signedAreaTwice > 0f)
+            points.Reverse();
+    }
+
+    private static bool TryTriangulateTerrainBoundary(
+        IReadOnlyList<Vector3> points,
+        List<int> triangles)
+    {
+        triangles.Clear();
+        if (points == null || points.Count < 3)
+            return false;
+
+        List<int> remaining = new(points.Count);
+        for (int index = 0; index < points.Count; index++)
+            remaining.Add(index);
+
+        int safety = points.Count * points.Count;
+        while (remaining.Count > 3 && safety-- > 0)
+        {
+            bool clippedEar = false;
+            for (int remainingIndex = 0; remainingIndex < remaining.Count; remainingIndex++)
+            {
+                int previousIndex = remaining[(remainingIndex - 1 + remaining.Count) % remaining.Count];
+                int currentIndex = remaining[remainingIndex];
+                int nextIndex = remaining[(remainingIndex + 1) % remaining.Count];
+                Vector3 previous = points[previousIndex];
+                Vector3 current = points[currentIndex];
+                Vector3 next = points[nextIndex];
+
+                if (CrossXZ(previous, current, next) >= -0.0001f)
+                    continue;
+
+                bool containsOtherPoint = false;
+                for (int testIndex = 0; testIndex < remaining.Count; testIndex++)
+                {
+                    int pointIndex = remaining[testIndex];
+                    if (pointIndex == previousIndex || pointIndex == currentIndex || pointIndex == nextIndex)
+                        continue;
+                    if (!PointInsideTriangleXZ(points[pointIndex], previous, current, next))
+                        continue;
+                    containsOtherPoint = true;
+                    break;
+                }
+                if (containsOtherPoint)
+                    continue;
+
+                triangles.Add(previousIndex);
+                triangles.Add(currentIndex);
+                triangles.Add(nextIndex);
+                remaining.RemoveAt(remainingIndex);
+                clippedEar = true;
+                break;
+            }
+
+            if (!clippedEar)
+            {
+                triangles.Clear();
+                return false;
+            }
+        }
+
+        if (remaining.Count != 3 ||
+            CrossXZ(points[remaining[0]], points[remaining[1]], points[remaining[2]]) >= -0.0001f)
+        {
+            triangles.Clear();
+            return false;
+        }
+
+        triangles.Add(remaining[0]);
+        triangles.Add(remaining[1]);
+        triangles.Add(remaining[2]);
+        return triangles.Count == (points.Count - 2) * 3;
+    }
+
+    private static float CrossXZ(Vector3 a, Vector3 b, Vector3 c)
+    {
+        return (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+    }
+
+    private static bool PointInsideTriangleXZ(Vector3 point, Vector3 a, Vector3 b, Vector3 c)
+    {
+        float ab = CrossXZ(a, b, point);
+        float bc = CrossXZ(b, c, point);
+        float ca = CrossXZ(c, a, point);
+        bool hasNegative = ab < -0.0001f || bc < -0.0001f || ca < -0.0001f;
+        bool hasPositive = ab > 0.0001f || bc > 0.0001f || ca > 0.0001f;
+        return !(hasNegative && hasPositive);
+    }
+
+    private bool TryGetEditableTerrainSurface(
+        Vector2 point,
+        out float height,
+        out Vector3 normal)
+    {
+        height = 0f;
+        normal = Vector3.up;
+        for (int triangleIndex = 0;
+             triangleIndex + 2 < terrainTriangleIndices.Count;
+             triangleIndex += 3)
+        {
+            Vector3 a = terrainBoundaryPoints[terrainTriangleIndices[triangleIndex]];
+            Vector3 b = terrainBoundaryPoints[terrainTriangleIndices[triangleIndex + 1]];
+            Vector3 c = terrainBoundaryPoints[terrainTriangleIndices[triangleIndex + 2]];
+            float denominator = (b.z - c.z) * (a.x - c.x) +
+                                (c.x - b.x) * (a.z - c.z);
+            if (Mathf.Abs(denominator) < 0.000001f)
+                continue;
+
+            float weightA = ((b.z - c.z) * (point.x - c.x) +
+                             (c.x - b.x) * (point.y - c.z)) / denominator;
+            float weightB = ((c.z - a.z) * (point.x - c.x) +
+                             (a.x - c.x) * (point.y - c.z)) / denominator;
+            float weightC = 1f - weightA - weightB;
+            if (weightA < -0.0001f || weightB < -0.0001f || weightC < -0.0001f)
+                continue;
+
+            height = a.y * weightA + b.y * weightB + c.y * weightC;
+            normal = Vector3.Cross(b - a, c - a).normalized;
+            if (normal.y < 0f)
+                normal = -normal;
+            if (normal.sqrMagnitude < 0.0001f)
+                normal = Vector3.up;
+            return true;
+        }
+
+        return false;
+    }
+
+    private float DistanceToEditableTerrainBoundary(Vector2 point)
+    {
+        float nearestSqrDistance = float.PositiveInfinity;
+        for (int index = 0; index < terrainBoundaryPoints.Count; index++)
+        {
+            Vector3 start3 = terrainBoundaryPoints[index];
+            Vector3 end3 = terrainBoundaryPoints[(index + 1) % terrainBoundaryPoints.Count];
+            Vector2 start = new(start3.x, start3.z);
+            Vector2 end = new(end3.x, end3.z);
+            Vector2 segment = end - start;
+            float t = segment.sqrMagnitude > 0.0001f
+                ? Mathf.Clamp01(Vector2.Dot(point - start, segment) / segment.sqrMagnitude)
+                : 0f;
+            nearestSqrDistance = Mathf.Min(
+                nearestSqrDistance,
+                (point - (start + segment * t)).sqrMagnitude);
+        }
+        return Mathf.Sqrt(nearestSqrDistance);
+    }
+
     private Mesh BuildTerrainMesh()
+    {
+        return usesEditableTerrain
+            ? BuildEditableTerrainMesh()
+            : BuildRouteWidthTerrainMesh();
+    }
+
+    private Mesh BuildEditableTerrainMesh()
+    {
+        Vector3[] vertices = terrainBoundaryPoints.ToArray();
+        Vector2[] uv = new Vector2[vertices.Length];
+        for (int index = 0; index < vertices.Length; index++)
+            uv[index] = new Vector2(vertices[index].x * 0.08f, vertices[index].z * 0.08f);
+
+        Mesh mesh = new() { name = "Editable Terrain Boundary" };
+        mesh.indexFormat = IndexFormat.UInt32;
+        mesh.vertices = vertices;
+        mesh.uv = uv;
+        mesh.SetTriangles(terrainTriangleIndices, 0, true);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    private Mesh BuildRouteWidthTerrainMesh()
     {
         const int maxGridAxisVertices = 384;
         float gridSpacing = Mathf.Clamp(activeSampleSpacing * 1.5f, 4f, 8f);
@@ -1375,19 +1719,37 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         TerrainRouteSample nearest = FindNearestTerrainRouteSample(
             proposedPosition.x,
             proposedPosition.z);
-        float maximumRouteDistance = ActiveTerrainHalfWidth - terrainEdgeMargin;
-        if (nearest.DistanceFromRoute < minimumRouteClearance ||
-            nearest.DistanceFromRoute > maximumRouteDistance)
+        if (nearest.DistanceFromRoute < minimumRouteClearance)
         {
             groundedPosition = default;
             return false;
         }
 
         groundedPosition = proposedPosition;
-        groundedPosition.y = TerrainHeight(
-            nearest.DistanceAlongRoute,
-            nearest.SignedLateralDistance,
-            nearest.CenterHeight);
+        if (usesEditableTerrain)
+        {
+            Vector2 query = new(proposedPosition.x, proposedPosition.z);
+            if (DistanceToEditableTerrainBoundary(query) < terrainEdgeMargin ||
+                !TryGetEditableTerrainSurface(query, out float height, out _))
+            {
+                groundedPosition = default;
+                return false;
+            }
+            groundedPosition.y = height;
+        }
+        else
+        {
+            float maximumRouteDistance = ActiveTerrainHalfWidth - terrainEdgeMargin;
+            if (nearest.DistanceFromRoute > maximumRouteDistance)
+            {
+                groundedPosition = default;
+                return false;
+            }
+            groundedPosition.y = TerrainHeight(
+                nearest.DistanceAlongRoute,
+                nearest.SignedLateralDistance,
+                nearest.CenterHeight);
+        }
         return true;
     }
 
