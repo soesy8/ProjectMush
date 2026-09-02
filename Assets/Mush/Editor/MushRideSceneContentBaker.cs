@@ -8,7 +8,6 @@ using UnityEngine.SceneManagement;
 /// The runtime bootstrap keeps input and animation responsibilities, while
 /// the visible hierarchy remains ordinary, editable scene content.
 /// </summary>
-[InitializeOnLoad]
 public static class MushRideSceneContentBaker
 {
     private static readonly string[] GameplayScenePaths =
@@ -18,41 +17,9 @@ public static class MushRideSceneContentBaker
         "Assets/Scenes/SharpCurve.unity",
     };
 
-    private static bool queued;
-
-    static MushRideSceneContentBaker()
-    {
-        EditorApplication.delayCall += BakeMissingTeams;
-        EditorApplication.playModeStateChanged += state =>
-        {
-            if (state == PlayModeStateChange.EnteredEditMode)
-                EditorApplication.delayCall += BakeMissingTeams;
-        };
-    }
-
-    [MenuItem("Mush/Maps/Bake Sled And Dogs Into Gameplay Scenes")]
-    public static void BakeFromMenu()
-    {
-        BakeAll(true);
-    }
-
     public static void BakeFromCommandLine()
     {
         BakeAll(false);
-    }
-
-    private static void BakeMissingTeams()
-    {
-        if (queued || EditorApplication.isCompiling || EditorApplication.isUpdating ||
-            EditorApplication.isPlayingOrWillChangePlaymode)
-            return;
-
-        queued = true;
-        EditorApplication.delayCall += () =>
-        {
-            queued = false;
-            BakeAll(false);
-        };
     }
 
     private static void BakeAll(bool restorePreviousScene)
@@ -62,6 +29,7 @@ public static class MushRideSceneContentBaker
             return;
 
         Scene previousScene = SceneManager.GetActiveScene();
+        int bakedSceneCount = 0;
 
         try
         {
@@ -101,6 +69,7 @@ public static class MushRideSceneContentBaker
                 EditorUtility.SetDirty(bootstrap);
                 EditorSceneManager.MarkSceneDirty(scene);
                 EditorSceneManager.SaveScene(scene);
+                bakedSceneCount++;
                 if (opened && scene != previousScene)
                     EditorSceneManager.CloseScene(scene, true);
             }
@@ -112,7 +81,8 @@ public static class MushRideSceneContentBaker
             AssetDatabase.SaveAssets();
         }
 
-        Debug.Log("[Mush] Sled and dog teams are now saved in the gameplay scenes.");
+        if (bakedSceneCount > 0)
+            Debug.Log($"[Mush] Saved sled and dog teams in {bakedSceneCount} gameplay scene(s).");
     }
 
     private static MushMapRideBootstrap FindBootstrap(Scene scene)

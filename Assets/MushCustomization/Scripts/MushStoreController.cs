@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Mush.Quest;
+using Mush.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -46,9 +47,7 @@ namespace Mush.Customization
         {
             catalog = MushCustomizationCatalog.Load();
             workingState = MushCustomizationSave.Load().Clone();
-            font = catalog != null && catalog.koreanFont != null
-                ? catalog.koreanFont
-                : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = catalog != null ? catalog.koreanFont : null;
 
             BuildPreviewStage();
             BuildInterface();
@@ -515,6 +514,10 @@ namespace Mush.Customization
 
         private static Image CreatePanel(Transform parent, string objectName, Vector2 position, Vector2 size, Color color)
         {
+            Image themedPanel = MushUiPanelSkin.CreateCanvasPanel(parent, objectName, position, size);
+            if (themedPanel != null)
+                return themedPanel;
+
             GameObject panel = new(objectName);
             RectTransform rect = panel.AddComponent<RectTransform>();
             rect.SetParent(parent, false);

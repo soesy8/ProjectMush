@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Mush.Quest;
+using Mush.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -42,9 +43,7 @@ namespace Mush.Customization
             workingState = MushCustomizationSave.Load().Clone();
             workingState.Normalize(); // 구형 저장값을 먼저 현재 세 슬롯 구조로 정리한 뒤 탭의 초기 선택 모델을 찾는다.
             selectedItemId = FindDefaultSelectedItem(selectedPlacementIndex); // 현재 장착 모델이 있으면 그 모델, 없으면 첫 보유 모델을 카드 선택 상태로 둔다.
-            font = catalog != null && catalog.koreanFont != null
-                ? catalog.koreanFont
-                : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = catalog != null ? catalog.koreanFont : null;
 
             BuildLobbyPreview();
             BuildInterface();
@@ -537,6 +536,10 @@ namespace Mush.Customization
             Vector2 size,
             Color color)
         {
+            Image themedPanel = MushUiPanelSkin.CreateCanvasPanel(parent, objectName, position, size);
+            if (themedPanel != null)
+                return themedPanel;
+
             GameObject panel = new(objectName);
             RectTransform rect = panel.AddComponent<RectTransform>();
             rect.SetParent(parent, false);

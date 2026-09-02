@@ -17,7 +17,14 @@ public sealed class MushTrackAuthoringEditor : Editor
     private SerializedProperty overrideTrackWidthsProperty;
     private SerializedProperty roadHalfWidthProperty;
     private SerializedProperty terrainHalfWidthProperty;
+    private SerializedProperty deformableRoadModuleProperty;
+    private SerializedProperty useDeformableRoadModuleProperty;
+    private SerializedProperty customRoadVisualProperty;
+    private SerializedProperty customTerrainVisualProperty;
+    private SerializedProperty roadMaterialOverrideProperty;
+    private SerializedProperty terrainMaterialOverrideProperty;
     private int selectedPoint = -1;
+    private bool editMode;
 
     private void OnEnable()
     {
@@ -28,6 +35,13 @@ public sealed class MushTrackAuthoringEditor : Editor
         overrideTrackWidthsProperty = serializedObject.FindProperty("overrideTrackWidths");
         roadHalfWidthProperty = serializedObject.FindProperty("roadHalfWidth");
         terrainHalfWidthProperty = serializedObject.FindProperty("terrainHalfWidth");
+        deformableRoadModuleProperty = serializedObject.FindProperty("deformableRoadModule");
+        useDeformableRoadModuleProperty = serializedObject.FindProperty("useDeformableRoadModule");
+        customRoadVisualProperty = serializedObject.FindProperty("customRoadVisual");
+        customTerrainVisualProperty = serializedObject.FindProperty("customTerrainVisual");
+        roadMaterialOverrideProperty = serializedObject.FindProperty("roadMaterialOverride");
+        terrainMaterialOverrideProperty = serializedObject.FindProperty("terrainMaterialOverride");
+        editMode = true;
     }
 
     public override void OnInspectorGUI()
@@ -36,7 +50,7 @@ public sealed class MushTrackAuthoringEditor : Editor
         serializedObject.Update();
 
         EditorGUILayout.HelpBox(
-            "도로·지형·나무·산은 미리보기가 아니라 씬에 저장된 실제 게임 오브젝트입니다. 위치·회전·크기와 자식 구성을 직접 편집할 수 있고, 플레이 모드는 이 계층을 다시 만들지 않고 그대로 사용합니다. 새 모델은 'SCENE CONTENT - Add Models Here' 아래에 두면 트랙 재생성 후에도 보존됩니다.",
+            "포인트 편집 중에는 도로·지형만 갱신되고 나무·바위 같은 주변 오브젝트는 움직이지 않습니다. 주변 오브젝트를 현재 경로에 다시 맞추려면 아래의 별도 버튼을 사용해 주세요. 새 모델은 'SCENE CONTENT - Add Models Here' 아래에 두면 항상 보존됩니다.",
             MessageType.Info);
         EditorGUILayout.PropertyField(presetProperty, new GUIContent("기본 트랙 종류"));
         EditorGUILayout.PropertyField(targetMapRootNameProperty, new GUIContent("대상 맵 루트 이름"));
@@ -51,6 +65,62 @@ public sealed class MushTrackAuthoringEditor : Editor
         }
 
         EditorGUILayout.Space(8f);
+        EditorGUILayout.LabelField("최종 도로·지형 모델", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(
+            useDeformableRoadModuleProperty,
+            new GUIContent("경로 변형 도로 모델 사용"));
+        EditorGUILayout.PropertyField(
+            deformableRoadModuleProperty,
+            new GUIContent("경로 변형 도로 모듈 (FBX/Prefab)"));
+        if (!useDeformableRoadModuleProperty.boolValue)
+        {
+            EditorGUILayout.HelpBox(
+                "현재는 원래의 매끈한 스크립트 생성 도로가 기본으로 표시됩니다. 위 옵션을 켰을 때만 연결된 FBX/Prefab 도로가 경로를 따라 변형되어 표시됩니다.",
+                MessageType.None);
+        }
+
+        // 슬롯을 바꾸기 직전의 씬 오브젝트를 기억합니다.
+        // SerializedProperty는 Inspector에서 값을 바꾸는 즉시 새 참조를 갖기 때문에, 이전 참조를 먼저 보관해야 None/교체 시 옛 모델을 숨길 수 있습니다.
+        GameObject previousRoadVisual = customRoadVisualProperty.objectReferenceValue as GameObject;
+        GameObject previousTerrainVisual = customTerrainVisualProperty.objectReferenceValue as GameObject;
+
+        EditorGUILayout.PropertyField(
+            customRoadVisualProperty,
+            new GUIContent("도로 모델 오브젝트 (씬)"));
+        EditorGUILayout.PropertyField(
+            customTerrainVisualProperty,
+            new GUIContent("지형 모델 오브젝트 (씬)"));
+
+        // Inspector에 현재 표시된 새 참조를 읽습니다. 이 값은 아직 ApplyModifiedProperties 전이어도 SerializedProperty 안에는 반영되어 있습니다.
+        GameObject currentRoadVisual = customRoadVisualProperty.objectReferenceValue as GameObject;
+        GameObject currentTerrainVisual = customTerrainVisualProperty.objectReferenceValue as GameObject;
+        bool sceneVisualAssignmentChanged =
+            previousRoadVisual != currentRoadVisual || previousTerrainVisual != currentTerrainVisual;
+        EditorGUILayout.PropertyField(
+            roadMaterialOverrideProperty,
+            new GUIContent("임시 도로 재질 교체"));
+        EditorGUILayout.PropertyField(
+            terrainMaterialOverrideProperty,
+            new GUIContent("임시 지형 재질 교체"));
+        EditorGUILayout.HelpBox(
+            "10m 도로 모듈은 '경로 변형 도로 모듈'에 프로젝트의 FBX/Prefab 원본을 연결하면 트랙을 따라 자동으로 휘어집니다. 별도로 완성한 고정형 모델은 씬의 'SCENE CONTENT - Add Models Here' 아래에 배치하고 도로/지형 모델 오브젝트 슬롯에 연결합니다. 임시 메시의 Collider와 트랙 경로는 게임 판정을 위해 유지됩니다.",
+            MessageType.None);
+        DrawSceneVisualWarning(customRoadVisualProperty, "도로");
+        DrawSceneVisualWarning(customTerrainVisualProperty, "지형");
+
+        EditorGUILayout.Space(8f);
+        if (GUILayout.Button(editMode ? "경로 편집 종료 (Esc)" : "경로 편집 시작"))
+        {
+            editMode = !editMode;
+            SceneView.RepaintAll();
+        }
+        if (editMode)
+        {
+            EditorGUILayout.HelpBox(
+                "편집 중에는 메시를 클릭해도 선택이 풀리지 않습니다. 청록색 선 위에서 Shift+클릭하면 포인트가 추가되고, 선택한 포인트는 Delete 키로 삭제됩니다.",
+                MessageType.None);
+        }
+
         bool wasEditable = useEditablePathProperty.boolValue;
         EditorGUILayout.LabelField("경로 상태", wasEditable ? $"편집 경로 ({authoring.ControlPointCount}개 포인트)" : "기본 프로토타입 경로");
 
@@ -155,10 +225,97 @@ public sealed class MushTrackAuthoringEditor : Editor
             EditorGUILayout.HelpBox(
                 "씬 뷰의 원형 포인트를 선택해 위치와 높이를 조정합니다. 기본 경로의 연두색 포인트를 처음 움직이면 편집 경로로 자동 변환됩니다.",
                 MessageType.None);
+            if (GUILayout.Button("주변 오브젝트를 현재 경로에 다시 배치"))
+            {
+                serializedObject.ApplyModifiedProperties();
+                MushTrackEditorWorldPreview.RebuildFullWorld(authoring);
+                serializedObject.Update();
+            }
         }
 
-        if (serializedObject.ApplyModifiedProperties())
+        bool propertiesChanged = serializedObject.ApplyModifiedProperties();
+
+        // 도로/지형 씬 모델 슬롯을 다른 오브젝트로 바꾸거나 None으로 되돌렸다면,
+        // 이전 슬롯 모델은 즉시 숨기고 새 슬롯 모델은 즉시 보이게 합니다.
+        // 이렇게 해야 None이 단순히 참조만 끊는 것이 아니라 실제 화면도 기본 생성 도로/지형으로 돌아옵니다.
+        if (sceneVisualAssignmentChanged)
+        {
+            ApplySceneVisualAssignmentChange(
+                previousRoadVisual,
+                previousTerrainVisual,
+                currentRoadVisual,
+                currentTerrainVisual);
+        }
+
+        // 슬롯 변경을 포함한 Inspector 값 변경이 있으면 생성 도로/지형의 표시 여부까지 다시 계산합니다.
+        if (propertiesChanged)
             MushTrackEditorWorldPreview.RequestRebuild(authoring);
+    }
+
+
+    private static void ApplySceneVisualAssignmentChange(
+        GameObject previousRoadVisual,
+        GameObject previousTerrainVisual,
+        GameObject currentRoadVisual,
+        GameObject currentTerrainVisual)
+    {
+        // 예전에 도로 슬롯에 있던 오브젝트가 이제 어느 슬롯에서도 사용되지 않는다면 화면에서 숨깁니다.
+        if (previousRoadVisual != null &&
+            previousRoadVisual != currentRoadVisual &&
+            previousRoadVisual != currentTerrainVisual)
+        {
+            SetSceneVisualRenderersEnabled(previousRoadVisual, false);
+        }
+
+        // 예전에 지형 슬롯에 있던 오브젝트도 새 도로/지형 슬롯에서 재사용되지 않을 때만 숨깁니다.
+        if (previousTerrainVisual != null &&
+            previousTerrainVisual != previousRoadVisual &&
+            previousTerrainVisual != currentRoadVisual &&
+            previousTerrainVisual != currentTerrainVisual)
+        {
+            SetSceneVisualRenderersEnabled(previousTerrainVisual, false);
+        }
+
+        // 새로 지정한 도로 모델은 즉시 보이게 해서 모델을 교체하며 비교할 수 있게 합니다.
+        if (currentRoadVisual != null)
+            SetSceneVisualRenderersEnabled(currentRoadVisual, true);
+
+        // 새로 지정한 지형 모델도 즉시 보이게 합니다.
+        if (currentTerrainVisual != null && currentTerrainVisual != currentRoadVisual)
+            SetSceneVisualRenderersEnabled(currentTerrainVisual, true);
+    }
+
+    private static void SetSceneVisualRenderersEnabled(GameObject root, bool enabled)
+    {
+        if (root == null || !root.scene.IsValid())
+            return;
+
+        // 자식까지 포함한 모든 Renderer를 바꿔 FBX/Prefab을 여러 Mesh로 구성해도 한 번에 숨기거나 복구합니다.
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length > 0)
+        {
+            Undo.RecordObjects(renderers, enabled ? "Show Mush Scene Visual" : "Hide Mush Scene Visual");
+            for (int index = 0; index < renderers.Length; index++)
+            {
+                renderers[index].enabled = enabled;
+                EditorUtility.SetDirty(renderers[index]);
+            }
+        }
+
+        // Unity Terrain을 슬롯에 넣은 경우도 같은 방식으로 표시 상태를 맞춥니다.
+        Terrain[] terrains = root.GetComponentsInChildren<Terrain>(true);
+        if (terrains.Length > 0)
+        {
+            Undo.RecordObjects(terrains, enabled ? "Show Mush Scene Terrain" : "Hide Mush Scene Terrain");
+            for (int index = 0; index < terrains.Length; index++)
+            {
+                terrains[index].enabled = enabled;
+                EditorUtility.SetDirty(terrains[index]);
+            }
+        }
+
+        EditorSceneManager.MarkSceneDirty(root.scene);
+        SceneView.RepaintAll();
     }
 
     private void OnSceneGUI()
@@ -172,18 +329,92 @@ public sealed class MushTrackAuthoringEditor : Editor
         if (previewControlPoints.Count < 2)
             return;
 
-        Handles.zTest = CompareFunction.LessEqual;
+        Handles.zTest = CompareFunction.Always;
         authoring.CopyPreviewRoute(previewRoute);
         Vector3[] worldRoute = new Vector3[previewRoute.Count];
+        Vector3[] worldLeftRoadEdge = new Vector3[previewRoute.Count];
+        Vector3[] worldRightRoadEdge = new Vector3[previewRoute.Count];
         for (int index = 0; index < previewRoute.Count; index++)
+        {
+            int previous = Mathf.Max(0, index - 1);
+            int next = Mathf.Min(previewRoute.Count - 1, index + 1);
+            Vector3 tangent = Vector3.ProjectOnPlane(
+                previewRoute[next] - previewRoute[previous],
+                Vector3.up).normalized;
+            if (tangent.sqrMagnitude < 0.0001f)
+                tangent = Vector3.back;
+            Vector3 right = Vector3.Cross(Vector3.up, tangent).normalized;
+            Vector3 liftedPoint = previewRoute[index] + Vector3.up * 0.16f;
             worldRoute[index] = mapRoot.TransformPoint(previewRoute[index] + Vector3.up * 0.16f);
+            worldLeftRoadEdge[index] = mapRoot.TransformPoint(
+                liftedPoint - right * authoring.PreviewRoadHalfWidth);
+            worldRightRoadEdge[index] = mapRoot.TransformPoint(
+                liftedPoint + right * authoring.PreviewRoadHalfWidth);
+        }
         Handles.color = new Color(0.15f, 0.9f, 1f, 0.75f);
         Handles.DrawAAPolyLine(2.5f, worldRoute);
+        Handles.color = new Color(0.15f, 0.9f, 1f, 0.48f);
+        Handles.DrawAAPolyLine(2f, worldLeftRoadEdge);
+        Handles.DrawAAPolyLine(2f, worldRightRoadEdge);
+
+        if (!editMode)
+            return;
+
+        Event currentEvent = Event.current;
+        int sceneEditControl = GUIUtility.GetControlID(
+            "MushTrackAuthoringSceneEdit".GetHashCode(),
+            FocusType.Passive);
+        if (currentEvent.type == EventType.Layout && !currentEvent.alt)
+            HandleUtility.AddDefaultControl(sceneEditControl);
+
+        Handles.BeginGUI();
+        GUI.Label(
+            new Rect(12f, 12f, 430f, 42f),
+            "트랙 편집 중 · Shift+클릭: 추가 · Delete: 삭제 · 놓으면 도로 반영 · Esc: 종료",
+            EditorStyles.helpBox);
+        Handles.EndGUI();
+
+        if (currentEvent.type == EventType.KeyDown && currentEvent.keyCode == KeyCode.Escape)
+        {
+            editMode = false;
+            currentEvent.Use();
+            Repaint();
+            SceneView.RepaintAll();
+            return;
+        }
+
+        if (currentEvent.type == EventType.KeyDown &&
+            (currentEvent.keyCode == KeyCode.Delete || currentEvent.keyCode == KeyCode.Backspace) &&
+            selectedPoint >= 0 && authoring.ControlPointCount > 2)
+        {
+            Undo.RecordObject(authoring, "Delete Mush Track Point");
+            selectedPoint = authoring.RemoveControlPoint(selectedPoint);
+            EditorUtility.SetDirty(authoring);
+            MushTrackEditorWorldPreview.RequestRebuild(authoring);
+            currentEvent.Use();
+            return;
+        }
+
+        if (currentEvent.type == EventType.MouseDown && currentEvent.button == 0 &&
+            currentEvent.shift && !currentEvent.alt &&
+            TryGetPointInsertion(mapRoot, currentEvent.mousePosition, out int segmentIndex, out Vector3 localPoint))
+        {
+            Undo.RecordObject(authoring, "Add Mush Track Point");
+            if (!authoring.UsesEditablePath)
+                authoring.BakeDefaultPath();
+            selectedPoint = authoring.InsertControlPointAfter(segmentIndex);
+            authoring.SetControlPoint(selectedPoint, localPoint);
+            EditorUtility.SetDirty(authoring);
+            MushTrackEditorWorldPreview.RequestRebuild(authoring);
+            currentEvent.Use();
+            Repaint();
+            return;
+        }
 
         for (int index = 0; index < previewControlPoints.Count; index++)
         {
             Vector3 worldPoint = mapRoot.TransformPoint(previewControlPoints[index]);
-            float size = HandleUtility.GetHandleSize(worldPoint) * 0.055f;
+            float size = HandleUtility.GetHandleSize(worldPoint) * 0.075f;
             Handles.color = index == selectedPoint
                 ? new Color(1f, 0.72f, 0.12f)
                 : authoring.UsesEditablePath ? new Color(0.15f, 0.9f, 1f) : new Color(0.35f, 0.95f, 0.65f);
@@ -213,12 +444,74 @@ public sealed class MushTrackAuthoringEditor : Editor
         MushTrackEditorWorldPreview.RequestRebuild(authoring);
     }
 
+    private bool TryGetPointInsertion(
+        Transform mapRoot,
+        Vector2 mousePosition,
+        out int segmentIndex,
+        out Vector3 localPoint)
+    {
+        const float maximumDistancePixels = 24f;
+        segmentIndex = -1;
+        localPoint = default;
+        float nearestDistance = float.PositiveInfinity;
+
+        for (int index = 0; index < previewRoute.Count - 1; index++)
+        {
+            Vector2 start = HandleUtility.WorldToGUIPoint(mapRoot.TransformPoint(previewRoute[index]));
+            Vector2 end = HandleUtility.WorldToGUIPoint(mapRoot.TransformPoint(previewRoute[index + 1]));
+            Vector2 segment = end - start;
+            float segmentLengthSqr = segment.sqrMagnitude;
+            float t = segmentLengthSqr > 0.001f
+                ? Mathf.Clamp01(Vector2.Dot(mousePosition - start, segment) / segmentLengthSqr)
+                : 0f;
+            float distance = Vector2.Distance(mousePosition, start + segment * t);
+            if (distance >= nearestDistance)
+                continue;
+
+            nearestDistance = distance;
+            localPoint = Vector3.Lerp(previewRoute[index], previewRoute[index + 1], t);
+        }
+
+        if (nearestDistance > maximumDistancePixels)
+            return false;
+
+        float nearestControlDistanceSqr = float.PositiveInfinity;
+        for (int index = 0; index < previewControlPoints.Count - 1; index++)
+        {
+            Vector3 start = previewControlPoints[index];
+            Vector3 segment = previewControlPoints[index + 1] - start;
+            float segmentLengthSqr = segment.sqrMagnitude;
+            float t = segmentLengthSqr > 0.0001f
+                ? Mathf.Clamp01(Vector3.Dot(localPoint - start, segment) / segmentLengthSqr)
+                : 0f;
+            float distanceSqr = (localPoint - (start + segment * t)).sqrMagnitude;
+            if (distanceSqr >= nearestControlDistanceSqr)
+                continue;
+
+            nearestControlDistanceSqr = distanceSqr;
+            segmentIndex = index;
+        }
+
+        return segmentIndex >= 0;
+    }
+
     private static float CalculateLength(IReadOnlyList<Vector3> points)
     {
         float length = 0f;
         for (int index = 1; index < points.Count; index++)
             length += Vector3.Distance(points[index - 1], points[index]);
         return length;
+    }
+
+    private static void DrawSceneVisualWarning(SerializedProperty property, string label)
+    {
+        GameObject assignedObject = property.objectReferenceValue as GameObject;
+        if (assignedObject != null && !assignedObject.scene.IsValid())
+        {
+            EditorGUILayout.HelpBox(
+                $"{label} 슬롯에는 프로젝트의 Prefab/FBX 원본이 아니라 씬에 배치한 인스턴스를 연결해 주세요.",
+                MessageType.Warning);
+        }
     }
 }
 
@@ -238,10 +531,7 @@ public static class MushTrackEditorWorldPreview
 
     static MushTrackEditorWorldPreview()
     {
-        EditorSceneManager.sceneOpened += HandleSceneOpened;
-        EditorApplication.playModeStateChanged += HandlePlayModeStateChanged;
-        EditorApplication.delayCall += RebuildAllOpenScenePreviews;
-        EditorApplication.delayCall += BakeMissingProjectMaps;
+        Undo.undoRedoPerformed += HandleUndoRedo;
     }
 
     public static void RequestRebuild(MushTrackAuthoring authoring)
@@ -261,6 +551,30 @@ public static class MushTrackEditorWorldPreview
     {
         if (state == PlayModeStateChange.EnteredEditMode)
             EditorApplication.delayCall += RebuildAllOpenScenePreviews;
+    }
+
+    private static void HandleUndoRedo()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+            return;
+
+        MushTrackAuthoring[] tracks = Object.FindObjectsByType<MushTrackAuthoring>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        for (int index = 0; index < tracks.Length; index++)
+            RequestRebuild(tracks[index]);
+    }
+
+    private static void RefreshAllOpenSceneCourses()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+            return;
+
+        MushTrackAuthoring[] tracks = Object.FindObjectsByType<MushTrackAuthoring>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        for (int index = 0; index < tracks.Length; index++)
+            RequestRebuild(tracks[index]);
     }
 
     private static void SchedulePendingRebuild()
@@ -289,7 +603,7 @@ public static class MushTrackEditorWorldPreview
         {
             MushTrackAuthoring authoring = tracks[index];
             if (authoring != null)
-                RebuildSceneWorld(authoring, false);
+                RebuildSceneCourse(authoring, false);
         }
     }
 
@@ -305,7 +619,7 @@ public static class MushTrackEditorWorldPreview
         {
             MushTrackAuthoring authoring = tracks[index];
             Transform mapRoot = authoring != null ? authoring.ResolveMapRoot() : null;
-            if (mapRoot != null && mapRoot.Find(MushCurvedMapRuntime.GeneratedWorldRootName) == null)
+            if (mapRoot != null && GeneratedWorldNeedsBake(mapRoot))
                 RebuildSceneWorld(authoring, true);
         }
     }
@@ -329,8 +643,7 @@ public static class MushTrackEditorWorldPreview
 
             MushTrackAuthoring authoring = FindTrackInScene(scene);
             Transform mapRoot = authoring != null ? authoring.ResolveMapRoot() : null;
-            if (authoring != null && mapRoot != null &&
-                mapRoot.Find(MushCurvedMapRuntime.GeneratedWorldRootName) == null)
+            if (authoring != null && mapRoot != null && GeneratedWorldNeedsBake(mapRoot))
             {
                 SceneManager.SetActiveScene(scene);
                 RebuildSceneWorld(authoring, true);
@@ -359,6 +672,12 @@ public static class MushTrackEditorWorldPreview
             return;
         }
 
+        RebuildSceneWorld(authoring, true);
+        AssetDatabase.SaveAssets();
+    }
+
+    public static void RebuildFullWorld(MushTrackAuthoring authoring)
+    {
         RebuildSceneWorld(authoring, true);
         AssetDatabase.SaveAssets();
     }
@@ -404,6 +723,43 @@ public static class MushTrackEditorWorldPreview
         return null;
     }
 
+    private static bool GeneratedWorldNeedsBake(Transform mapRoot)
+    {
+        Transform generatedRoot = mapRoot.Find(MushCurvedMapRuntime.GeneratedWorldRootName);
+        if (generatedRoot == null)
+            return true;
+
+        MushCurvedMapRuntime runtime = mapRoot.GetComponent<MushCurvedMapRuntime>();
+        if (runtime == null || !runtime.HasCurrentBakedWorldVersion)
+            return true;
+
+        foreach (MeshFilter filter in generatedRoot.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter.sharedMesh == null)
+                return true;
+        }
+
+        foreach (MeshCollider collider in generatedRoot.GetComponentsInChildren<MeshCollider>(true))
+        {
+            if (collider.sharedMesh == null)
+                return true;
+        }
+
+        foreach (Renderer renderer in generatedRoot.GetComponentsInChildren<Renderer>(true))
+        {
+            Material[] materials = renderer.sharedMaterials;
+            if (materials.Length == 0)
+                return true;
+            for (int materialIndex = 0; materialIndex < materials.Length; materialIndex++)
+            {
+                if (materials[materialIndex] == null)
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
     private static void RebuildSceneWorld(MushTrackAuthoring authoring, bool saveScene)
     {
         if (rebuilding || authoring == null || EditorApplication.isPlayingOrWillChangePlaymode)
@@ -438,6 +794,40 @@ public static class MushTrackEditorWorldPreview
         SceneView.RepaintAll();
     }
 
+    private static void RebuildSceneCourse(MushTrackAuthoring authoring, bool saveScene)
+    {
+        if (rebuilding || authoring == null || EditorApplication.isPlayingOrWillChangePlaymode)
+            return;
+
+        Transform mapRoot = authoring.ResolveMapRoot();
+        if (mapRoot == null)
+            return;
+
+        rebuilding = true;
+        try
+        {
+            MushCurvedMapRuntime runtime = mapRoot.GetComponent<MushCurvedMapRuntime>();
+            if (runtime == null)
+                runtime = Undo.AddComponent<MushCurvedMapRuntime>(mapRoot.gameObject);
+
+            runtime.RebuildSceneCourseGeometry();
+            Transform generatedRoot = mapRoot.Find(MushCurvedMapRuntime.GeneratedWorldRootName);
+            if (generatedRoot == null)
+                throw new MissingReferenceException($"Baked world root was not found for {mapRoot.name}.");
+
+            PersistGeneratedResources(runtime, generatedRoot, authoring.gameObject.scene.name);
+            EditorUtility.SetDirty(runtime);
+            EditorSceneManager.MarkSceneDirty(authoring.gameObject.scene);
+            if (saveScene)
+                EditorSceneManager.SaveScene(authoring.gameObject.scene);
+        }
+        finally
+        {
+            rebuilding = false;
+        }
+        SceneView.RepaintAll();
+    }
+
     private static void PersistGeneratedResources(
         MushCurvedMapRuntime runtime,
         Transform generatedRoot,
@@ -445,42 +835,163 @@ public static class MushTrackEditorWorldPreview
     {
         EnsureGeneratedAssetFolder();
         string assetPath = $"{GeneratedAssetFolder}/{sceneName}_BakedMapAssets.asset";
-        AssetDatabase.DeleteAsset(assetPath);
+        MushBakedMapAssetContainer container =
+            AssetDatabase.LoadAssetAtPath<MushBakedMapAssetContainer>(assetPath);
+        if (container == null)
+        {
+            container = ScriptableObject.CreateInstance<MushBakedMapAssetContainer>();
+            container.name = $"{sceneName} Baked Map Assets";
+            AssetDatabase.CreateAsset(container, assetPath);
+        }
 
-        MushBakedMapAssetContainer container = ScriptableObject.CreateInstance<MushBakedMapAssetContainer>();
-        container.name = $"{sceneName} Baked Map Assets";
-        AssetDatabase.CreateAsset(container, assetPath);
-
-        HashSet<Object> resources = new();
+        Object[] existingResources = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+        List<Object> resources = new();
+        HashSet<Object> uniqueResources = new();
         foreach (MeshFilter filter in generatedRoot.GetComponentsInChildren<MeshFilter>(true))
         {
-            if (filter.sharedMesh != null && !EditorUtility.IsPersistent(filter.sharedMesh))
-                resources.Add(filter.sharedMesh);
+            AddGeneratedResource(filter.sharedMesh, resources, uniqueResources);
         }
         foreach (MeshCollider collider in generatedRoot.GetComponentsInChildren<MeshCollider>(true))
         {
-            if (collider.sharedMesh != null && !EditorUtility.IsPersistent(collider.sharedMesh))
-                resources.Add(collider.sharedMesh);
+            AddGeneratedResource(collider.sharedMesh, resources, uniqueResources);
         }
         foreach (Renderer renderer in generatedRoot.GetComponentsInChildren<Renderer>(true))
         foreach (Material material in renderer.sharedMaterials)
         {
-            if (material != null && !EditorUtility.IsPersistent(material))
-                resources.Add(material);
+            AddGeneratedResource(material, resources, uniqueResources);
         }
-        if (RenderSettings.skybox != null && !EditorUtility.IsPersistent(RenderSettings.skybox))
-            resources.Add(RenderSettings.skybox);
+        AddGeneratedResource(RenderSettings.skybox, resources, uniqueResources);
 
-        int resourceIndex = 0;
-        foreach (Object resource in resources)
+        for (int resourceIndex = 0; resourceIndex < resources.Count; resourceIndex++)
         {
-            resource.name = $"{resourceIndex++:D3}_{resource.name}";
-            AssetDatabase.AddObjectToAsset(resource, container);
+            Object generatedResource = resources[resourceIndex];
+            string stablePrefix = $"{resourceIndex:D3}_";
+            string stableName = stablePrefix + generatedResource.name;
+            Object reusableResource = FindReusableResource(
+                existingResources,
+                stablePrefix,
+                generatedResource.GetType());
+
+            if (reusableResource != null)
+            {
+                if (generatedResource is Mesh generatedMesh && reusableResource is Mesh reusableMesh)
+                    CopyGeneratedMesh(generatedMesh, reusableMesh);
+                else
+                    EditorUtility.CopySerialized(generatedResource, reusableResource);
+                reusableResource.name = stableName;
+                ReplaceGeneratedResourceReferences(generatedRoot, generatedResource, reusableResource);
+                EditorUtility.SetDirty(reusableResource);
+                Object.DestroyImmediate(generatedResource);
+                continue;
+            }
+
+            generatedResource.name = stableName;
+            AssetDatabase.AddObjectToAsset(generatedResource, container);
+            EditorUtility.SetDirty(generatedResource);
         }
 
+        EditorUtility.SetDirty(container);
         AssetDatabase.SaveAssets();
         AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
         runtime.ReleaseBakedResourceOwnership();
+    }
+
+    private static void CopyGeneratedMesh(Mesh source, Mesh destination)
+    {
+        destination.Clear(false);
+        destination.indexFormat = source.indexFormat;
+        destination.vertices = source.vertices;
+        destination.normals = source.normals;
+        destination.tangents = source.tangents;
+        destination.colors = source.colors;
+
+        List<Vector4> uvChannel = new();
+        for (int channel = 0; channel < 8; channel++)
+        {
+            uvChannel.Clear();
+            source.GetUVs(channel, uvChannel);
+            destination.SetUVs(channel, uvChannel);
+        }
+
+        destination.subMeshCount = source.subMeshCount;
+        for (int subMesh = 0; subMesh < source.subMeshCount; subMesh++)
+        {
+            destination.SetIndices(
+                source.GetIndices(subMesh, true),
+                source.GetTopology(subMesh),
+                subMesh,
+                false,
+                0);
+        }
+
+        destination.bounds = source.bounds;
+        destination.UploadMeshData(false);
+    }
+
+    private static void AddGeneratedResource(
+        Object resource,
+        List<Object> resources,
+        HashSet<Object> uniqueResources)
+    {
+        if (resource != null && !EditorUtility.IsPersistent(resource) && uniqueResources.Add(resource))
+            resources.Add(resource);
+    }
+
+    private static Object FindReusableResource(
+        Object[] existingResources,
+        string stablePrefix,
+        System.Type resourceType)
+    {
+        for (int index = 0; index < existingResources.Length; index++)
+        {
+            Object candidate = existingResources[index];
+            if (candidate != null && candidate.GetType() == resourceType &&
+                candidate.name.StartsWith(stablePrefix))
+                return candidate;
+        }
+        return null;
+    }
+
+    private static void ReplaceGeneratedResourceReferences(
+        Transform generatedRoot,
+        Object source,
+        Object replacement)
+    {
+        if (source is Mesh sourceMesh && replacement is Mesh replacementMesh)
+        {
+            foreach (MeshFilter filter in generatedRoot.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (filter.sharedMesh == sourceMesh)
+                    filter.sharedMesh = replacementMesh;
+            }
+            foreach (MeshCollider collider in generatedRoot.GetComponentsInChildren<MeshCollider>(true))
+            {
+                if (collider.sharedMesh == sourceMesh)
+                    collider.sharedMesh = replacementMesh;
+            }
+            return;
+        }
+
+        if (source is not Material sourceMaterial || replacement is not Material replacementMaterial)
+            return;
+
+        foreach (Renderer renderer in generatedRoot.GetComponentsInChildren<Renderer>(true))
+        {
+            Material[] materials = renderer.sharedMaterials;
+            bool replaced = false;
+            for (int materialIndex = 0; materialIndex < materials.Length; materialIndex++)
+            {
+                if (materials[materialIndex] != sourceMaterial)
+                    continue;
+                materials[materialIndex] = replacementMaterial;
+                replaced = true;
+            }
+            if (replaced)
+                renderer.sharedMaterials = materials;
+        }
+
+        if (RenderSettings.skybox == sourceMaterial)
+            RenderSettings.skybox = replacementMaterial;
     }
 
     private static void EnsureGeneratedAssetFolder()

@@ -12,7 +12,6 @@ namespace Mush.Lobby.Editor
     /// Installs the code-generated low-poly dogs into the two preserved lobby
     /// dog roots. Their separated meshes are animated procedurally at runtime.
     /// </summary>
-    [InitializeOnLoad]
     public static class MushLowPolyLobbyDogInstaller
     {
         private const string ScenePath = "Assets/Scenes/MushLobby.unity";
@@ -20,33 +19,8 @@ namespace Mush.Lobby.Editor
         private const string MalamutePath = "Assets/MushLobby/Dogs/Models/Mush_LowPoly_Malamute.fbx";
         private const string RevisionMarker = "Mush Lobby Revision 6 - Procedural LowPoly Dogs";
 
-        static MushLowPolyLobbyDogInstaller()
+        public static void ApplyFromCommandLine()
         {
-            EditorApplication.delayCall += ApplyAutomatically;
-            EditorApplication.playModeStateChanged += state =>
-            {
-                if (state == PlayModeStateChange.EnteredEditMode)
-                    EditorApplication.delayCall += ApplyAutomatically;
-            };
-        }
-
-        [MenuItem("Mush/Lobby/Install Procedural Low-Poly Dogs")]
-        public static void ApplyFromMenu()
-        {
-            Apply();
-        }
-
-        private static void ApplyAutomatically()
-        {
-            if (EditorApplication.isPlayingOrWillChangePlaymode)
-                return;
-
-            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
-            {
-                EditorApplication.delayCall += ApplyAutomatically;
-                return;
-            }
-
             Apply();
         }
 
@@ -59,18 +33,12 @@ namespace Mush.Lobby.Editor
             bool importerChanged = EnsureBakedAxisConversion(HuskyPath) |
                                    EnsureBakedAxisConversion(MalamutePath);
             if (importerChanged)
-            {
-                EditorApplication.delayCall += ApplyAutomatically;
                 return;
-            }
 
             GameObject huskyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(HuskyPath);
             GameObject malamutePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MalamutePath);
             if (huskyPrefab == null || malamutePrefab == null)
-            {
-                EditorApplication.delayCall += ApplyAutomatically;
                 return;
-            }
 
             Scene previousScene = SceneManager.GetActiveScene();
             Scene scene = SceneManager.GetSceneByPath(ScenePath);

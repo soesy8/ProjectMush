@@ -5,7 +5,9 @@ namespace Mush.Customization
     [CreateAssetMenu(fileName = "MushCustomizationCatalog", menuName = "Mush/Customization Catalog")]
     public sealed class MushCustomizationCatalog : ScriptableObject
     {
+        [Header("UI Theme")]
         public Font koreanFont;
+        public GameObject uiPanelPrefab;
 
         [Header("Housing Preview Environment")]
         public GameObject lobbyEnvironment;

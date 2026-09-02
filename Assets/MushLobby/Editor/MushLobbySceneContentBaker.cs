@@ -12,7 +12,6 @@ namespace Mush.Lobby.Editor
     /// scripts still own input and animation, but no longer need to invent the
     /// visible room contents when play mode starts.
     /// </summary>
-    [InitializeOnLoad]
     public static class MushLobbySceneContentBaker
     {
         private const string ScenePath = "Assets/Scenes/MushLobby.unity";
@@ -20,39 +19,9 @@ namespace Mush.Lobby.Editor
         private const string AssetPath = GeneratedFolder + "/MushLobby_RuntimeContentAssets.asset";
         private const string MaterialFolder = "Assets/MushLobby/Materials";
         private const string MarkerName = "Mush Lobby Scene Content Baked";
-        private static bool queued;
-
-        static MushLobbySceneContentBaker()
-        {
-            EditorApplication.delayCall += ApplyAutomatically;
-            EditorApplication.playModeStateChanged += state =>
-            {
-                if (state == PlayModeStateChange.EnteredEditMode)
-                    EditorApplication.delayCall += ApplyAutomatically;
-            };
-        }
-
-        [MenuItem("Mush/Lobby/Bake Runtime Visual Content Into Scene")]
-        public static void BakeFromMenu()
-        {
-            Apply(true);
-        }
-
         public static void BakeFromCommandLine()
         {
             Apply(true);
-        }
-
-        private static void ApplyAutomatically()
-        {
-            if (queued || EditorApplication.isCompiling || EditorApplication.isPlayingOrWillChangePlaymode)
-                return;
-            queued = true;
-            EditorApplication.delayCall += () =>
-            {
-                queued = false;
-                Apply(false);
-            };
         }
 
         private static void Apply(bool force)

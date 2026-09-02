@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Mush.Customization;
+using Mush.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -113,9 +114,15 @@ namespace Mush.Lobby
         private void Awake()
         {
             gold = startingGold;
+            Font themeFont = MushUiPanelSkin.ThemeFont;
+            if (themeFont != null)
+                koreanFont = themeFont;
             ActiveKoreanFont = koreanFont;
             LocalizeLobbyText();
             EnsureSharpCurveMapButton();
+            MushUiPanelSkin.ApplyPanel(mapPanel != null ? mapPanel.transform : null, new Vector2(3.0f, 1.75f));
+            MushUiPanelSkin.ApplyPanel(shopPanel != null ? shopPanel.transform : null, new Vector2(4.85f, 3.35f));
+            MushUiPanelSkin.ApplyPanel(housingPanel != null ? housingPanel.transform : null, new Vector2(3.0f, 1.75f));
             SetAllPanels(false);
             SetObjectsActive(dogScarves, false);
             SetObjectsActive(placedFurniture, false);
@@ -309,6 +316,8 @@ namespace Mush.Lobby
         {
             shopPanel = newShopPanel;
             shopStatusText = newShopStatusText;
+            if (Application.isPlaying)
+                MushUiPanelSkin.ApplyPanel(shopPanel != null ? shopPanel.transform : null, new Vector2(4.85f, 3.35f));
         }
 
         public bool AcquireShopItem(string itemId, string displayName)
@@ -738,15 +747,17 @@ namespace Mush.Lobby
             if (suppressedLobbyTextRenderers.Count > 0)
                 return;
 
-            foreach (TextMesh text in Resources.FindObjectsOfTypeAll<TextMesh>())
+            foreach (GameObject sceneRoot in gameObject.scene.GetRootGameObjects())
             {
-                if (text == null || text.gameObject.scene != gameObject.scene ||
-                    IsPanelText(text.transform) || !text.gameObject.activeInHierarchy)
-                    continue;
-                if (!text.TryGetComponent(out MeshRenderer renderer) || !renderer.enabled)
-                    continue;
-                renderer.enabled = false;
-                suppressedLobbyTextRenderers.Add(renderer);
+                foreach (TextMesh text in sceneRoot.GetComponentsInChildren<TextMesh>(true))
+                {
+                    if (text == null || IsPanelText(text.transform) || !text.gameObject.activeInHierarchy)
+                        continue;
+                    if (!text.TryGetComponent(out MeshRenderer renderer) || !renderer.enabled)
+                        continue;
+                    renderer.enabled = false;
+                    suppressedLobbyTextRenderers.Add(renderer);
+                }
             }
         }
 
@@ -879,18 +890,21 @@ namespace Mush.Lobby
 
         private void LocalizeLobbyText()
         {
-            foreach (TextMesh textMesh in Resources.FindObjectsOfTypeAll<TextMesh>())
+            foreach (GameObject sceneRoot in gameObject.scene.GetRootGameObjects())
             {
-                if (textMesh == null || textMesh.gameObject.scene != gameObject.scene)
-                    continue;
+                foreach (TextMesh textMesh in sceneRoot.GetComponentsInChildren<TextMesh>(true))
+                {
+                    if (textMesh == null)
+                        continue;
 
-                textMesh.text = TranslateLobbyText(textMesh.text);
-                if (koreanFont == null)
-                    continue;
+                    textMesh.text = TranslateLobbyText(textMesh.text);
+                    if (koreanFont == null)
+                        continue;
 
-                textMesh.font = koreanFont;
-                if (textMesh.TryGetComponent(out MeshRenderer renderer))
-                    renderer.sharedMaterial = koreanFont.material;
+                    textMesh.font = koreanFont;
+                    if (textMesh.TryGetComponent(out MeshRenderer renderer))
+                        renderer.sharedMaterial = koreanFont.material;
+                }
             }
         }
 

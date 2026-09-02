@@ -25,6 +25,12 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     [SerializeField] private bool overrideTrackWidths;
     [SerializeField, Min(0.5f)] private float roadHalfWidth = 6.5f;
     [SerializeField, Min(4f)] private float terrainHalfWidth = 105f;
+    [SerializeField] private GameObject deformableRoadModule;
+    [SerializeField] private bool useDeformableRoadModule; // false면 원래의 매끈한 스크립트 생성 도로를 기본으로 사용합니다.
+    [SerializeField] private GameObject customRoadVisual;
+    [SerializeField] private GameObject customTerrainVisual;
+    [SerializeField] private Material roadMaterialOverride;
+    [SerializeField] private Material terrainMaterialOverride;
     [SerializeField] private List<Vector3> controlPoints = new();
 
     public MushTrackPreset Preset => preset;
@@ -34,6 +40,18 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     public float RoadHalfWidth => roadHalfWidth;
     public float TerrainHalfWidth => terrainHalfWidth;
     public bool OverridesTrackWidths => overrideTrackWidths;
+    public GameObject DeformableRoadModule => deformableRoadModule;
+    public bool UsesDeformableRoadModule => useDeformableRoadModule && deformableRoadModule != null;
+    public GameObject CustomRoadVisual => customRoadVisual;
+    public GameObject CustomTerrainVisual => customTerrainVisual;
+    public Material RoadMaterialOverride => roadMaterialOverride;
+    public Material TerrainMaterialOverride => terrainMaterialOverride;
+    public bool HasCustomRoadVisual => IsUsableSceneVisual(customRoadVisual);
+    public bool HasCustomTerrainVisual => IsUsableSceneVisual(customTerrainVisual);
+    public bool HasDeformableRoadModule => deformableRoadModule != null;
+    public float PreviewRoadHalfWidth => overrideTrackWidths
+        ? Mathf.Max(0.5f, roadHalfWidth)
+        : preset == MushTrackPreset.SharpCurve ? 3.25f : 6.5f;
 
     public static MushTrackAuthoring FindFor(Transform mapRoot)
     {
@@ -141,6 +159,11 @@ public sealed class MushTrackAuthoring : MonoBehaviour
         useEditablePath = enabled && controlPoints.Count >= 2;
     }
 
+    public void SetDeformableRoadModule(GameObject module)
+    {
+        deformableRoadModule = module;
+    }
+
     public int InsertControlPointAfter(int index)
     {
         if (controlPoints.Count < 2)
@@ -173,6 +196,13 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     {
         controlPoints.Reverse();
         return controlPoints.Count > 0 ? controlPoints.Count - 1 - selectedIndex : -1;
+    }
+
+    private bool IsUsableSceneVisual(GameObject candidate)
+    {
+        return candidate != null &&
+               candidate.scene.IsValid() &&
+               candidate.scene == gameObject.scene;
     }
 
     private static Transform FindNamedTransform(Transform current, string objectName)
@@ -265,10 +295,62 @@ public static class MushTrackPathUtility
         if (controlPoints == null || controlPoints.Count < 2)
             return false;
 
-        float[] cumulativeDistances = new float[controlPoints.Count];
-        for (int index = 1; index < controlPoints.Count; index++)
+        if (controlPoints.Count == 2)
+            return BuildUniformPolylineRoute(
+                controlPoints,
+                actualSpacing,
+                output,
+                out routeLength,
+                out actualSpacing);
+
+        List<Vector3> smoothPath = new(controlPoints.Count * 6);
+        for (int segment = 0; segment < controlPoints.Count - 1; segment++)
         {
-            routeLength += Vector3.Distance(controlPoints[index - 1], controlPoints[index]);
+            Vector3 p1 = controlPoints[segment];
+            Vector3 p2 = controlPoints[segment + 1];
+            Vector3 p0 = segment > 0
+                ? controlPoints[segment - 1]
+                : p1 + (p1 - p2);
+            Vector3 p3 = segment + 2 < controlPoints.Count
+                ? controlPoints[segment + 2]
+                : p2 + (p2 - p1);
+
+            int subdivisions = Mathf.Max(
+                4,
+                Mathf.CeilToInt(Vector3.Distance(p1, p2) / Mathf.Max(0.5f, actualSpacing * 0.5f)));
+            int firstSample = segment == 0 ? 0 : 1;
+            for (int sample = firstSample; sample <= subdivisions; sample++)
+            {
+                float t = sample / (float)subdivisions;
+                smoothPath.Add(EvaluateCentripetalCatmullRom(p0, p1, p2, p3, t));
+            }
+        }
+
+        return BuildUniformPolylineRoute(
+            smoothPath,
+            actualSpacing,
+            output,
+            out routeLength,
+            out actualSpacing);
+    }
+
+    private static bool BuildUniformPolylineRoute(
+        IReadOnlyList<Vector3> source,
+        float requestedSpacing,
+        List<Vector3> output,
+        out float routeLength,
+        out float actualSpacing)
+    {
+        output.Clear();
+        routeLength = 0f;
+        actualSpacing = Mathf.Max(1f, requestedSpacing);
+        if (source == null || source.Count < 2)
+            return false;
+
+        float[] cumulativeDistances = new float[source.Count];
+        for (int index = 1; index < source.Count; index++)
+        {
+            routeLength += Vector3.Distance(source[index - 1], source[index]);
             cumulativeDistances[index] = routeLength;
         }
         if (routeLength < 1f)
@@ -280,16 +362,55 @@ public static class MushTrackPathUtility
         for (int sample = 0; sample <= segmentCount; sample++)
         {
             float distance = sample == segmentCount ? routeLength : sample * actualSpacing;
-            while (sourceSegment < controlPoints.Count - 2 &&
+            while (sourceSegment < source.Count - 2 &&
                    cumulativeDistances[sourceSegment + 1] < distance)
                 sourceSegment++;
 
             float startDistance = cumulativeDistances[sourceSegment];
             float endDistance = cumulativeDistances[sourceSegment + 1];
             float t = Mathf.InverseLerp(startDistance, endDistance, distance);
-            output.Add(Vector3.Lerp(controlPoints[sourceSegment], controlPoints[sourceSegment + 1], t));
+            output.Add(Vector3.Lerp(source[sourceSegment], source[sourceSegment + 1], t));
         }
         return output.Count >= 2;
+    }
+
+    private static Vector3 EvaluateCentripetalCatmullRom(
+        Vector3 p0,
+        Vector3 p1,
+        Vector3 p2,
+        Vector3 p3,
+        float normalizedTime)
+    {
+        float t0 = 0f;
+        float t1 = t0 + CatmullRomKnotDistance(p0, p1);
+        float t2 = t1 + CatmullRomKnotDistance(p1, p2);
+        float t3 = t2 + CatmullRomKnotDistance(p2, p3);
+        float t = Mathf.Lerp(t1, t2, Mathf.Clamp01(normalizedTime));
+
+        Vector3 a1 = InterpolateKnot(p0, p1, t0, t1, t);
+        Vector3 a2 = InterpolateKnot(p1, p2, t1, t2, t);
+        Vector3 a3 = InterpolateKnot(p2, p3, t2, t3, t);
+        Vector3 b1 = InterpolateKnot(a1, a2, t0, t2, t);
+        Vector3 b2 = InterpolateKnot(a2, a3, t1, t3, t);
+        return InterpolateKnot(b1, b2, t1, t2, t);
+    }
+
+    private static float CatmullRomKnotDistance(Vector3 from, Vector3 to)
+    {
+        return Mathf.Max(0.0001f, Mathf.Sqrt(Vector3.Distance(from, to)));
+    }
+
+    private static Vector3 InterpolateKnot(
+        Vector3 from,
+        Vector3 to,
+        float fromTime,
+        float toTime,
+        float time)
+    {
+        float range = toTime - fromTime;
+        if (range <= 0.0001f)
+            return from;
+        return Vector3.LerpUnclamped(from, to, (time - fromTime) / range);
     }
 
     private static void BuildCurveSchedule(MushTrackPreset preset, List<CurveEvent> curves)

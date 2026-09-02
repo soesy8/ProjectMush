@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Mush.Customization;
 using Mush.Prototype;
 using Mush.Quest;
+using Mush.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
@@ -1024,6 +1025,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         CreatePrimitive("Pause Back", PrimitiveType.Cube, questPauseMenu.transform,
             Vector3.zero, new Vector3(2.55f, 1.62f, 0.06f), panelMaterial);
+        MushUiPanelSkin.ApplyPanel(questPauseMenu.transform, new Vector2(2.55f, 1.62f));
         CreatePauseText("일시정지", questPauseMenu.transform, new Vector3(0f, 0.52f, -0.07f),
             0.10f, 2.05f, 0.26f);
         CreatePauseButton("코스 복귀", questPauseMenu.transform, new Vector3(0f, 0.10f, -0.08f),
@@ -1097,7 +1099,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             }
         }
         if (missionTimerRoot != null)
+        {
+            MushUiPanelSkin.ApplyFont(missionTimerText);
             return;
+        }
 
         missionTimerRoot = new GameObject("Delivery Mission Timer");
         // Mount the existing timer on the sled's front centre instead of the
@@ -1232,6 +1237,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             Vector3.zero, new Vector3(3.35f, 2.20f, 0.07f), panel);
         CreatePrimitive("Result Top Trim", PrimitiveType.Cube, resultPanel.transform,
             new Vector3(0f, 1.02f, -0.055f), new Vector3(3.10f, 0.045f, 0.025f), trim);
+        MushUiPanelSkin.ApplyPanel(resultPanel.transform, new Vector2(3.35f, 2.20f));
         CreateWorldText("배달 완료!", resultPanel.transform,
             new Vector3(0f, 0.79f, -0.075f), 0.100f, new Color(1f, 0.86f, 0.48f));
         CreateWorldText($"기록  {FormatElapsed(missionElapsedSeconds)}    제한  {FormatRemaining(deliveryTimeLimitSeconds)}",
@@ -1276,13 +1282,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         textMesh.fontSize = 64;
         textMesh.color = color;
 
-        MushCustomizationCatalog catalog = MushCustomizationCatalog.Load();
-        if (catalog != null && catalog.koreanFont != null)
-        {
-            textMesh.font = catalog.koreanFont;
-            if (textObject.TryGetComponent(out MeshRenderer renderer))
-                renderer.sharedMaterial = catalog.koreanFont.material;
-        }
+        MushUiPanelSkin.ApplyFont(textMesh);
         return textMesh;
     }
 

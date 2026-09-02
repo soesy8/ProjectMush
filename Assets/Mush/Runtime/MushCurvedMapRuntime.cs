@@ -16,12 +16,15 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     private const float RoadHalfWidth = 6.5f;
     private const float SharpCurveRoadHalfWidth = 3.25f;
     private const float TerrainHalfWidth = 105f;
+    public const int CurrentBakedWorldVersion = 7;
     public const string GeneratedWorldRootName = "Mush Rebuilt Curved World";
+    public const string DeformedRoadRootName = "VISIBLE Deformed Snow Road Module";
     public const string CustomSceneContentRootName = "SCENE CONTENT - Add Models Here";
     public const string RideTeamRootName = "Mush Ride Team";
 
     private readonly List<Vector3> routePoints = new();
     private readonly List<Material> runtimeMaterials = new();
+    [SerializeField, HideInInspector] private int bakedWorldVersion;
     private bool built;
     private bool isSnowfield;
     private bool isSharpCurve;
@@ -32,6 +35,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     private float activeSampleSpacing = MushTrackPathUtility.DefaultSampleSpacing;
     private float authoredRoadHalfWidth;
     private float authoredTerrainHalfWidth;
+    private MushTrackAuthoring activeAuthoring;
     private Transform rebuiltRoot;
     private Mesh pineMesh;
     private Mesh mountainMesh;
@@ -53,6 +57,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     public float LengthMeters => activeCourseLength;
     public float RoadHalfWidthMeters => ActiveRoadHalfWidth;
     public bool IsSharpCurveMap => isSharpCurve;
+    public bool HasCurrentBakedWorldVersion => bakedWorldVersion == CurrentBakedWorldVersion;
     public float CurrentProgress01 => sharpProgress;
     public bool SharpDownhillSpeedBoostActive => isSharpCurve && sharpProgress >= 0.35f && sharpProgress <= 0.66f;
 
@@ -105,6 +110,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         else
         {
             CacheBakedWorldReferences();
+            ApplyCustomCoursePresentation();
             ConfigureRuntimeEnvironmentControllers();
         }
 
@@ -155,7 +161,52 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         BuildSkyAndLighting();
         BuildAmbientSnow();
         PositionRouteMarkers();
+        bakedWorldVersion = CurrentBakedWorldVersion;
         built = true;
+    }
+
+    /// <summary>
+    /// Rebuilds only the drivable surface while an artist edits the route.
+    /// Procedural scenery is intentionally left in place until the artist
+    /// explicitly requests a full scenery layout rebuild.
+    /// </summary>
+    public void RebuildSceneCourseGeometry()
+    {
+        if (Application.isPlaying)
+            throw new InvalidOperationException("A baked Mush course can only be rebuilt outside play mode.");
+
+        built = false;
+        ConfigureMapType();
+        BuildActiveRoute();
+        rebuiltRoot = transform.Find(GeneratedWorldRootName);
+        if (rebuiltRoot == null)
+        {
+            RebuildSceneWorld();
+            return;
+        }
+
+        Material existingSnow = FindGeneratedComponent<Renderer>("VISIBLE Snow Terrain")?.sharedMaterial;
+        Material existingRoad = FindGeneratedComponent<Renderer>("VISIBLE Curved Packed-Snow Road")?.sharedMaterial;
+        Material existingTrack = FindGeneratedComponent<Renderer>("Left Sled Track")?.sharedMaterial;
+        DestroyGeneratedCourseObject("VISIBLE Snow Terrain");
+        DestroyGeneratedCourseObject("VISIBLE Curved Packed-Snow Road");
+        DestroyGeneratedCourseObject("Left Sled Track");
+        DestroyGeneratedCourseObject("Right Sled Track");
+        DestroyGeneratedCourseObject(DeformedRoadRootName);
+        terrainRenderer = null;
+        roadRenderer = null;
+
+        BuildCourseMeshes(existingSnow, existingRoad, existingTrack);
+        PositionRouteMarkers();
+        bakedWorldVersion = CurrentBakedWorldVersion;
+        built = true;
+    }
+
+    private void DestroyGeneratedCourseObject(string objectName)
+    {
+        Transform courseObject = rebuiltRoot.Find(objectName);
+        if (courseObject != null)
+            DestroyImmediate(courseObject.gameObject);
     }
 
     /// <summary>
@@ -459,16 +510,16 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         overridesTrackWidths = false;
         defaultCurveCount = 0;
 
-        MushTrackAuthoring authoring = MushTrackAuthoring.FindFor(transform);
-        if (authoring != null && authoring.TryBuildSampledRoute(
+        activeAuthoring = MushTrackAuthoring.FindFor(transform);
+        if (activeAuthoring != null && activeAuthoring.TryBuildSampledRoute(
                 routePoints,
                 out activeCourseLength,
                 out activeSampleSpacing))
         {
             usesEditableTrack = true;
-            overridesTrackWidths = authoring.OverridesTrackWidths;
-            authoredRoadHalfWidth = Mathf.Max(0.5f, authoring.RoadHalfWidth);
-            authoredTerrainHalfWidth = Mathf.Max(authoring.TerrainHalfWidth, authoredRoadHalfWidth + 4f);
+            overridesTrackWidths = activeAuthoring.OverridesTrackWidths;
+            authoredRoadHalfWidth = Mathf.Max(0.5f, activeAuthoring.RoadHalfWidth);
+            authoredTerrainHalfWidth = Mathf.Max(activeAuthoring.TerrainHalfWidth, authoredRoadHalfWidth + 4f);
         }
         else
         {
@@ -500,17 +551,33 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return Mathf.Lerp(routePoints[startIndex].y, routePoints[startIndex + 1].y, routeIndex - startIndex);
     }
 
-    private void BuildCourseMeshes()
+    private void BuildCourseMeshes(
+        Material existingSnow = null,
+        Material existingRoad = null,
+        Material existingTrack = null)
     {
-        Material snow = CreateLitMaterial(
-            "Rebuilt Snow Terrain",
-            isSnowfield ? new Color(0.84f, 0.91f, 0.98f) : new Color(0.77f, 0.87f, 0.94f),
-            0.12f);
-        Material road = CreateLitMaterial(
-            "Rebuilt Packed Snow Road",
-            isSnowfield ? new Color(0.27f, 0.39f, 0.53f) : new Color(0.23f, 0.34f, 0.43f),
-            0.18f);
-        Material track = CreateLitMaterial("Rebuilt Dark Sled Tracks", new Color(0.075f, 0.12f, 0.17f), 0.08f);
+        Material snow = activeAuthoring != null && activeAuthoring.TerrainMaterialOverride != null
+            ? activeAuthoring.TerrainMaterialOverride
+            : existingSnow != null
+                ? existingSnow
+            : CreateLitMaterial(
+                "Rebuilt Snow Terrain",
+                isSnowfield ? new Color(0.84f, 0.91f, 0.98f) : new Color(0.77f, 0.87f, 0.94f),
+                0.12f);
+        Material road = activeAuthoring != null && activeAuthoring.RoadMaterialOverride != null
+            ? activeAuthoring.RoadMaterialOverride
+            : existingRoad != null
+                ? existingRoad
+            : CreateLitMaterial(
+                "Rebuilt Packed Snow Road",
+                isSnowfield ? new Color(0.27f, 0.39f, 0.53f) : new Color(0.23f, 0.34f, 0.43f),
+                0.18f);
+        Material track = existingTrack != null
+            ? existingTrack
+            : CreateLitMaterial(
+                "Rebuilt Dark Sled Tracks",
+                new Color(0.075f, 0.12f, 0.17f),
+                0.08f);
 
         GameObject terrainObject = CreateMeshObject("VISIBLE Snow Terrain", rebuiltRoot, BuildTerrainMesh(), snow, true);
         terrainRenderer = terrainObject.GetComponent<Renderer>();
@@ -525,6 +592,594 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
         CreateMeshObject("Left Sled Track", rebuiltRoot, BuildRibbonMesh(0.10f, -1.75f, 0.145f), track, false);
         CreateMeshObject("Right Sled Track", rebuiltRoot, BuildRibbonMesh(0.10f, 1.75f, 0.145f), track, false);
+        if (activeAuthoring != null && activeAuthoring.UsesDeformableRoadModule)
+            BuildDeformedRoadModule(activeAuthoring.DeformableRoadModule);
+        ApplyCustomCoursePresentation();
+    }
+
+    private void ApplyCustomCoursePresentation()
+    {
+        Transform deformedRoadRoot = rebuiltRoot != null ? rebuiltRoot.Find(DeformedRoadRootName) : null;
+        bool hasDeformedRoad = deformedRoadRoot != null &&
+                               activeAuthoring != null &&
+                               activeAuthoring.UsesDeformableRoadModule;
+        bool hasCustomRoad = activeAuthoring != null && activeAuthoring.HasCustomRoadVisual;
+        bool hasCustomTerrain = activeAuthoring != null && activeAuthoring.HasCustomTerrainVisual;
+
+        // 고정형 커스텀 도로가 선택되어 있으면 그 모델만 보여주고,
+        // None으로 돌아오면 경로 변형 도로 모듈이 있을 때는 그 도로를 다시 보여줍니다.
+        bool showDeformedRoad = hasDeformedRoad && !hasCustomRoad;
+        bool showGeneratedRoad = activeAuthoring == null || (!hasCustomRoad && !hasDeformedRoad);
+        bool showGeneratedTerrain = activeAuthoring == null || !hasCustomTerrain;
+
+        if (roadRenderer != null)
+            roadRenderer.enabled = showGeneratedRoad;
+        if (terrainRenderer != null)
+            terrainRenderer.enabled = showGeneratedTerrain;
+
+        Renderer leftTrackRenderer = FindGeneratedComponent<Renderer>("Left Sled Track");
+        Renderer rightTrackRenderer = FindGeneratedComponent<Renderer>("Right Sled Track");
+        if (leftTrackRenderer != null)
+            leftTrackRenderer.enabled = showGeneratedRoad;
+        if (rightTrackRenderer != null)
+            rightTrackRenderer.enabled = showGeneratedRoad;
+
+        // 경로 변형 도로 루트도 표시 상태를 직접 관리해야 고정형 도로와 겹쳐 보이지 않습니다.
+        SetVisualRenderersEnabled(deformedRoadRoot, showDeformedRoad);
+
+        // 현재 슬롯에 지정된 씬 모델은 재빌드 후에도 반드시 다시 보이게 합니다.
+        // 슬롯을 None으로 바꿨을 때 이전 모델을 숨기는 처리는 Editor 쪽에서 이전 참조를 기억해 처리합니다.
+        if (activeAuthoring != null)
+        {
+            SetVisualRenderersEnabled(activeAuthoring.CustomRoadVisual, hasCustomRoad);
+            SetVisualRenderersEnabled(activeAuthoring.CustomTerrainVisual, hasCustomTerrain);
+        }
+    }
+
+    private static void SetVisualRenderersEnabled(Transform visualRoot, bool enabled)
+    {
+        if (visualRoot == null)
+            return;
+
+        Renderer[] renderers = visualRoot.GetComponentsInChildren<Renderer>(true);
+        for (int index = 0; index < renderers.Length; index++)
+            renderers[index].enabled = enabled;
+    }
+
+    private static void SetVisualRenderersEnabled(GameObject visualRoot, bool enabled)
+    {
+        if (visualRoot == null)
+            return;
+
+        Renderer[] renderers = visualRoot.GetComponentsInChildren<Renderer>(true);
+        for (int index = 0; index < renderers.Length; index++)
+            renderers[index].enabled = enabled;
+
+        Terrain[] terrains = visualRoot.GetComponentsInChildren<Terrain>(true);
+        for (int index = 0; index < terrains.Length; index++)
+            terrains[index].enabled = enabled;
+    }
+
+    private readonly struct RoadModuleGeometry
+    {
+        public readonly float MinZ;
+        public readonly float MaxZ;
+        public readonly float RoadCenterX;
+        public readonly float RoadHalfWidth;
+        public readonly float OuterHalfWidth;
+        public readonly float SourceBaseY;
+
+        public RoadModuleGeometry(
+            float minZ,
+            float maxZ,
+            float roadCenterX,
+            float roadHalfWidth,
+            float outerHalfWidth,
+            float sourceBaseY)
+        {
+            MinZ = minZ;
+            MaxZ = maxZ;
+            RoadCenterX = roadCenterX;
+            RoadHalfWidth = roadHalfWidth;
+            OuterHalfWidth = outerHalfWidth;
+            SourceBaseY = sourceBaseY;
+        }
+
+        public float Length => MaxZ - MinZ;
+    }
+
+    private readonly struct RoadGridVertex
+    {
+        public readonly Vector3 Position;
+        public readonly Vector2 Uv;
+
+        public RoadGridVertex(Vector3 position, Vector2 uv)
+        {
+            Position = position;
+            Uv = uv;
+        }
+    }
+
+    private void BuildDeformedRoadModule(GameObject sourceRoot)
+    {
+        MeshFilter[] sourceFilters = sourceRoot.GetComponentsInChildren<MeshFilter>(true);
+        if (sourceFilters.Length == 0 || !TryMeasureRoadModule(sourceRoot, sourceFilters, out RoadModuleGeometry geometry))
+        {
+            Debug.LogWarning($"[Mush] '{sourceRoot.name}' does not contain a usable deformable road mesh.", activeAuthoring);
+            return;
+        }
+
+        GameObject visualRootObject = new(DeformedRoadRootName);
+        Transform visualRoot = visualRootObject.transform;
+        visualRoot.SetParent(rebuiltRoot, false);
+        Dictionary<Material, Material> generatedMaterials = new();
+        int generatedMeshCount = 0;
+
+        Material sourceSnowField = FindSourceMaterial(sourceFilters, "SnowField");
+        if (sourceSnowField != null && activeAuthoring.TerrainMaterialOverride == null)
+        {
+            Material generatedSnowField = CreateRoadModuleMaterial(sourceSnowField);
+            generatedMaterials[sourceSnowField] = generatedSnowField;
+            if (terrainRenderer != null)
+                terrainRenderer.sharedMaterial = generatedSnowField;
+        }
+
+        for (int index = 0; index < sourceFilters.Length; index++)
+        {
+            MeshFilter sourceFilter = sourceFilters[index];
+            if (sourceFilter.name.Contains("Terrain", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            Mesh sourceMesh = sourceFilter.sharedMesh;
+            if (sourceMesh == null || !sourceMesh.isReadable || sourceMesh.vertexCount == 0)
+            {
+                Debug.LogWarning(
+                    $"[Mush] Road module mesh '{sourceFilter.name}' is not readable and was skipped. Enable Read/Write on the FBX importer.",
+                    activeAuthoring);
+                continue;
+            }
+
+            Mesh deformedMesh = BuildDeformedModuleMesh(sourceRoot.transform, sourceFilter, geometry);
+            if (deformedMesh == null)
+                continue;
+
+            Material[] materials = BuildRoadModuleMaterials(
+                sourceFilter.GetComponent<Renderer>(),
+                deformedMesh.subMeshCount,
+                generatedMaterials);
+            GameObject meshObject = CreateMeshObject(
+                $"Deformed {sourceFilter.name}",
+                visualRoot,
+                deformedMesh,
+                materials[0],
+                false);
+            MeshRenderer meshRenderer = meshObject.GetComponent<MeshRenderer>();
+            meshRenderer.sharedMaterials = materials;
+            meshRenderer.receiveShadows = true;
+            generatedMeshCount++;
+        }
+
+        if (generatedMeshCount > 0)
+            return;
+
+        DestroyImmediate(visualRootObject);
+    }
+
+    private static bool TryMeasureRoadModule(
+        GameObject sourceRoot,
+        IReadOnlyList<MeshFilter> sourceFilters,
+        out RoadModuleGeometry geometry)
+    {
+        float minZ = float.PositiveInfinity;
+        float maxZ = float.NegativeInfinity;
+        float outerHalfWidth = 0f;
+        float roadMinX = float.PositiveInfinity;
+        float roadMaxX = float.NegativeInfinity;
+        float roadMinY = float.PositiveInfinity;
+        float roadMaxY = float.NegativeInfinity;
+        bool foundRoad = false;
+
+        for (int filterIndex = 0; filterIndex < sourceFilters.Count; filterIndex++)
+        {
+            MeshFilter filter = sourceFilters[filterIndex];
+            Mesh mesh = filter.sharedMesh;
+            if (mesh == null || !mesh.isReadable)
+                continue;
+
+            bool isRoad = filter.name.Contains("SnowRoad", StringComparison.OrdinalIgnoreCase) &&
+                          !filter.name.Contains("Terrain", StringComparison.OrdinalIgnoreCase);
+            Matrix4x4 sourceToModule = sourceRoot.transform.worldToLocalMatrix * filter.transform.localToWorldMatrix;
+            Vector3[] vertices = mesh.vertices;
+            for (int vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
+            {
+                Vector3 point = sourceToModule.MultiplyPoint3x4(vertices[vertexIndex]);
+                minZ = Mathf.Min(minZ, point.z);
+                maxZ = Mathf.Max(maxZ, point.z);
+                outerHalfWidth = Mathf.Max(outerHalfWidth, Mathf.Abs(point.x));
+                if (!isRoad)
+                    continue;
+
+                foundRoad = true;
+                roadMinX = Mathf.Min(roadMinX, point.x);
+                roadMaxX = Mathf.Max(roadMaxX, point.x);
+                roadMinY = Mathf.Min(roadMinY, point.y);
+                roadMaxY = Mathf.Max(roadMaxY, point.y);
+            }
+        }
+
+        float length = maxZ - minZ;
+        float roadWidth = roadMaxX - roadMinX;
+        if (!foundRoad || length < 0.1f || roadWidth < 0.1f)
+        {
+            geometry = default;
+            return false;
+        }
+
+        float roadCenterX = (roadMinX + roadMaxX) * 0.5f;
+        geometry = new RoadModuleGeometry(
+            minZ,
+            maxZ,
+            roadCenterX,
+            roadWidth * 0.5f,
+            Mathf.Max(roadWidth * 0.5f, outerHalfWidth),
+            (roadMinY + roadMaxY) * 0.5f);
+        return true;
+    }
+
+    private Mesh BuildDeformedModuleMesh(
+        Transform sourceRoot,
+        MeshFilter sourceFilter,
+        RoadModuleGeometry geometry)
+    {
+        Mesh sourceMesh = sourceFilter.sharedMesh;
+        Vector3[] sourceVertices = sourceMesh.vertices;
+        Vector2[] sourceUv = sourceMesh.uv;
+        Matrix4x4 sourceToModule = sourceRoot.worldToLocalMatrix * sourceFilter.transform.localToWorldMatrix;
+        Dictionary<int, List<RoadGridVertex>> rowsByZ = new();
+        for (int vertexIndex = 0; vertexIndex < sourceVertices.Length; vertexIndex++)
+        {
+            Vector3 point = sourceToModule.MultiplyPoint3x4(sourceVertices[vertexIndex]);
+            int rowKey = Mathf.RoundToInt(point.z * 1000f);
+            if (!rowsByZ.TryGetValue(rowKey, out List<RoadGridVertex> row))
+            {
+                row = new List<RoadGridVertex>();
+                rowsByZ.Add(rowKey, row);
+            }
+            row.Add(new RoadGridVertex(
+                point,
+                sourceUv.Length == sourceVertices.Length ? sourceUv[vertexIndex] : Vector2.zero));
+        }
+
+        List<int> rowKeys = new(rowsByZ.Keys);
+        rowKeys.Sort((left, right) => right.CompareTo(left));
+        if (rowKeys.Count < 2)
+            return null;
+
+        int columnCount = rowsByZ[rowKeys[0]].Count;
+        if (columnCount < 2)
+            return null;
+        for (int rowIndex = 0; rowIndex < rowKeys.Count; rowIndex++)
+        {
+            List<RoadGridVertex> row = rowsByZ[rowKeys[rowIndex]];
+            if (row.Count != columnCount)
+            {
+                Debug.LogWarning(
+                    $"[Mush] Road module '{sourceFilter.name}' must use a regular longitudinal grid.",
+                    activeAuthoring);
+                return null;
+            }
+            row.Sort((left, right) => left.Position.x.CompareTo(right.Position.x));
+        }
+
+        // 반복 모듈의 첫 행과 마지막 행은 같은 경계 위치에서 만나므로,
+        // 두 단면의 높이를 평균낸 공통 경계 단면을 만들어 반복 사이에 틈이나 가로 홈이 생기지 않게 합니다.
+        List<RoadGridVertex> moduleStartRow = rowsByZ[rowKeys[0]];
+        List<RoadGridVertex> moduleEndRow = rowsByZ[rowKeys[^1]];
+
+        float moduleLength = geometry.Length;
+        int repeatCount = Mathf.Max(1, Mathf.CeilToInt(activeCourseLength / moduleLength));
+        int sourceVertexCount = rowKeys.Count * columnCount;
+        int outputVertexCount = sourceVertexCount * repeatCount;
+        Vector3[] outputVertices = new Vector3[outputVertexCount];
+        Vector2[] outputUv = new Vector2[outputVertexCount];
+        float lateralScale = ActiveRoadHalfWidth / geometry.RoadHalfWidth;
+
+        for (int repeat = 0; repeat < repeatCount; repeat++)
+        {
+            float repeatStartDistance = repeat * moduleLength;
+            int vertexOffset = repeat * sourceVertexCount;
+            for (int rowIndex = 0; rowIndex < rowKeys.Count; rowIndex++)
+            {
+                List<RoadGridVertex> sourceRow = rowsByZ[rowKeys[rowIndex]];
+                for (int column = 0; column < columnCount; column++)
+                {
+                    RoadGridVertex sourceVertex = sourceRow[column];
+                    float localDistance = geometry.MaxZ - sourceVertex.Position.z;
+                    float distance = Mathf.Min(activeCourseLength, repeatStartDistance + localDistance);
+                    EvaluateRouteFrame(distance, out Vector3 routeCenter, out Vector3 routeRight);
+
+                    float lateral = (sourceVertex.Position.x - geometry.RoadCenterX) * lateralScale;
+                    Vector3 deformedPoint = routeCenter + routeRight * lateral;
+
+                    // 예전 코드는 모듈 경계 0.75m 안쪽의 높낮이를 0으로 눌러서
+                    // 10m 반복 경계마다 도로를 가로지르는 평평한 홈/검은 선이 생길 수 있었습니다.
+                    float sourceHeightOffset = sourceVertex.Position.y - geometry.SourceBaseY;
+                    float sharedSeamSourceY =
+                        (moduleStartRow[column].Position.y + moduleEndRow[column].Position.y) * 0.5f;
+                    float sharedSeamHeightOffset = sharedSeamSourceY - geometry.SourceBaseY;
+                    float seamDistance = Mathf.Min(localDistance, moduleLength - localDistance);
+                    float seamBlend = 1f - Mathf.SmoothStep(
+                        0f,
+                        1f,
+                        Mathf.InverseLerp(0f, 0.75f, seamDistance));
+                    float continuousHeightOffset = Mathf.Lerp(
+                        sourceHeightOffset,
+                        sharedSeamHeightOffset,
+                        seamBlend);
+
+                    // 경계에서는 시작/끝 단면이 같은 높이를 공유하고, 경계에서 멀어질수록 원본 모델의 높낮이로 자연스럽게 돌아갑니다.
+                    deformedPoint.y = routeCenter.y + 0.10f + continuousHeightOffset * 0.42f;
+
+                    int outputIndex = vertexOffset + rowIndex * columnCount + column;
+                    outputVertices[outputIndex] = deformedPoint;
+                    outputUv[outputIndex] = sourceVertex.Uv;
+                }
+            }
+        }
+
+        Mesh outputMesh = new() { name = $"Spline Deformed {sourceMesh.name}" };
+        outputMesh.indexFormat = IndexFormat.UInt32;
+        outputMesh.vertices = outputVertices;
+        outputMesh.uv = outputUv;
+        List<int>[] subMeshIndices = { new(), new(), new() };
+        for (int repeat = 0; repeat < repeatCount; repeat++)
+        {
+            int vertexOffset = repeat * sourceVertexCount;
+            float repeatStartDistance = repeat * moduleLength;
+            for (int rowIndex = 0; rowIndex < rowKeys.Count - 1; rowIndex++)
+            {
+                List<RoadGridVertex> row = rowsByZ[rowKeys[rowIndex]];
+                float rowDistance = repeatStartDistance + geometry.MaxZ - row[0].Position.z;
+                if (rowDistance >= activeCourseLength)
+                    continue;
+
+                for (int column = 0; column < columnCount - 1; column++)
+                {
+                    float sourceCellCenterX =
+                        ((row[column].Position.x + row[column + 1].Position.x) * 0.5f) -
+                        geometry.RoadCenterX;
+                    float normalizedLateral = Mathf.Abs(sourceCellCenterX) / geometry.RoadHalfWidth;
+                    int materialIndex = normalizedLateral >= 0.75f
+                        ? 1
+                        : normalizedLateral >= 0.30f && normalizedLateral < 0.45f ? 2 : 0;
+
+                    int a = vertexOffset + rowIndex * columnCount + column;
+                    int b = a + 1;
+                    int c = a + columnCount;
+                    int d = c + 1;
+                    List<int> triangles = subMeshIndices[materialIndex];
+                    triangles.Add(a);
+                    triangles.Add(c);
+                    triangles.Add(b);
+                    triangles.Add(b);
+                    triangles.Add(c);
+                    triangles.Add(d);
+                }
+            }
+        }
+
+        outputMesh.subMeshCount = subMeshIndices.Length;
+        for (int subMesh = 0; subMesh < subMeshIndices.Length; subMesh++)
+            outputMesh.SetTriangles(subMeshIndices[subMesh], subMesh, false);
+        outputMesh.RecalculateNormals();
+        Vector3[] outputNormals = outputMesh.normals;
+        int lastRowOffset = (rowKeys.Count - 1) * columnCount;
+        for (int repeat = 1; repeat < repeatCount; repeat++)
+        {
+            int previousBoundary = (repeat - 1) * sourceVertexCount + lastRowOffset;
+            int nextBoundary = repeat * sourceVertexCount;
+            for (int column = 0; column < columnCount; column++)
+            {
+                Vector3 averagedNormal =
+                    (outputNormals[previousBoundary + column] + outputNormals[nextBoundary + column]).normalized;
+                outputNormals[previousBoundary + column] = averagedNormal;
+                outputNormals[nextBoundary + column] = averagedNormal;
+            }
+        }
+        outputMesh.normals = outputNormals;
+        outputMesh.RecalculateTangents();
+        outputMesh.RecalculateBounds();
+        return outputMesh;
+    }
+
+    private static Material FindSourceMaterial(
+        IReadOnlyList<MeshFilter> sourceFilters,
+        string namePart)
+    {
+        for (int filterIndex = 0; filterIndex < sourceFilters.Count; filterIndex++)
+        {
+            Renderer renderer = sourceFilters[filterIndex].GetComponent<Renderer>();
+            if (renderer == null)
+                continue;
+
+            Material[] materials = renderer.sharedMaterials;
+            for (int materialIndex = 0; materialIndex < materials.Length; materialIndex++)
+            {
+                Material material = materials[materialIndex];
+                if (material != null && material.name.Contains(namePart, StringComparison.OrdinalIgnoreCase))
+                    return material;
+            }
+        }
+        return null;
+    }
+
+    private void EvaluateRouteFrame(float distance, out Vector3 center, out Vector3 right)
+    {
+        // 트랙은 일정 간격으로 샘플된 점 목록이지만, 그 점 사이를 단순 직선으로 보간하면
+        // 각 샘플 경계마다 진행 방향이 갑자기 바뀌어 커브에서 도로를 가로지르는 꺾임선이 보일 수 있습니다.
+        float routeIndex = Mathf.Clamp(distance / activeSampleSpacing, 0f, routePoints.Count - 1f);
+        int startIndex = Mathf.Min(Mathf.FloorToInt(routeIndex), routePoints.Count - 2);
+        float interpolation = routeIndex - startIndex;
+
+        // 현재 구간 앞뒤의 점까지 함께 사용해 중심 위치 자체를 부드러운 Catmull-Rom 곡선으로 계산합니다.
+        // 끝점에서는 가장 가까운 점을 반복해서 사용하므로 트랙의 시작과 끝도 안전하게 처리됩니다.
+        int point0Index = Mathf.Max(0, startIndex - 1);
+        int point1Index = startIndex;
+        int point2Index = Mathf.Min(routePoints.Count - 1, startIndex + 1);
+        int point3Index = Mathf.Min(routePoints.Count - 1, startIndex + 2);
+
+        Vector3 point0 = routePoints[point0Index];
+        Vector3 point1 = routePoints[point1Index];
+        Vector3 point2 = routePoints[point2Index];
+        Vector3 point3 = routePoints[point3Index];
+
+        center = EvaluateUniformCatmullRom(point0, point1, point2, point3, interpolation);
+
+        // 같은 곡선의 미분값을 진행 방향으로 사용합니다.
+        // 이전처럼 4m 샘플 한 구간마다 고정된 tangent를 쓰지 않으므로 커브의 단면 방향도 연속적으로 회전합니다.
+        Vector3 tangent = EvaluateUniformCatmullRomTangent(
+            point0,
+            point1,
+            point2,
+            point3,
+            interpolation);
+        Vector3 flatTangent = Vector3.ProjectOnPlane(tangent, Vector3.up);
+
+        // 극단적으로 가까운 포인트 때문에 미분값이 거의 0이 되면 인접 샘플 방향을 안전한 대체값으로 사용합니다.
+        if (flatTangent.sqrMagnitude < 0.0001f)
+            flatTangent = Vector3.ProjectOnPlane(point2 - point1, Vector3.up);
+        if (flatTangent.sqrMagnitude < 0.0001f)
+            flatTangent = Vector3.back;
+
+        // 진행 방향의 직각 벡터를 도로의 좌우 방향으로 사용합니다.
+        right = Vector3.Cross(Vector3.up, flatTangent.normalized).normalized;
+    }
+
+    private static Vector3 EvaluateUniformCatmullRom(
+        Vector3 point0,
+        Vector3 point1,
+        Vector3 point2,
+        Vector3 point3,
+        float interpolation)
+    {
+        // 0~1 범위로 제한해 현재 두 샘플 사이만 평가하고, 과도한 외삽이 생기지 않게 합니다.
+        float t = Mathf.Clamp01(interpolation);
+        float tSquared = t * t;
+        float tCubed = tSquared * t;
+
+        // 균일 Catmull-Rom 공식으로 point1에서 point2까지 부드럽게 이어지는 위치를 계산합니다.
+        return 0.5f *
+               ((2f * point1) +
+                (-point0 + point2) * t +
+                (2f * point0 - 5f * point1 + 4f * point2 - point3) * tSquared +
+                (-point0 + 3f * point1 - 3f * point2 + point3) * tCubed);
+    }
+
+    private static Vector3 EvaluateUniformCatmullRomTangent(
+        Vector3 point0,
+        Vector3 point1,
+        Vector3 point2,
+        Vector3 point3,
+        float interpolation)
+    {
+        // 위 Catmull-Rom 위치식의 1차 미분값으로, 커브를 따라 연속적으로 변하는 진행 방향을 얻습니다.
+        float t = Mathf.Clamp01(interpolation);
+        float tSquared = t * t;
+
+        return 0.5f *
+               ((-point0 + point2) +
+                2f * (2f * point0 - 5f * point1 + 4f * point2 - point3) * t +
+                3f * (-point0 + 3f * point1 - 3f * point2 + point3) * tSquared);
+    }
+
+    private Material[] BuildRoadModuleMaterials(
+        Renderer sourceRenderer,
+        int subMeshCount,
+        IDictionary<Material, Material> cache)
+    {
+        Material[] sourceMaterials = sourceRenderer != null ? sourceRenderer.sharedMaterials : Array.Empty<Material>();
+        Material[] materials = new Material[Mathf.Max(1, subMeshCount)];
+        string[] expectedNames = { "PackedSnow", "SnowField", "SledTrack" };
+        for (int index = 0; index < materials.Length; index++)
+        {
+            Material source = index < expectedNames.Length
+                ? FindNamedMaterial(sourceMaterials, expectedNames[index])
+                : null;
+            if (source == null && sourceMaterials.Length > 0)
+                source = sourceMaterials[Mathf.Min(index, sourceMaterials.Length - 1)];
+            if (source != null && cache.TryGetValue(source, out Material cached))
+            {
+                materials[index] = cached;
+                continue;
+            }
+
+            Material generated = CreateRoadModuleMaterial(source);
+            materials[index] = generated;
+            if (source != null)
+                cache[source] = generated;
+        }
+        return materials;
+    }
+
+    private static Material FindNamedMaterial(IReadOnlyList<Material> materials, string namePart)
+    {
+        for (int index = 0; index < materials.Count; index++)
+        {
+            Material material = materials[index];
+            if (material != null && material.name.Contains(namePart, StringComparison.OrdinalIgnoreCase))
+                return material;
+        }
+        return null;
+    }
+
+    private Material CreateRoadModuleMaterial(Material source)
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+            throw new MissingReferenceException("Universal Render Pipeline/Lit shader is required for the Mush road module.");
+
+        string sourceName = source != null ? source.name : "Fallback";
+        Material material = new(shader) { name = $"SnowRoad {sourceName}" };
+        Texture albedo = FindMaterialTexture(source, "_BaseMap", "_MainTex");
+        Texture normal = FindMaterialTexture(source, "_BumpMap", "_NormalMap");
+        if (albedo != null)
+        {
+            material.SetTexture("_BaseMap", albedo);
+            material.SetTexture("_MainTex", albedo);
+        }
+        if (normal != null)
+        {
+            material.SetTexture("_BumpMap", normal);
+            material.SetFloat("_BumpScale", 1f);
+            material.EnableKeyword("_NORMALMAP");
+        }
+
+        float smoothness = sourceName.Contains("SledTrack", StringComparison.OrdinalIgnoreCase)
+            ? 0.18f
+            : sourceName.Contains("SnowField", StringComparison.OrdinalIgnoreCase) ? 0.30f : 0.24f;
+        material.SetColor("_BaseColor", Color.white);
+        material.SetColor("_Color", Color.white);
+        material.SetFloat("_Smoothness", smoothness);
+        material.enableInstancing = true;
+        runtimeMaterials.Add(material);
+        return material;
+    }
+
+    private static Texture FindMaterialTexture(Material material, params string[] propertyNames)
+    {
+        if (material == null)
+            return null;
+
+        for (int index = 0; index < propertyNames.Length; index++)
+        {
+            string propertyName = propertyNames[index];
+            if (!material.HasProperty(propertyName))
+                continue;
+            Texture texture = material.GetTexture(propertyName);
+            if (texture != null)
+                return texture;
+        }
+        return null;
     }
 
     private Mesh BuildRibbonMesh(float halfWidth, float lateralOffset, float yLift)
@@ -568,28 +1223,61 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private Mesh BuildTerrainMesh()
     {
-        const int columns = 17;
-        int rows = routePoints.Count;
+        const int maxGridAxisVertices = 384;
+        float gridSpacing = Mathf.Clamp(activeSampleSpacing * 1.5f, 4f, 8f);
+        float padding = ActiveTerrainHalfWidth + gridSpacing;
+        float minX = float.PositiveInfinity;
+        float maxX = float.NegativeInfinity;
+        float minZ = float.PositiveInfinity;
+        float maxZ = float.NegativeInfinity;
+        for (int index = 0; index < routePoints.Count; index++)
+        {
+            Vector3 point = routePoints[index];
+            minX = Mathf.Min(minX, point.x);
+            maxX = Mathf.Max(maxX, point.x);
+            minZ = Mathf.Min(minZ, point.z);
+            maxZ = Mathf.Max(maxZ, point.z);
+        }
+
+        minX -= padding;
+        maxX += padding;
+        minZ -= padding;
+        maxZ += padding;
+        float sizeX = maxX - minX;
+        float sizeZ = maxZ - minZ;
+        gridSpacing = Mathf.Max(
+            gridSpacing,
+            sizeX / (maxGridAxisVertices - 1),
+            sizeZ / (maxGridAxisVertices - 1));
+
+        int columns = Mathf.Max(2, Mathf.CeilToInt(sizeX / gridSpacing) + 1);
+        int rows = Mathf.Max(2, Mathf.CeilToInt(sizeZ / gridSpacing) + 1);
         Vector3[] vertices = new Vector3[rows * columns];
         Vector2[] uv = new Vector2[vertices.Length];
-        int[] triangles = new int[(rows - 1) * (columns - 1) * 6];
+        bool[] nearRoute = new bool[vertices.Length];
 
         for (int row = 0; row < rows; row++)
         {
-            float distance = row * activeSampleSpacing;
-            Vector3 right = RouteRight(row);
+            float z = row == rows - 1 ? maxZ : minZ + row * gridSpacing;
             for (int column = 0; column < columns; column++)
             {
-                float lateral = Mathf.Lerp(-ActiveTerrainHalfWidth, ActiveTerrainHalfWidth, column / (float)(columns - 1));
-                float height = TerrainHeight(distance, lateral, routePoints[row].y);
+                float x = column == columns - 1 ? maxX : minX + column * gridSpacing;
+                TerrainRouteSample routeSample = FindNearestTerrainRouteSample(x, z);
                 int vertex = row * columns + column;
-                vertices[vertex] = routePoints[row] + right * lateral;
-                vertices[vertex].y = height;
-                uv[vertex] = new Vector2(column * 0.32f, row * 0.28f);
+                vertices[vertex] = new Vector3(
+                    x,
+                    TerrainHeight(
+                        routeSample.DistanceAlongRoute,
+                        routeSample.SignedLateralDistance,
+                        routeSample.CenterHeight),
+                    z);
+                uv[vertex] = new Vector2(x * 0.08f, z * 0.08f);
+                nearRoute[vertex] = Mathf.Abs(routeSample.SignedLateralDistance) <=
+                                    ActiveTerrainHalfWidth + gridSpacing * 0.75f;
             }
         }
 
-        int write = 0;
+        List<int> triangles = new((rows - 1) * (columns - 1) * 6);
         for (int row = 0; row < rows - 1; row++)
         for (int column = 0; column < columns - 1; column++)
         {
@@ -597,22 +1285,110 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             int b = a + 1;
             int c = a + columns;
             int d = c + 1;
-            triangles[write++] = a;
-            triangles[write++] = c;
-            triangles[write++] = b;
-            triangles[write++] = b;
-            triangles[write++] = c;
-            triangles[write++] = d;
+            if (!nearRoute[a] && !nearRoute[b] && !nearRoute[c] && !nearRoute[d])
+                continue;
+
+            triangles.Add(a);
+            triangles.Add(c);
+            triangles.Add(b);
+            triangles.Add(b);
+            triangles.Add(c);
+            triangles.Add(d);
         }
 
-        Mesh mesh = new() { name = "Curved Winter Terrain" };
+        Mesh mesh = new() { name = "Non-Folding Winter Terrain" };
         mesh.indexFormat = IndexFormat.UInt32;
         mesh.vertices = vertices;
         mesh.uv = uv;
-        mesh.triangles = triangles;
+        mesh.SetTriangles(triangles, 0, true);
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
         return mesh;
+    }
+
+    private TerrainRouteSample FindNearestTerrainRouteSample(float x, float z)
+    {
+        Vector2 query = new(x, z);
+        float bestDistanceSqr = float.PositiveInfinity;
+        TerrainRouteSample best = new(
+            routePoints[0].y,
+            0f,
+            Vector2.Distance(query, new Vector2(routePoints[0].x, routePoints[0].z)),
+            Vector2.Distance(query, new Vector2(routePoints[0].x, routePoints[0].z)));
+
+        for (int segment = 0; segment < routePoints.Count - 1; segment++)
+        {
+            Vector3 start = routePoints[segment];
+            Vector3 end = routePoints[segment + 1];
+            Vector2 startXZ = new(start.x, start.z);
+            Vector2 segmentXZ = new(end.x - start.x, end.z - start.z);
+            float segmentLengthSqr = segmentXZ.sqrMagnitude;
+            if (segmentLengthSqr <= 0.0001f)
+                continue;
+
+            float t = Mathf.Clamp01(Vector2.Dot(query - startXZ, segmentXZ) / segmentLengthSqr);
+            Vector2 centerXZ = startXZ + segmentXZ * t;
+            Vector2 centerToQuery = query - centerXZ;
+            float distanceSqr = centerToQuery.sqrMagnitude;
+            if (distanceSqr >= bestDistanceSqr)
+                continue;
+
+            bestDistanceSqr = distanceSqr;
+            Vector2 right = new(segmentXZ.y, -segmentXZ.x);
+            right.Normalize();
+            best = new TerrainRouteSample(
+                Mathf.Lerp(start.y, end.y, t),
+                (segment + t) * activeSampleSpacing,
+                Vector2.Dot(centerToQuery, right),
+                Mathf.Sqrt(distanceSqr));
+        }
+
+        return best;
+    }
+
+    private readonly struct TerrainRouteSample
+    {
+        public readonly float CenterHeight;
+        public readonly float DistanceAlongRoute;
+        public readonly float SignedLateralDistance;
+        public readonly float DistanceFromRoute;
+
+        public TerrainRouteSample(
+            float centerHeight,
+            float distanceAlongRoute,
+            float signedLateralDistance,
+            float distanceFromRoute)
+        {
+            CenterHeight = centerHeight;
+            DistanceAlongRoute = distanceAlongRoute;
+            SignedLateralDistance = signedLateralDistance;
+            DistanceFromRoute = distanceFromRoute;
+        }
+    }
+
+    private bool TryGroundScenery(
+        Vector3 proposedPosition,
+        float minimumRouteClearance,
+        float terrainEdgeMargin,
+        out Vector3 groundedPosition)
+    {
+        TerrainRouteSample nearest = FindNearestTerrainRouteSample(
+            proposedPosition.x,
+            proposedPosition.z);
+        float maximumRouteDistance = ActiveTerrainHalfWidth - terrainEdgeMargin;
+        if (nearest.DistanceFromRoute < minimumRouteClearance ||
+            nearest.DistanceFromRoute > maximumRouteDistance)
+        {
+            groundedPosition = default;
+            return false;
+        }
+
+        groundedPosition = proposedPosition;
+        groundedPosition.y = TerrainHeight(
+            nearest.DistanceAlongRoute,
+            nearest.SignedLateralDistance,
+            nearest.CenterHeight);
+        return true;
     }
 
     private float TerrainHeight(float distance, float lateral, float routeHeight)
@@ -658,19 +1434,19 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
         for (int index = 8; index < routePoints.Count - 8; index += treeStep)
         {
-            float distance = index * activeSampleSpacing;
             int perSide = isSnowfield ? 1 : 2;
             for (int side = -1; side <= 1; side += 2)
             for (int layer = 0; layer < perSide; layer++)
             {
+                float scale = Mathf.Lerp(isSnowfield ? 2.4f : 3.0f, isSnowfield ? 5.8f : 7.2f, (float)random.NextDouble());
                 float lateral = side * Mathf.Lerp(
                     ActiveRoadHalfWidth + 8f + layer * 11f,
                     ActiveTerrainHalfWidth - 8f,
                     (float)random.NextDouble());
-                float y = TerrainHeight(distance, lateral, routePoints[index].y);
                 Vector3 position = routePoints[index] + RouteRight(index) * lateral;
-                position.y = y;
-                float scale = Mathf.Lerp(isSnowfield ? 2.4f : 3.0f, isSnowfield ? 5.8f : 7.2f, (float)random.NextDouble());
+                float clearance = ActiveRoadHalfWidth + Mathf.Max(3f, scale * 0.42f);
+                if (!TryGroundScenery(position, clearance, 5f, out position))
+                    continue;
                 BuildPine(position, scale, trunk, foliage, random.Next(0, 360));
             }
 
@@ -679,7 +1455,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
                 int side = random.NextDouble() < 0.5 ? -1 : 1;
                 float lateral = side * Mathf.Lerp(13f, 32f, (float)random.NextDouble());
                 Vector3 position = routePoints[index] + RouteRight(index) * lateral;
-                position.y = TerrainHeight(distance, lateral, routePoints[index].y) + 0.4f;
+                if (!TryGroundScenery(position, ActiveRoadHalfWidth + 3f, 3f, out position))
+                    continue;
                 CreateMeshObject("Snow Rock", rebuiltRoot, mountainMesh, rock, false, position,
                     Quaternion.Euler(0f, random.Next(0, 360), 0f),
                     new Vector3(1.2f, 0.75f, 1.0f) * Mathf.Lerp(0.8f, 1.8f, (float)random.NextDouble()));
@@ -697,17 +1474,29 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             }
         }
 
-        for (int index = 18; index < routePoints.Count - 8; index += 18)
+        if (!isSharpCurve)
         {
-            for (int side = -1; side <= 1; side += 2)
+            for (int index = 18; index < routePoints.Count - 8; index += 18)
             {
-                float lateral = side * 88f;
-                Vector3 position = routePoints[index] + RouteRight(index) * lateral;
-                position.y = TerrainHeight(index * activeSampleSpacing, lateral, routePoints[index].y) - 1f;
-                float size = Mathf.Lerp(13f, 28f, (float)random.NextDouble());
-                CreateMeshObject("Distant Snow Mountain", rebuiltRoot, mountainMesh, mountain, false, position,
-                    Quaternion.Euler(0f, random.Next(0, 360), 0f),
-                    new Vector3(size, size * Mathf.Lerp(0.8f, 1.35f, (float)random.NextDouble()), size));
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    float size = Mathf.Lerp(13f, 28f, (float)random.NextDouble());
+                    float lateralMagnitude = Mathf.Min(88f, ActiveTerrainHalfWidth - size * 0.55f);
+                    if (lateralMagnitude <= ActiveRoadHalfWidth + size * 0.70f)
+                        continue;
+                    float lateral = side * lateralMagnitude;
+                    Vector3 position = routePoints[index] + RouteRight(index) * lateral;
+                    if (!TryGroundScenery(
+                            position,
+                            ActiveRoadHalfWidth + size * 0.70f,
+                            size * 0.50f,
+                            out position))
+                        continue;
+                    position.y -= Mathf.Min(1f, size * 0.04f);
+                    CreateMeshObject("Distant Snow Mountain", rebuiltRoot, mountainMesh, mountain, false, position,
+                        Quaternion.Euler(0f, random.Next(0, 360), 0f),
+                        new Vector3(size, size * Mathf.Lerp(0.8f, 1.35f, (float)random.NextDouble()), size));
+                }
             }
         }
 
@@ -720,7 +1509,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
                 int side = (index / 55) % 2 == 0 ? -1 : 1;
                 float lateral = side * 25f;
                 Vector3 position = routePoints[index] + RouteRight(index) * lateral;
-                position.y = TerrainHeight(index * activeSampleSpacing, lateral, routePoints[index].y);
+                if (!TryGroundScenery(position, ActiveRoadHalfWidth + 4f, 4f, out position))
+                    continue;
                 BuildCabin(position, RouteTangent(index), cabinWall, cabinRoof);
             }
         }
@@ -1207,6 +1997,23 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         SetOrCreateMarker("SPAWN_Dog_Left", start + RouteRight(0) * -0.8f + StartForward * 4f, StartForward);
         SetOrCreateMarker("SPAWN_Dog_Right", start + RouteRight(0) * 0.8f + StartForward * 4f, StartForward);
         SetOrCreateMarker("FINISH_Delivery", finish, RouteTangent(routePoints.Count - 1));
+        AlignSavedRideTeamToStart();
+    }
+
+    private void AlignSavedRideTeamToStart()
+    {
+        Transform savedTeam = transform.Find(RideTeamRootName);
+        if (savedTeam == null)
+            return;
+
+        Vector3 horizontalForward = Vector3.ProjectOnPlane(StartForward, Vector3.up).normalized;
+        if (horizontalForward.sqrMagnitude < 0.0001f)
+            horizontalForward = Vector3.back;
+
+        // The road surface is lifted 0.10 m over the route and the ride
+        // controller keeps the team another 0.06 m above that surface.
+        savedTeam.localPosition = routePoints[0] + Vector3.up * 0.16f;
+        savedTeam.localRotation = Quaternion.LookRotation(horizontalForward, Vector3.up);
     }
 
     private void SetOrCreateMarker(string markerName, Vector3 position, Vector3 forward)
