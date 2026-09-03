@@ -7,12 +7,15 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: SG_Lantern_Emission
-  m_Shader: {fileID: 4800000, guid: dbc4a92342792cb46bf2f522a6f090a5, type: 3}
+  m_Name: M_HLSL
+  m_Shader: {fileID: 4800000, guid: caf09c4a22bf404183267f7c7a1301d4, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
-  - _EMISSION_MAP
+  - _AO_MAP
+  - _METALLIC_MAP
+  - _NORMAL_MAP
+  - _SMOOTHNESS_MAP
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -24,25 +27,39 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _AOMap:
+        m_Texture: {fileID: 2800000, guid: e03e95b5cbf178241ab5508515a6a984, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 92aff83c3340948459756c2036181486, type: 3}
+        m_Texture: {fileID: 2800000, guid: c8d72ebbacdf5a44a8a2dde5df5c9ed0, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
-        m_Texture: {fileID: 2800000, guid: 92aff83c3340948459756c2036181486, type: 3}
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MetallicMap:
+        m_Texture: {fileID: 2800000, guid: 806bf698fd64bf04ab4e03a7e8b92e82, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _NormalMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: 56f8bb8614041d042ab9e0f28bfc3090, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SmoothnessMap:
+        m_Texture: {fileID: 2800000, guid: cea16afc0ae4ea54eb8a4a52c421a5e1, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _EmissionStrength: 5.98
+    - _AOMapStrength: 2
+    - _EmissionStrength: 0
     - _FacetCenter: 0.5
     - _FacetContrast: 1.35
     - _FacetStrength: 0.35
-    - _Metallic: 0.05
+    - _Metallic: 0
+    - _MetallicMapStrength: 2
     - _NormalStrength: 1
     - _RimLightInfluence: 0.5
     - _RimPower: 4
@@ -50,12 +67,16 @@ Material:
     - _ShadowSoftness: 0.2
     - _ShadowStrength: 0.35
     - _ShadowThreshold: 0.5
-    - _Smoothness: 0.85
-    - _UseEmissionMap: 1
-    - _UseNormalMap: 0
+    - _Smoothness: 0
+    - _SmoothnessMapStrength: 1
+    - _UseAOMap: 1
+    - _UseEmissionMap: 0
+    - _UseMetallicMap: 1
+    - _UseNormalMap: 1
+    - _UseSmoothnessMap: 1
     m_Colors:
-    - _BaseColor: {r: 1, g: 0.9803922, b: 0.6784314, a: 1}
-    - _EmissionColor: {r: 1, g: 0.102934934, b: 0.023584902, a: 1}
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _EmissionColor: {r: 1, g: 0.45, b: 0.08, a: 1}
     - _RimColor: {r: 1, g: 0.85, b: 0.62, a: 1}
     - _ShadowColor: {r: 0.24999997, g: 0.27999997, b: 0.34999996, a: 1}
   m_BuildTextureStacks: []
