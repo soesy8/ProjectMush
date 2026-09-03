@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Mush.Quest;
+using Mush.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -46,9 +47,7 @@ namespace Mush.Customization
         {
             catalog = MushCustomizationCatalog.Load();
             workingState = MushCustomizationSave.Load().Clone();
-            font = catalog != null && catalog.koreanFont != null
-                ? catalog.koreanFont
-                : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = catalog != null ? catalog.koreanFont : null;
 
             BuildPreviewStage();
             BuildInterface();
@@ -83,6 +82,7 @@ namespace Mush.Customization
 
             GameObject cameraObject = new("Customization Preview Camera");
             previewCamera = cameraObject.AddComponent<Camera>();
+            MushVrRenderPerformance.ConfigureCamera(previewCamera);
             previewCamera.clearFlags = CameraClearFlags.SolidColor;
             previewCamera.backgroundColor = new Color(0.085f, 0.13f, 0.19f);
             previewCamera.fieldOfView = 42f;
@@ -514,6 +514,10 @@ namespace Mush.Customization
 
         private static Image CreatePanel(Transform parent, string objectName, Vector2 position, Vector2 size, Color color)
         {
+            Image themedPanel = MushUiPanelSkin.CreateCanvasPanel(parent, objectName, position, size);
+            if (themedPanel != null)
+                return themedPanel;
+
             GameObject panel = new(objectName);
             RectTransform rect = panel.AddComponent<RectTransform>();
             rect.SetParent(parent, false);
@@ -593,44 +597,4 @@ namespace Mush.Customization
         }
     }
 
-    public sealed class MushStoreUiButton : MonoBehaviour, IMushQuestRayTarget
-    {
-        private RectTransform rect;
-        private Image image;
-        private Action callback;
-        private Color normalColor;
-        private bool questHovered;
-
-        public void Configure(RectTransform newRect, Image newImage, Action newCallback, Color newNormalColor)
-        {
-            rect = newRect;
-            image = newImage;
-            callback = newCallback;
-            normalColor = newNormalColor;
-        }
-
-        private void Update()
-        {
-            Mouse mouse = Mouse.current;
-            if (rect == null)
-                return;
-
-            bool hovered = mouse != null &&
-                           RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), null);
-            if (image != null)
-                image.color = hovered || questHovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
-            if (hovered && mouse != null && mouse.leftButton.wasPressedThisFrame)
-                callback?.Invoke();
-        }
-
-        public void SetQuestRayHovered(bool hovered)
-        {
-            questHovered = hovered;
-        }
-
-        public void SelectWithQuestRay()
-        {
-            callback?.Invoke();
-        }
-    }
 }

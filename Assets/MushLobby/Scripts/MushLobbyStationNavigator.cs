@@ -81,8 +81,27 @@ namespace Mush.Lobby
             seatedRig = camera.GetComponentInParent<MushSeatedRigLock>();
             desktopLook = camera.GetComponentInParent<MushDesktopSeatedLook>();
             if (menuRoot == null)
+                menuRoot = FindDescendant(lobbyRoot != null ? lobbyRoot : owner.transform.root, "Lobby Station Travel Menu");
+            if (menuRoot == null)
                 BuildMenu(lobbyRoot != null ? lobbyRoot : owner.transform.root);
+            else
+                CacheMenuReferences();
             EnsureChairSeatInteraction(lobbyRoot != null ? lobbyRoot : owner.transform.root);
+        }
+
+        private void CacheMenuReferences()
+        {
+            MushLobbyStationButton[] sceneButtons = menuRoot.GetComponentsInChildren<MushLobbyStationButton>(true);
+            buttons.Clear();
+            for (int index = 0; index < sceneButtons.Length; index++)
+            {
+                MushLobbyStationButton button = sceneButtons[index];
+                button.Configure(this, index, button.GetComponent<Renderer>());
+                buttons.Add(button);
+            }
+            if (sceneButtons.Length > 0)
+                buttonMaterial = sceneButtons[0].GetComponent<Renderer>()?.sharedMaterial;
+            selectedMaterial = buttonMaterial;
         }
 
         private void Update()
@@ -539,94 +558,4 @@ namespace Mush.Lobby
         }
     }
 
-    [DisallowMultipleComponent]
-    public sealed class MushLobbyStationButton : MonoBehaviour
-    {
-        private MushLobbyStationNavigator navigator;
-        private int stationIndex;
-        private Renderer buttonRenderer;
-        private XRSimpleInteractable xrInteractable;
-
-        public void Configure(MushLobbyStationNavigator owner, int index, Renderer renderer)
-        {
-            navigator = owner;
-            stationIndex = index;
-            buttonRenderer = renderer;
-        }
-
-        private void Awake()
-        {
-            xrInteractable = GetComponent<XRSimpleInteractable>();
-            if (xrInteractable != null)
-                xrInteractable.selectEntered.AddListener(OnSelected);
-        }
-
-        private void OnDestroy()
-        {
-            if (xrInteractable != null)
-                xrInteractable.selectEntered.RemoveListener(OnSelected);
-        }
-
-        public void Trigger()
-        {
-            navigator?.TravelTo(stationIndex);
-        }
-
-        public void SetSelected(bool selected, Material normal, Material highlighted)
-        {
-            if (buttonRenderer != null)
-                buttonRenderer.sharedMaterial = selected ? highlighted : normal;
-        }
-
-        private void OnSelected(SelectEnterEventArgs args)
-        {
-            Trigger();
-        }
-    }
-
-    [DisallowMultipleComponent]
-    public sealed class MushLobbyChairSeatInteractable : MonoBehaviour
-    {
-        private MushLobbyStationNavigator navigator;
-        private XRSimpleInteractable xrInteractable;
-
-        public void Configure(MushLobbyStationNavigator owner)
-        {
-            navigator = owner;
-            BindXrSelection();
-        }
-
-        private void Awake()
-        {
-            BindXrSelection();
-        }
-
-        private void BindXrSelection()
-        {
-            XRSimpleInteractable candidate = GetComponent<XRSimpleInteractable>();
-            if (candidate == xrInteractable)
-                return;
-            if (xrInteractable != null)
-                xrInteractable.selectEntered.RemoveListener(OnSelected);
-            xrInteractable = candidate;
-            if (xrInteractable != null)
-                xrInteractable.selectEntered.AddListener(OnSelected);
-        }
-
-        private void OnDestroy()
-        {
-            if (xrInteractable != null)
-                xrInteractable.selectEntered.RemoveListener(OnSelected);
-        }
-
-        public void Trigger()
-        {
-            navigator?.TrySitAtFireplace();
-        }
-
-        private void OnSelected(SelectEnterEventArgs args)
-        {
-            Trigger();
-        }
-    }
 }

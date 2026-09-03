@@ -51,6 +51,7 @@ namespace Mush.Lobby
             station.dogs = lobbyDogs;
             station.desktopCamera = lobbyCamera != null ? lobbyCamera : Camera.main;
             station.HideLegacyDogBowl(lobbyRoot);
+            station.CacheExistingFeedingPlace();
             if (station.fallingFoodParticles == null)
                 station.BuildFeedingPlace();
             return station;
@@ -264,6 +265,28 @@ namespace Mush.Lobby
             dispenser.Configure(this, canisterRenderer);
         }
 
+        private void CacheExistingFeedingPlace()
+        {
+            if (fallingFoodParticles == null)
+                fallingFoodParticles = FindDescendant(transform, "Falling Dog Food")?.GetComponent<ParticleSystem>();
+
+            for (int bowlIndex = 0; bowlIndex < BowlCount; bowlIndex++)
+            {
+                string bowlName = bowlIndex == 0 ? "Left Dog Food Bowl" : "Right Dog Food Bowl";
+                Transform bowl = FindDescendant(transform, bowlName);
+                if (bowl == null)
+                    continue;
+
+                bowlWorld[bowlIndex] = bowl.position + Vector3.up * 0.13f;
+                eatingWorld[bowlIndex] = bowl.position - transform.forward * 0.62f;
+                eatingRotation[bowlIndex] = Quaternion.LookRotation(transform.forward, Vector3.up);
+                string foodName = bowlIndex == 0 ? "Food Stored In Left Bowl" : "Food Stored In Right Bowl";
+                bowlFoodParticles[bowlIndex] = FindDescendant(transform, foodName)?.GetComponent<ParticleSystem>();
+            }
+
+            desktopHoldWorld = transform.TransformPoint(new Vector3(0f, 0.88f, 0.08f));
+        }
+
         private void BuildRoundBowl(Transform bowl, Material baseMaterial, Material rimMaterial)
         {
             CreateCylinder(
@@ -454,6 +477,8 @@ namespace Mush.Lobby
 
         private void OnDestroy()
         {
+            if (!Application.isPlaying)
+                return;
             foreach (Material material in ownedMaterials)
             {
                 if (material != null)
@@ -462,165 +487,4 @@ namespace Mush.Lobby
         }
     }
 
-    [DisallowMultipleComponent]
-    public sealed class MushLobbyFeedDispenser : MonoBehaviour
-    {
-        private const float PourAngle = 48f;
-        private static MushLobbyFeedDispenser activeDesktopDispenser;
-        private MushLobbyFeedingStation station;
-        private XRGrabInteractable interactable;
-        private Renderer highlightRenderer;
-        private Color restingColor;
-        private Transform originalParent;
-        private Vector3 originalLocalPosition;
-        private Quaternion originalLocalRotation;
-        private bool heldInVr;
-        private bool heldOnDesktop;
-        private float desktopTilt;
-
-        public static bool IsDesktopCanisterHeld =>
-            activeDesktopDispenser != null && activeDesktopDispenser.heldOnDesktop;
-
-        public void Configure(MushLobbyFeedingStation newStation, Renderer newHighlightRenderer)
-        {
-            station = newStation;
-            highlightRenderer = newHighlightRenderer;
-            if (highlightRenderer != null)
-                restingColor = highlightRenderer.material.color;
-        }
-
-        private void Awake()
-        {
-            originalParent = transform.parent;
-            originalLocalPosition = transform.localPosition;
-            originalLocalRotation = transform.localRotation;
-            interactable = GetComponent<XRGrabInteractable>();
-            if (interactable == null)
-                return;
-            interactable.selectEntered.AddListener(OnSelected);
-            interactable.selectExited.AddListener(OnSelectExited);
-            interactable.hoverEntered.AddListener(OnHoverEntered);
-            interactable.hoverExited.AddListener(OnHoverExited);
-        }
-
-        private void Update()
-        {
-            if (XRSettings.isDeviceActive)
-            {
-                if (heldInVr && CurrentTiltDegrees() >= PourAngle)
-                    station?.PourFrom(GetPourWorldPosition(), Time.deltaTime);
-                return;
-            }
-
-            if (!heldOnDesktop || station == null)
-                return;
-
-            Mouse mouse = Mouse.current;
-            if (mouse != null && mouse.rightButton.wasPressedThisFrame)
-            {
-                ReturnToStand(); // PC에서는 어디를 보고 있든 우클릭 한 번으로 왼쪽 거치대에 돌려놓는다.
-                return;
-            }
-
-            Keyboard keyboard = Keyboard.current;
-            float tiltInput = 0f;
-            if (keyboard != null)
-            {
-                if (keyboard.leftArrowKey.isPressed) tiltInput += 1f;
-                if (keyboard.rightArrowKey.isPressed) tiltInput -= 1f;
-            }
-            float targetTilt = tiltInput * 68f;
-            desktopTilt = Mathf.MoveTowards(desktopTilt, targetTilt, Time.deltaTime * 95f);
-
-            Vector3 pointerWorld = station.DesktopHoldWorld;
-            if (mouse != null)
-                station.TryGetDesktopPointerWorld(mouse.position.ReadValue(), out pointerWorld);
-            transform.SetPositionAndRotation(
-                pointerWorld,
-                station.GetDesktopCanisterRotation(desktopTilt));
-            if (Mathf.Abs(desktopTilt) >= PourAngle)
-                station.PourFrom(GetPourWorldPosition(), Time.deltaTime);
-        }
-
-        public void Trigger()
-        {
-            if (XRSettings.isDeviceActive)
-                return; // VR은 레이/손의 그립 선택과 실제 컨트롤러 기울기를 사용한다.
-            if (heldOnDesktop)
-                return; // 집은 뒤의 좌클릭은 무시하고, 내려놓기는 사용자가 지정한 우클릭만 사용한다.
-
-            heldOnDesktop = true;
-            activeDesktopDispenser = this;
-            desktopTilt = 0f;
-        }
-
-        private float CurrentTiltDegrees()
-        {
-            return Mathf.Acos(Mathf.Clamp(Vector3.Dot(transform.up, Vector3.up), -1f, 1f)) * Mathf.Rad2Deg;
-        }
-
-        private Vector3 GetPourWorldPosition()
-        {
-            Vector3 lowerSide = Vector3.Dot(transform.right, Vector3.up) < 0f
-                ? transform.right
-                : -transform.right;
-            return transform.position + transform.up * 0.30f + lowerSide * 0.24f;
-        }
-
-        private void OnSelected(SelectEnterEventArgs args)
-        {
-            heldInVr = XRSettings.isDeviceActive;
-            heldOnDesktop = false;
-            if (activeDesktopDispenser == this)
-                activeDesktopDispenser = null;
-        }
-
-        private void OnSelectExited(SelectExitEventArgs args)
-        {
-            heldInVr = false;
-            ReturnToStand();
-        }
-
-        private void ReturnToStand()
-        {
-            heldOnDesktop = false;
-            if (activeDesktopDispenser == this)
-                activeDesktopDispenser = null;
-            desktopTilt = 0f;
-            transform.SetParent(originalParent, false);
-            transform.localPosition = originalLocalPosition;
-            transform.localRotation = originalLocalRotation;
-            Rigidbody body = GetComponent<Rigidbody>();
-            if (body == null)
-                return;
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
-        }
-
-        private void OnHoverEntered(HoverEnterEventArgs args) => SetHighlighted(true);
-        private void OnHoverExited(HoverExitEventArgs args) => SetHighlighted(false);
-        private void OnMouseEnter() => SetHighlighted(true);
-        private void OnMouseExit() => SetHighlighted(false);
-
-        private void SetHighlighted(bool highlighted)
-        {
-            if (highlightRenderer == null)
-                return;
-            highlightRenderer.material.color = highlighted
-                ? new Color(0.74f, 0.43f, 0.13f)
-                : restingColor;
-        }
-
-        private void OnDestroy()
-        {
-            if (activeDesktopDispenser == this)
-                activeDesktopDispenser = null;
-            if (interactable == null)
-                return;
-            interactable.selectEntered.RemoveListener(OnSelected);
-            interactable.selectExited.RemoveListener(OnSelectExited);
-            interactable.hoverEntered.RemoveListener(OnHoverEntered);
-            interactable.hoverExited.RemoveListener(OnHoverExited);
-        }
-    }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Mush.Quest;
+using Mush.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -42,9 +43,7 @@ namespace Mush.Customization
             workingState = MushCustomizationSave.Load().Clone();
             workingState.Normalize(); // 구형 저장값을 먼저 현재 세 슬롯 구조로 정리한 뒤 탭의 초기 선택 모델을 찾는다.
             selectedItemId = FindDefaultSelectedItem(selectedPlacementIndex); // 현재 장착 모델이 있으면 그 모델, 없으면 첫 보유 모델을 카드 선택 상태로 둔다.
-            font = catalog != null && catalog.koreanFont != null
-                ? catalog.koreanFont
-                : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = catalog != null ? catalog.koreanFont : null;
 
             BuildLobbyPreview();
             BuildInterface();
@@ -85,6 +84,7 @@ namespace Mush.Customization
 
             GameObject cameraObject = new("Housing Preview Camera"); // 하우징 화면 전용 카메라를 런타임에 만든다.
             Camera camera = cameraObject.AddComponent<Camera>(); // 장착된 의자·탁자·침대를 실제 배치와 비슷한 구도로 보여 줄 카메라다.
+            MushVrRenderPerformance.ConfigureCamera(camera); // OpenXR 자동 동적 해상도가 이 VR 카메라에도 적용되게 한다.
             previewCamera = camera; // VR 전환과 UI 월드 캔버스 설정에서도 같은 카메라를 쓰도록 필드에 저장한다.
             camera.clearFlags = CameraClearFlags.SolidColor; // 미리보기 방 밖은 단색으로 정리해 로비와 UI가 뒤섞여 보이지 않게 한다.
             camera.backgroundColor = new Color(0.12f, 0.10f, 0.11f); // 산장 내부와 어울리는 어두운 배경색을 사용한다.
@@ -536,6 +536,10 @@ namespace Mush.Customization
             Vector2 size,
             Color color)
         {
+            Image themedPanel = MushUiPanelSkin.CreateCanvasPanel(parent, objectName, position, size);
+            if (themedPanel != null)
+                return themedPanel;
+
             GameObject panel = new(objectName);
             RectTransform rect = panel.AddComponent<RectTransform>();
             rect.SetParent(parent, false);
@@ -622,44 +626,4 @@ namespace Mush.Customization
         }
     }
 
-    public sealed class MushHousingUiButton : MonoBehaviour, IMushQuestRayTarget
-    {
-        private RectTransform rect;
-        private Image image;
-        private Action callback;
-        private Color normalColor;
-        private bool questHovered;
-
-        public void Configure(RectTransform newRect, Image newImage, Action newCallback, Color newNormalColor)
-        {
-            rect = newRect;
-            image = newImage;
-            callback = newCallback;
-            normalColor = newNormalColor;
-        }
-
-        private void Update()
-        {
-            Mouse mouse = Mouse.current;
-            if (rect == null)
-                return;
-
-            bool hovered = mouse != null &&
-                           RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), null);
-            if (image != null)
-                image.color = hovered || questHovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
-            if (hovered && mouse != null && mouse.leftButton.wasPressedThisFrame)
-                callback?.Invoke();
-        }
-
-        public void SetQuestRayHovered(bool hovered)
-        {
-            questHovered = hovered;
-        }
-
-        public void SelectWithQuestRay()
-        {
-            callback?.Invoke();
-        }
-    }
 }

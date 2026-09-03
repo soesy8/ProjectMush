@@ -5,19 +5,12 @@ using UnityEngine;
 
 namespace Mush.Customization.Editor
 {
-    [InitializeOnLoad]
     public static class MushCustomizationCatalogRepair
     {
         private const string CatalogPath = "Assets/Resources/MushCustomizationCatalog.asset";
         private const string StoreScenePath = "Assets/Scenes/MushStore.unity";
         private const string HousingScenePath = "Assets/Scenes/MushHousing.unity";
 
-        static MushCustomizationCatalogRepair()
-        {
-            EditorApplication.delayCall += RepairReferences;
-        }
-
-        [MenuItem("Mush/Customization/Repair Catalog References")]
         public static void RepairReferences()
         {
             if (EditorApplication.isCompiling || EditorApplication.isPlayingOrWillChangePlaymode)
@@ -28,7 +21,8 @@ namespace Mush.Customization.Editor
                 return;
 
             bool changed = false;
-            changed |= Assign(ref catalog.koreanFont, "Assets/Font/Hakgyoansim_PosterB.ttf");
+            changed |= Assign(ref catalog.koreanFont, "Assets/UI/UI_Panel_Sample/Font/HS두꺼비체.ttf");
+            changed |= Assign(ref catalog.uiPanelPrefab, "Assets/UI/UI_Panel_Sample/UI_Panel.prefab");
             changed |= Assign(ref catalog.lobbyEnvironment, "Assets/Scenes/Mush_Lobby.fbx");
             changed |= Assign(ref catalog.sledNatural, "Assets/Scenes/Mush_Sled_Natural.fbx");
             changed |= Assign(ref catalog.sledRed, "Assets/Scenes/Mush_Sled_Red.fbx");
@@ -61,8 +55,11 @@ namespace Mush.Customization.Editor
 
         private static bool Assign<T>(ref T field, string path) where T : Object
         {
+            if (field != null)
+                return false;
+
             T asset = AssetDatabase.LoadAssetAtPath<T>(path);
-            if (field == asset)
+            if (asset == null)
                 return false;
             field = asset;
             return true;

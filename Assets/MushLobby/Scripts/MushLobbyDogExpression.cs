@@ -1,4 +1,5 @@
 using UnityEngine;
+using Mush.UI;
 using UnityEngine.Rendering;
 
 namespace Mush.Lobby
@@ -183,7 +184,7 @@ namespace Mush.Lobby
                 return;
 
             hearts = new TextMesh[3];
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Font font = MushUiPanelSkin.ThemeFont;
             for (int index = 0; index < hearts.Length; index++)
             {
                 GameObject heartObject = new GameObject("Love Heart " + (index + 1));

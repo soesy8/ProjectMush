@@ -107,7 +107,17 @@ namespace Mush.Lobby
         {
             MushLobbyFetchBall existing = FindFirstObjectByType<MushLobbyFetchBall>();
             if (existing != null)
+            {
+                Transform sceneRoot = lobbyRoot != null ? lobbyRoot : existing.transform.root;
+                existing.Configure(
+                    camera,
+                    lobbyDogs,
+                    sceneRoot,
+                    existing.GetComponent<Rigidbody>(),
+                    existing.transform.position,
+                    existing.transform.position);
                 return existing;
+            }
             if (camera == null)
                 return null;
 
@@ -871,6 +881,8 @@ namespace Mush.Lobby
 
         private void OnDestroy()
         {
+            if (!Application.isPlaying)
+                return;
             foreach (Material material in ownedMaterials)
             {
                 if (material != null)

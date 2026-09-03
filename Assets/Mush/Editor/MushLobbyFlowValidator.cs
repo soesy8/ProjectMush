@@ -188,7 +188,9 @@ public static class MushLobbyFlowValidator
         FieldInfo actionField = typeof(MushLobbyInteractable).GetField("action", BindingFlags.Instance | BindingFlags.NonPublic);
         if (actionField == null)
             throw new InvalidOperationException("Could not inspect lobby map actions.");
-        foreach (MushLobbyInteractable interactable in Resources.FindObjectsOfTypeAll<MushLobbyInteractable>())
+        foreach (MushLobbyInteractable interactable in UnityEngine.Object.FindObjectsByType<MushLobbyInteractable>(
+                     FindObjectsInactive.Include,
+                     FindObjectsSortMode.None))
         {
             if (interactable == null || interactable.gameObject.scene != controller.gameObject.scene)
                 continue;
@@ -200,7 +202,9 @@ public static class MushLobbyFlowValidator
         if (!snowButton || !treeButton || !sharpCurveButton)
             throw new InvalidOperationException("The Korean map board is missing a snow, Tree, or SharpCurve scene button.");
 
-        foreach (TextMesh text in Resources.FindObjectsOfTypeAll<TextMesh>())
+        foreach (TextMesh text in UnityEngine.Object.FindObjectsByType<TextMesh>(
+                     FindObjectsInactive.Include,
+                     FindObjectsSortMode.None))
         {
             if (text == null || text.gameObject.scene != controller.gameObject.scene || string.IsNullOrWhiteSpace(text.text))
                 continue;

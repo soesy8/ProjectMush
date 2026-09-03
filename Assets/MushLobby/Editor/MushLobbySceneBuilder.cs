@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Mush.Customization;
 using Mush.Lobby;
+using Mush.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -13,14 +14,13 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace Mush.Lobby.Editor
 {
-    [InitializeOnLoad]
     public static class MushLobbySceneBuilder
     {
         private const string LobbyRoot = "Assets/MushLobby";
         private const string MaterialRoot = LobbyRoot + "/Materials";
         private const string ScenePath = "Assets/Scenes/MushLobby.unity";
         private const string LobbyModelPath = "Assets/Scenes/Mush_Lobby.fbx";
-        private const string XrRigPath = "Assets/VRTemplateAssets/Prefabs/Setup/Complete XR Origin Set Up Variant.prefab";
+        private const string XrRigPath = "Assets/VR/VRTemplateAssets/Prefabs/Setup/Complete XR Origin Set Up Variant.prefab";
         private const string LeftHandPath = "Assets/Oculus Hands/Prefabs/Left Hand Model.prefab";
         private const string RightHandPath = "Assets/Oculus Hands/Prefabs/Right Hand Model.prefab";
         private const string AxisRevisionMarker = "Mush Lobby Revision 19 - Separated Dog Bowl";
@@ -29,8 +29,6 @@ namespace Mush.Lobby.Editor
         private const float ProceduralCabinCenterZ = -1.75f; // 정면 벽 z=-6.25, 뒤벽 z=+2.75가 되도록 방 중심을 고정한다.
         private const float ProceduralCabinWallHeight = 2.62f; // 기존 산장의 벽-박공 접합 높이를 유지해 소품 높이와 어울리게 한다.
         private const float ProceduralCabinRidgeHeight = 4.34f; // 기존 산장 지붕 꼭대기 높이를 유지해 VR에서 천장이 과하게 높아지지 않게 한다.
-        private static int stableEditFrames;
-
         private struct PanelButtonSpec
         {
             public string label;
@@ -41,60 +39,6 @@ namespace Mush.Lobby.Editor
                 label = newLabel;
                 action = newAction;
             }
-        }
-
-        static MushLobbySceneBuilder()
-        {
-            QueueAutomaticMaintenance();
-            EditorApplication.playModeStateChanged += state =>
-            {
-                if (state == PlayModeStateChange.EnteredEditMode)
-                    QueueAutomaticMaintenance();
-                else
-                    CancelAutomaticMaintenance();
-            };
-        }
-
-        private static void QueueAutomaticMaintenance()
-        {
-            stableEditFrames = 0;
-            EditorApplication.update -= ApplyAfterStableEditFrames;
-            EditorApplication.update += ApplyAfterStableEditFrames;
-        }
-
-        private static void CancelAutomaticMaintenance()
-        {
-            stableEditFrames = 0;
-            EditorApplication.update -= ApplyAfterStableEditFrames;
-        }
-
-        private static void ApplyAfterStableEditFrames()
-        {
-            if (EditorApplication.isCompiling || EditorApplication.isPlaying ||
-                EditorApplication.isPlayingOrWillChangePlaymode)
-            {
-                stableEditFrames = 0;
-                return;
-            }
-
-            if (++stableEditFrames < 3)
-                return;
-
-            CancelAutomaticMaintenance();
-            EnsureSceneExists();
-            ApplyAxisRevision();
-        }
-
-        [MenuItem("Mush/Lobby/Create Seated Lobby Prototype")]
-        public static void CreateFromMenu()
-        {
-            if (File.Exists(ScenePath))
-            {
-                EditorUtility.DisplayDialog("Mush Lobby", "MushLobby scene already exists.", "OK");
-                return;
-            }
-
-            BuildScene();
         }
 
         public static void BuildFromCommandLine()
@@ -310,7 +254,7 @@ namespace Mush.Lobby.Editor
                 GameObject controllerObject = new GameObject("Lobby Game State");
                 controllerObject.transform.SetParent(sceneRoot.transform, false);
                 MushLobbyController controller = controllerObject.AddComponent<MushLobbyController>();
-                controller.SetKoreanFont(AssetDatabase.LoadAssetAtPath<Font>("Assets/Font/Hakgyoansim_PosterB.ttf"));
+                controller.SetKoreanFont(AssetDatabase.LoadAssetAtPath<Font>("Assets/UI/UI_Panel_Sample/Font/HS두꺼비체.ttf"));
 
                 EnsureInteractionManager(sceneRoot.transform, xrRig);
 
@@ -362,6 +306,10 @@ namespace Mush.Lobby.Editor
                         new PanelButtonSpec("공간 2", MushLobbyAction.HousingSlotB),
                         new PanelButtonSpec("공간 3", MushLobbyAction.HousingSlotC)
                     }, out TextMesh housingStatus, true);
+
+                MushUiPanelSkin.ApplyPanel(mapPanel.transform, new Vector2(3.0f, 1.75f));
+                MushUiPanelSkin.ApplyPanel(shopPanel.transform, new Vector2(3.0f, 1.75f));
+                MushUiPanelSkin.ApplyPanel(housingPanel.transform, new Vector2(3.0f, 1.75f));
 
                 BuildDogTeam(sceneRoot.transform, out MushLobbyDogRoamer[] dogs, out GameObject[] scarves);
                 GameObject[] furniture = BuildHousingFurniture(sceneRoot.transform);
@@ -1261,7 +1209,7 @@ namespace Mush.Lobby.Editor
             textMesh.fontSize = 64;
             textMesh.characterSize = characterSize;
             textMesh.color = color;
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Font font = AssetDatabase.LoadAssetAtPath<Font>("Assets/UI/UI_Panel_Sample/Font/HS두꺼비체.ttf");
             if (font != null)
             {
                 textMesh.font = font;
