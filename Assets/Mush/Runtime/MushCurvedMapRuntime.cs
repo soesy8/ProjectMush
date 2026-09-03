@@ -25,6 +25,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private readonly List<Vector3> routePoints = new();
     private readonly List<Vector3> terrainBoundaryPoints = new();
+    private readonly List<Vector3> terrainSurfacePoints = new();
+    private readonly List<Vector3> terrainHeightPoints = new();
     private readonly List<int> terrainTriangleIndices = new();
     private readonly List<Material> runtimeMaterials = new();
     [SerializeField, HideInInspector] private int bakedWorldVersion;
@@ -556,6 +558,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     {
         routePoints.Clear();
         terrainBoundaryPoints.Clear();
+        terrainSurfacePoints.Clear();
+        terrainHeightPoints.Clear();
         terrainTriangleIndices.Clear();
         usesEditableTrack = false;
         usesEditableTerrain = false;
@@ -593,7 +597,15 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             usesEditableTerrain = TryTriangulateTerrainBoundary(
                 terrainBoundaryPoints,
                 terrainTriangleIndices);
-            if (!usesEditableTerrain)
+            if (usesEditableTerrain)
+            {
+                terrainSurfacePoints.AddRange(terrainBoundaryPoints);
+                activeAuthoring.CopyTerrainHeightPoints(terrainHeightPoints);
+                for (int index = 0; index < terrainHeightPoints.Count; index++)
+                    InsertTerrainSurfacePoint(terrainHeightPoints[index]);
+                FitTerrainBelowRoad();
+            }
+            else
             {
                 terrainBoundaryPoints.Clear();
                 terrainTriangleIndices.Clear();
@@ -1482,6 +1494,357 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return !(hasNegative && hasPositive);
     }
 
+    private void InsertTerrainSurfacePoint(Vector3 point)
+    {
+        for (int index = 0; index < terrainSurfacePoints.Count; index++)
+        {
+            Vector3 existing = terrainSurfacePoints[index];
+            if (new Vector2(existing.x - point.x, existing.z - point.z).sqrMagnitude < 0.0001f)
+                return;
+        }
+
+        int pointIndex = terrainSurfacePoints.Count;
+        terrainSurfacePoints.Add(point);
+        bool inserted = false;
+        // Split every incident face when the point lies on a shared edge.
+        // Only the surface is changed; the perimeter list is never reordered.
+        for (int triangle = terrainTriangleIndices.Count - 3; triangle >= 0; triangle -= 3)
+        {
+            int a = terrainTriangleIndices[triangle];
+            int b = terrainTriangleIndices[triangle + 1];
+            int c = terrainTriangleIndices[triangle + 2];
+            if (!PointInsideTriangleXZ(point, terrainSurfacePoints[a], terrainSurfacePoints[b], terrainSurfacePoints[c]))
+                continue;
+            terrainTriangleIndices.RemoveRange(triangle, 3);
+            AddTerrainFace(terrainSurfacePoints, terrainTriangleIndices, a, b, pointIndex);
+            AddTerrainFace(terrainSurfacePoints, terrainTriangleIndices, b, c, pointIndex);
+            AddTerrainFace(terrainSurfacePoints, terrainTriangleIndices, c, a, pointIndex);
+            inserted = true;
+        }
+        if (!inserted)
+            terrainSurfacePoints.RemoveAt(pointIndex);
+    }
+
+    private static void AddTerrainFace(
+        IReadOnlyList<Vector3> points, List<int> indices, int a, int b, int c)
+    {
+        float area = CrossXZ(points[a], points[b], points[c]);
+        if (Mathf.Abs(area) < 0.000001f)
+            return;
+        indices.Add(a);
+        indices.Add(area < 0f ? b : c);
+        indices.Add(area < 0f ? c : b);
+    }
+
+    private void FitTerrainBelowRoad()
+    {
+        // These footprints use exactly the same cross-sections and diagonal
+        // as BuildRibbonMesh. Merely lowering nearby vertices would still let
+        // a large terrain triangle bridge over the road between those vertices.
+        List<TerrainRoadCut> cuts = new((routePoints.Count - 1) * 2);
+        for (int index = 0; index < routePoints.Count - 1; index++)
+        {
+            Vector3 right = RouteRight(index) * ActiveRoadHalfWidth;
+            Vector3 nextRight = RouteRight(index + 1) * ActiveRoadHalfWidth;
+            Vector3 center = routePoints[index] - Vector3.up * 0.18f;
+            Vector3 nextCenter = routePoints[index + 1] - Vector3.up * 0.18f;
+            cuts.Add(new TerrainRoadCut(center - right, nextCenter - nextRight, center + right));
+            cuts.Add(new TerrainRoadCut(center + right, nextCenter - nextRight, nextCenter + nextRight));
+        }
+
+        List<Vector3> finalPoints = new();
+        List<int> finalIndices = new();
+        Dictionary<Vector2Int, int> vertexLookup = new();
+        for (int triangle = 0; triangle < terrainTriangleIndices.Count; triangle += 3)
+        {
+            List<List<Vector3>> pieces = new()
+            {
+                new List<Vector3>
+                {
+                    terrainSurfacePoints[terrainTriangleIndices[triangle]],
+                    terrainSurfacePoints[terrainTriangleIndices[triangle + 1]],
+                    terrainSurfacePoints[terrainTriangleIndices[triangle + 2]],
+                },
+            };
+            for (int cutIndex = 0; cutIndex < cuts.Count; cutIndex++)
+            {
+                TerrainRoadCut cut = cuts[cutIndex];
+                for (int pieceIndex = pieces.Count - 1; pieceIndex >= 0; pieceIndex--)
+                {
+                    List<Vector3> polygon = pieces[pieceIndex];
+                    if (!cut.NeedsTerrainCut(polygon) || !TryPartitionTerrainPolygon(polygon, cut, out List<List<Vector3>> split))
+                        continue;
+                    pieces.RemoveAt(pieceIndex);
+                    pieces.AddRange(split);
+                }
+            }
+
+            for (int pieceIndex = 0; pieceIndex < pieces.Count; pieceIndex++)
+            {
+                List<Vector3> polygon = pieces[pieceIndex];
+                if (polygon.Count < 3)
+                    continue;
+                int first = GetTerrainSurfaceVertex(polygon[0], cuts, finalPoints, vertexLookup);
+                int previous = GetTerrainSurfaceVertex(polygon[1], cuts, finalPoints, vertexLookup);
+                for (int vertex = 2; vertex < polygon.Count; vertex++)
+                {
+                    int current = GetTerrainSurfaceVertex(polygon[vertex], cuts, finalPoints, vertexLookup);
+                    AddTerrainFace(finalPoints, finalIndices, first, previous, current);
+                    previous = current;
+                }
+            }
+        }
+        StitchTerrainSurfaceEdges(finalPoints, finalIndices);
+        terrainSurfacePoints.Clear();
+        terrainSurfacePoints.AddRange(finalPoints);
+        terrainTriangleIndices.Clear();
+        terrainTriangleIndices.AddRange(finalIndices);
+    }
+
+    private static void StitchTerrainSurfaceEdges(List<Vector3> points, List<int> triangles)
+    {
+        // A road end can touch the edge of a neighbouring terrain face without
+        // intersecting its area. Split that neighbour too, so a lowered road
+        // edge cannot leave a T-junction and an open seam in the heightfield.
+        const float cellSize = 32f;
+        Dictionary<Vector2Int, List<int>> cells = new();
+        for (int index = 0; index < points.Count; index++)
+        {
+            Vector3 point = points[index];
+            Vector2Int cell = new(Mathf.FloorToInt(point.x / cellSize), Mathf.FloorToInt(point.z / cellSize));
+            if (!cells.TryGetValue(cell, out List<int> entries))
+            {
+                entries = new List<int>();
+                cells.Add(cell, entries);
+            }
+            entries.Add(index);
+        }
+        Stack<(int A, int B, int C)> pending = new();
+        for (int index = 0; index < triangles.Count; index += 3)
+            pending.Push((triangles[index], triangles[index + 1], triangles[index + 2]));
+        triangles.Clear();
+        while (pending.Count > 0)
+        {
+            (int a, int b, int c) = pending.Pop();
+            if (Mathf.Abs(CrossXZ(points[a], points[b], points[c])) < 0.000001f)
+                continue;
+            int split = FindTerrainEdgeVertex(points, cells, cellSize, a, b, c);
+            if (split >= 0)
+            {
+                pending.Push((a, split, c));
+                pending.Push((split, b, c));
+                continue;
+            }
+            split = FindTerrainEdgeVertex(points, cells, cellSize, b, c, a);
+            if (split >= 0)
+            {
+                pending.Push((b, split, a));
+                pending.Push((split, c, a));
+                continue;
+            }
+            split = FindTerrainEdgeVertex(points, cells, cellSize, c, a, b);
+            if (split >= 0)
+            {
+                pending.Push((c, split, b));
+                pending.Push((split, a, b));
+                continue;
+            }
+            AddTerrainFace(points, triangles, a, b, c);
+        }
+    }
+
+    private static int FindTerrainEdgeVertex(
+        IReadOnlyList<Vector3> points,
+        Dictionary<Vector2Int, List<int>> cells,
+        float cellSize, int a, int b, int opposite)
+    {
+        Vector2 start = new(points[a].x, points[a].z);
+        Vector2 end = new(points[b].x, points[b].z);
+        Vector2 segment = end - start;
+        if (segment.sqrMagnitude < 0.000001f)
+            return -1;
+        int minX = Mathf.FloorToInt((Mathf.Min(start.x, end.x) - 0.001f) / cellSize);
+        int maxX = Mathf.FloorToInt((Mathf.Max(start.x, end.x) + 0.001f) / cellSize);
+        int minZ = Mathf.FloorToInt((Mathf.Min(start.y, end.y) - 0.001f) / cellSize);
+        int maxZ = Mathf.FloorToInt((Mathf.Max(start.y, end.y) + 0.001f) / cellSize);
+        float nearestT = 1f;
+        int selected = -1;
+        for (int x = minX; x <= maxX; x++)
+        for (int z = minZ; z <= maxZ; z++)
+        {
+            if (!cells.TryGetValue(new Vector2Int(x, z), out List<int> entries))
+                continue;
+            for (int index = 0; index < entries.Count; index++)
+            {
+                int candidate = entries[index];
+                if (candidate == a || candidate == b || candidate == opposite)
+                    continue;
+                Vector2 point = new(points[candidate].x, points[candidate].z);
+                if ((point - start).sqrMagnitude < 0.000001f || (point - end).sqrMagnitude < 0.000001f)
+                    continue;
+                float t = Vector2.Dot(point - start, segment) / segment.sqrMagnitude;
+                if (t <= 0f || t >= nearestT || (point - (start + segment * t)).sqrMagnitude > 0.000001f)
+                    continue;
+                nearestT = t;
+                selected = candidate;
+            }
+        }
+        return selected;
+    }
+
+    private static int GetTerrainSurfaceVertex(
+        Vector3 point,
+        IReadOnlyList<TerrainRoadCut> cuts,
+        List<Vector3> vertices,
+        Dictionary<Vector2Int, int> lookup)
+    {
+        Vector2Int key = new(Mathf.RoundToInt(point.x * 1000f), Mathf.RoundToInt(point.z * 1000f));
+        bool exists = lookup.TryGetValue(key, out int index);
+        if (exists)
+        {
+            Vector3 existing = vertices[index];
+            point = new Vector3(existing.x, Mathf.Min(existing.y, point.y), existing.z);
+        }
+        for (int cutIndex = 0; cutIndex < cuts.Count; cutIndex++)
+        {
+            if (cuts[cutIndex].TryGetCeiling(point, out float ceiling))
+                point.y = Mathf.Min(point.y, ceiling);
+        }
+        if (exists)
+        {
+            vertices[index] = point;
+            return index;
+        }
+        index = vertices.Count;
+        vertices.Add(point);
+        lookup.Add(key, index);
+        return index;
+    }
+
+    private static bool TryPartitionTerrainPolygon(
+        List<Vector3> polygon, TerrainRoadCut cut, out List<List<Vector3>> pieces)
+    {
+        pieces = new List<List<Vector3>>();
+        List<Vector3> remainder = polygon;
+        Vector3[] boundary = { cut.A, cut.B, cut.C };
+        for (int edge = 0; edge < 3 && remainder.Count >= 3; edge++)
+        {
+            Vector3 start = boundary[edge];
+            Vector3 end = boundary[(edge + 1) % 3];
+            List<Vector3> outside = ClipTerrainPolygon(remainder, start, end, false);
+            if (TerrainPolygonHasArea(outside))
+                pieces.Add(outside);
+            remainder = ClipTerrainPolygon(remainder, start, end, true);
+        }
+        // Do not slice the terrain along infinite extensions of road edges
+        // when the road triangle does not actually intersect this polygon.
+        if (!TerrainPolygonHasArea(remainder))
+            return false;
+        pieces.Add(remainder);
+        return true;
+    }
+
+    private static List<Vector3> ClipTerrainPolygon(
+        List<Vector3> polygon, Vector3 start, Vector3 end, bool keepInside)
+    {
+        List<Vector3> result = new(polygon.Count + 1);
+        if (polygon.Count == 0)
+            return result;
+        Vector3 previous = polygon[^1];
+        float previousDistance = CrossXZ(start, end, previous);
+        bool previousInside = keepInside ? previousDistance <= 0f : previousDistance >= 0f;
+        for (int index = 0; index < polygon.Count; index++)
+        {
+            Vector3 current = polygon[index];
+            float distance = CrossXZ(start, end, current);
+            bool inside = keepInside ? distance <= 0f : distance >= 0f;
+            if (inside != previousInside)
+            {
+                float t = previousDistance / (previousDistance - distance);
+                AppendTerrainPolygonVertex(result, Vector3.Lerp(previous, current, Mathf.Clamp01(t)));
+            }
+            if (inside)
+                AppendTerrainPolygonVertex(result, current);
+            previous = current;
+            previousDistance = distance;
+            previousInside = inside;
+        }
+        if (result.Count > 1 && (result[0] - result[^1]).sqrMagnitude < 0.00000001f)
+            result.RemoveAt(result.Count - 1);
+        return result;
+    }
+
+    private static void AppendTerrainPolygonVertex(List<Vector3> points, Vector3 point)
+    {
+        if (points.Count == 0 || (points[^1] - point).sqrMagnitude >= 0.00000001f)
+            points.Add(point);
+    }
+
+    private static bool TerrainPolygonHasArea(List<Vector3> points)
+    {
+        if (points.Count < 3)
+            return false;
+        float area = 0f;
+        for (int index = 1; index < points.Count - 1; index++)
+            area += CrossXZ(points[0], points[index], points[index + 1]);
+        return Mathf.Abs(area) > 0.000001f;
+    }
+
+    private readonly struct TerrainRoadCut
+    {
+        public readonly Vector3 A;
+        public readonly Vector3 B;
+        public readonly Vector3 C;
+        private readonly Vector2 minimum;
+        private readonly Vector2 maximum;
+
+        public TerrainRoadCut(Vector3 a, Vector3 b, Vector3 c)
+        {
+            A = a;
+            B = CrossXZ(a, b, c) <= 0f ? b : c;
+            C = CrossXZ(a, b, c) <= 0f ? c : b;
+            minimum = new Vector2(Mathf.Min(a.x, b.x, c.x), Mathf.Min(a.z, b.z, c.z));
+            maximum = new Vector2(Mathf.Max(a.x, b.x, c.x), Mathf.Max(a.z, b.z, c.z));
+        }
+
+        public bool NeedsTerrainCut(List<Vector3> polygon)
+        {
+            float minX = float.PositiveInfinity;
+            float minZ = float.PositiveInfinity;
+            float maxX = float.NegativeInfinity;
+            float maxZ = float.NegativeInfinity;
+            float maximumHeight = float.NegativeInfinity;
+            for (int index = 0; index < polygon.Count; index++)
+            {
+                minX = Mathf.Min(minX, polygon[index].x);
+                minZ = Mathf.Min(minZ, polygon[index].z);
+                maxX = Mathf.Max(maxX, polygon[index].x);
+                maxZ = Mathf.Max(maxZ, polygon[index].z);
+                maximumHeight = Mathf.Max(maximumHeight, polygon[index].y);
+            }
+            return maximumHeight > Mathf.Min(A.y, B.y, C.y) &&
+                   maxX >= minimum.x && minX <= maximum.x && maxZ >= minimum.y && minZ <= maximum.y;
+        }
+
+        public bool TryGetCeiling(Vector3 point, out float height)
+        {
+            height = 0f;
+            if (point.x < minimum.x - 0.001f || point.x > maximum.x + 0.001f ||
+                point.z < minimum.y - 0.001f || point.z > maximum.y + 0.001f)
+                return false;
+            float area = CrossXZ(A, B, C);
+            if (Mathf.Abs(area) < 0.000001f)
+                return false;
+            float a = CrossXZ(B, C, point) / area;
+            float b = CrossXZ(C, A, point) / area;
+            float c = 1f - a - b;
+            if (a < -0.0001f || b < -0.0001f || c < -0.0001f)
+                return false;
+            height = A.y * a + B.y * b + C.y * c;
+            return true;
+        }
+    }
+
     private bool TryGetEditableTerrainSurface(
         Vector2 point,
         out float height,
@@ -1493,9 +1856,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
              triangleIndex + 2 < terrainTriangleIndices.Count;
              triangleIndex += 3)
         {
-            Vector3 a = terrainBoundaryPoints[terrainTriangleIndices[triangleIndex]];
-            Vector3 b = terrainBoundaryPoints[terrainTriangleIndices[triangleIndex + 1]];
-            Vector3 c = terrainBoundaryPoints[terrainTriangleIndices[triangleIndex + 2]];
+            Vector3 a = terrainSurfacePoints[terrainTriangleIndices[triangleIndex]];
+            Vector3 b = terrainSurfacePoints[terrainTriangleIndices[triangleIndex + 1]];
+            Vector3 c = terrainSurfacePoints[terrainTriangleIndices[triangleIndex + 2]];
             float denominator = (b.z - c.z) * (a.x - c.x) +
                                 (c.x - b.x) * (a.z - c.z);
             if (Mathf.Abs(denominator) < 0.000001f)
@@ -1550,12 +1913,12 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private Mesh BuildEditableTerrainMesh()
     {
-        Vector3[] vertices = terrainBoundaryPoints.ToArray();
+        Vector3[] vertices = terrainSurfacePoints.ToArray();
         Vector2[] uv = new Vector2[vertices.Length];
         for (int index = 0; index < vertices.Length; index++)
             uv[index] = new Vector2(vertices[index].x * 0.08f, vertices[index].z * 0.08f);
 
-        Mesh mesh = new() { name = "Editable Terrain Boundary" };
+        Mesh mesh = new() { name = "Editable Terrain Surface" };
         mesh.indexFormat = IndexFormat.UInt32;
         mesh.vertices = vertices;
         mesh.uv = uv;

@@ -28,17 +28,14 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     [SerializeField] private List<Vector3> controlPoints = new();
     [SerializeField] private bool useEditableTerrain;
     [SerializeField] private List<Vector3> terrainControlPoints = new();
+    [SerializeField] private List<Vector3> terrainHeightPoints = new();
     [SerializeField] private bool generateProceduralEnvironment = true;
-    [SerializeField, HideInInspector] private int starterLayoutVersion;
-
-    private const int CurrentStarterLayoutVersion = 1;
-    private const float StarterCourseLength = 160f;
-    private const float StarterTerrainHalfWidth = 30f;
 
     public bool UsesEditablePath => useEditablePath && controlPoints.Count >= 2;
     public bool UsesEditableTerrain => useEditableTerrain && terrainControlPoints.Count >= 3;
     public int ControlPointCount => controlPoints.Count;
     public int TerrainControlPointCount => terrainControlPoints.Count;
+    public int TerrainHeightPointCount => terrainHeightPoints.Count;
     public bool GenerateProceduralEnvironment => generateProceduralEnvironment;
     public float RoadHalfWidth => roadHalfWidth;
     public float TerrainHalfWidth => terrainHalfWidth;
@@ -67,49 +64,9 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     {
         mapRoot = transform;
         generateProceduralEnvironment = false;
-        overrideTrackWidths = true;
-        roadHalfWidth = 6.5f;
-        terrainHalfWidth = StarterTerrainHalfWidth;
-        controlPoints.Clear();
-        controlPoints.Add(Vector3.zero);
-        controlPoints.Add(new Vector3(0f, 0f, -StarterCourseLength));
-        useEditablePath = true;
-        BakeDefaultTerrain();
-        starterLayoutVersion = CurrentStarterLayoutVersion;
-    }
-
-    public bool UpgradeStarterLayoutIfNeeded()
-    {
-        if (starterLayoutVersion >= CurrentStarterLayoutVersion)
-            return false;
-
-        starterLayoutVersion = CurrentStarterLayoutVersion;
-        if (!name.Equals("Mush Map Editor", System.StringComparison.Ordinal) ||
-            controlPoints.Count != 2 ||
-            Vector3.Distance(controlPoints[0], Vector3.zero) > 0.01f ||
-            Vector3.Distance(
-                controlPoints[1],
-                new Vector3(0f, 0f, -MushTrackPathUtility.DefaultCourseLength)) > 0.01f)
-        {
-            return false;
-        }
-
-        ConfigureNewMapDefaults();
-        return true;
-    }
-
-    public void BakeSuggestedDefaultPath()
-    {
-        if (name.Equals("Mush Map Editor", System.StringComparison.Ordinal))
-        {
-            controlPoints.Clear();
-            controlPoints.Add(Vector3.zero);
-            controlPoints.Add(new Vector3(0f, 0f, -StarterCourseLength));
-            useEditablePath = true;
-            return;
-        }
-
+        terrainHeightPoints.Clear();
         BakeDefaultPath();
+        BakeDefaultTerrain();
     }
 
     public static MushTrackAuthoring FindFor(Transform mapRoot)
@@ -244,6 +201,88 @@ public sealed class MushTrackAuthoring : MonoBehaviour
 
         output.AddRange(terrainControlPoints);
         return true;
+    }
+
+    public void CopyTerrainHeightPoints(List<Vector3> output)
+    {
+        output.Clear();
+        output.AddRange(terrainHeightPoints);
+    }
+
+    public Vector3 GetTerrainHeightPoint(int index) => terrainHeightPoints[index];
+
+    public bool ContainsTerrainInterior(Vector3 point)
+    {
+        bool inside = false;
+        for (int index = 0; index < terrainControlPoints.Count; index++)
+        {
+            Vector3 a = terrainControlPoints[index];
+            Vector3 b = terrainControlPoints[(index + 1) % terrainControlPoints.Count];
+            Vector2 edge = new(b.x - a.x, b.z - a.z);
+            Vector2 delta = new(point.x - a.x, point.z - a.z);
+            float t = edge.sqrMagnitude > 0.000001f
+                ? Mathf.Clamp01(Vector2.Dot(delta, edge) / edge.sqrMagnitude)
+                : 0f;
+            // A height point must not become a second vertex on the boundary.
+            if ((delta - edge * t).sqrMagnitude < 0.0001f)
+                return false;
+            if ((a.z > point.z) != (b.z > point.z) &&
+                point.x < (b.x - a.x) * (point.z - a.z) / (b.z - a.z) + a.x)
+                inside = !inside;
+        }
+        return inside;
+    }
+
+    public int AddTerrainHeightPoint(Vector3 point)
+    {
+        if (!ContainsTerrainInterior(point))
+            return -1;
+        for (int index = 0; index < terrainHeightPoints.Count; index++)
+        {
+            Vector3 existing = terrainHeightPoints[index];
+            if (new Vector2(existing.x - point.x, existing.z - point.z).sqrMagnitude < 0.0001f)
+                return index;
+        }
+        terrainHeightPoints.Add(point);
+        useEditableTerrain = true;
+        return terrainHeightPoints.Count - 1;
+    }
+
+    public bool SetTerrainHeightPoint(int index, Vector3 point)
+    {
+        if (index < 0 || index >= terrainHeightPoints.Count || !ContainsTerrainInterior(point))
+            return false;
+        for (int other = 0; other < terrainHeightPoints.Count; other++)
+        {
+            if (other == index)
+                continue;
+            Vector3 existing = terrainHeightPoints[other];
+            if (new Vector2(existing.x - point.x, existing.z - point.z).sqrMagnitude < 0.0001f)
+                return false;
+        }
+        terrainHeightPoints[index] = point;
+        return true;
+    }
+
+    public int RemoveTerrainHeightPoint(int index)
+    {
+        if (index >= 0 && index < terrainHeightPoints.Count)
+            terrainHeightPoints.RemoveAt(index);
+        return terrainHeightPoints.Count > 0 ? Mathf.Clamp(index, 0, terrainHeightPoints.Count - 1) : -1;
+    }
+
+    public int ConvertTerrainBoundaryPointToHeightPoint(int index)
+    {
+        if (terrainControlPoints.Count <= 3 || index < 0 || index >= terrainControlPoints.Count)
+            return -1;
+        Vector3 point = terrainControlPoints[index];
+        terrainControlPoints.RemoveAt(index);
+        int heightIndex = AddTerrainHeightPoint(point);
+        if (heightIndex < 0)
+            terrainControlPoints.Insert(index, point);
+        else
+            terrainHeightPoints[heightIndex] = point;
+        return heightIndex;
     }
 
     public Vector3 GetControlPoint(int index) => controlPoints[index];
