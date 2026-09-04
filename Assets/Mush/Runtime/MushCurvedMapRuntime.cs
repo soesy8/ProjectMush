@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -15,20 +15,24 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 {
     private const float RoadHalfWidth = 6.5f;
     private const float TerrainHalfWidth = 105f;
-    private const string CustomRoadVisualPrefix = "CUSTOM SLOT - Road - ";
     private const string CustomTerrainVisualPrefix = "CUSTOM SLOT - Terrain - ";
-    public const int CurrentBakedWorldVersion = 8;
+    public const int CurrentBakedWorldVersion = 9;
     public const string GeneratedWorldRootName = "Mush Rebuilt Curved World";
     public const string DeformedRoadRootName = "VISIBLE Deformed Snow Road Module";
     public const string CustomSceneContentRootName = "SCENE CONTENT - Add Models Here";
     public const string RideTeamRootName = "Mush Ride Team";
+    private const string TerrainCollisionProxyRootName = "Mush Terrain Surface Collision Proxy";
+    private const string CustomModelPreviewRootName = "Mush Custom Model Preview";
 
     private readonly List<Vector3> routePoints = new();
     private readonly List<Vector3> terrainBoundaryPoints = new();
     private readonly List<Vector3> terrainSurfacePoints = new();
     private readonly List<Vector3> terrainHeightPoints = new();
     private readonly List<int> terrainTriangleIndices = new();
+    private readonly List<Collider> activeTerrainSurfaceColliders = new(); // 지형 모델이 있을 때 도로 중심과 양쪽 가장자리를 같은 표면에 밀착시키는 데 재사용합니다.
     private readonly List<Material> runtimeMaterials = new();
+    private float activeTerrainRayTop; // 현재 지형 모델 표면 샘플링용 Ray 시작 높이입니다.
+    private float activeTerrainRayDistance; // 현재 지형 모델 전체를 통과할 Ray 길이입니다.
     [SerializeField, HideInInspector] private int bakedWorldVersion;
     private bool built;
     private bool isSnowfield;
@@ -41,6 +45,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     private float authoredRoadHalfWidth;
     private float authoredTerrainHalfWidth;
     private MushTrackAuthoring activeAuthoring;
+    private GameObject activeTerrainVisual;
+    private Transform terrainCollisionProxyRoot;
     private Transform rebuiltRoot;
     private Mesh pineMesh;
     private Mesh mountainMesh;
@@ -66,11 +72,17 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     public float CurrentProgress01 => sharpProgress;
     public bool SharpDownhillSpeedBoostActive => isSharpCurve && sharpProgress >= 0.35f && sharpProgress <= 0.66f;
 
+    public void CopyActiveRoutePreview(List<Vector3> output) // Scene View가 실제 지형 투영까지 끝난 현재 도로 중심선을 표시할 때 사용합니다.
+    {
+        output.Clear(); // 호출자가 가진 이전 샘플을 비웁니다.
+        output.AddRange(routePoints); // 현재 런타임이 실제로 사용하는 지형 맞춤 경로를 그대로 복사합니다.
+    }
+
     private float ActiveRoadHalfWidth => overridesTrackWidths
         ? authoredRoadHalfWidth
         : RoadHalfWidth;
-    private float ActiveTerrainHalfWidth => overridesTrackWidths
-        ? authoredTerrainHalfWidth
+    private float ActiveTerrainHalfWidth => activeAuthoring != null
+        ? Mathf.Max(authoredTerrainHalfWidth, ActiveRoadHalfWidth + 4f)
         : TerrainHalfWidth;
 
     public static MushCurvedMapRuntime EnsureBuilt(Transform mapRoot)
@@ -90,10 +102,15 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (built)
             return;
 
+        // A baked scene already owns its visible road and terrain meshes. Play
+        // mode only needs the sampled route and terrain heights for movement;
+        // clipping every terrain triangle against every road sample again can
+        // grow explosively on long, tightly curved authored tracks.
+        rebuiltRoot = transform.Find(GeneratedWorldRootName);
+        bool hasBakedWorld = rebuiltRoot != null;
         ConfigureOptionalSceneFeatures();
         BuildActiveRoute();
-        rebuiltRoot = transform.Find(GeneratedWorldRootName);
-        if (rebuiltRoot == null)
+        if (!hasBakedWorld)
         {
             // Compatibility path for scenes that have not been opened once by
             // the editor baker yet. As soon as the scene is baked, this branch
@@ -117,6 +134,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         }
         else
         {
+            // 기존 씬의 지형/배경은 그대로 사용하고, 플레이 시작 시 도로 리본만 현재 포인트로 맞춥니다.
+            RefreshTrackMeshesOnly();
             CacheBakedWorldReferences();
             ApplyCustomCoursePresentation();
             ConfigureRuntimeEnvironmentControllers();
@@ -177,15 +196,17 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     }
 
     /// <summary>
-    /// Rebuilds only the drivable surface while an artist edits the route.
-    /// Procedural scenery is intentionally left in place until the artist
-    /// explicitly requests a full scenery layout rebuild.
+    /// Rebuilds only the route-dependent surfaces while an artist edits the track.
+    /// With a terrain model the road is projected onto it; without one the lightweight
+    /// generated terrain follows the road. Scenery and ordinary scene models stay untouched.
     /// </summary>
     public void RebuildSceneCourseGeometry()
     {
         if (Application.isPlaying)
             throw new InvalidOperationException("A baked Mush course can only be rebuilt outside play mode.");
 
+        // 도로 포인트 편집에서는 폐기된 수동 지형 포인트 데이터를 전혀 사용하지 않습니다.
+        // 지형 모델이 있으면 도로만 그 표면에 붙이고, 없으면 자동 지형만 도로 기준으로 다시 계산합니다.
         built = false;
         ConfigureOptionalSceneFeatures();
         BuildActiveRoute();
@@ -196,19 +217,180 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             return;
         }
 
-        Material existingTrack = FindGeneratedComponent<Renderer>("Left Sled Track")?.sharedMaterial;
-        DestroyGeneratedCourseObject("VISIBLE Snow Terrain");
-        DestroyGeneratedCourseObject("VISIBLE Curved Packed-Snow Road");
-        DestroyGeneratedCourseObject("Left Sled Track");
-        DestroyGeneratedCourseObject("Right Sled Track");
-        DestroyGeneratedCourseObject(DeformedRoadRootName);
-        terrainRenderer = null;
-        roadRenderer = null;
-
-        BuildCourseMeshes(existingTrack);
+        RefreshTrackMeshesOnly();
         PositionRouteMarkers();
-        bakedWorldVersion = CurrentBakedWorldVersion;
         built = true;
+    }
+
+    /// <summary>
+    /// 씬을 열거나 스크립트가 다시 로드됐을 때 저장된 도로/지형 Mesh는 건드리지 않고,
+    /// 현재 경로와 모델 슬롯을 읽어 저장되지 않는 도로 모델 프리뷰와 표시 상태만 복구합니다.
+    /// </summary>
+    public void RefreshEditorPresentationOnly()
+    {
+        if (Application.isPlaying)
+            return;
+
+        built = false;
+        ConfigureOptionalSceneFeatures();
+        BuildActiveRoute(); // 지형 모델이 있으면 실제 표면에 투영된 현재 경로까지 계산합니다.
+        rebuiltRoot = transform.Find(GeneratedWorldRootName);
+        if (rebuiltRoot == null)
+            return;
+
+        CacheBakedWorldReferences(); // 저장된 작은 도로/지형 Mesh와 기존 배경 참조만 다시 잡습니다.
+        RefreshRoadModelInstances(); // 도로 모델은 HideAndDontSave 구간 인스턴스로만 복구합니다.
+        ApplyCustomCoursePresentation(); // 모델 유무에 따른 표시 상태만 맞춥니다.
+        built = true;
+    }
+
+    /// <summary>
+    /// Rewrites only the route-dependent road/track meshes and, when necessary,
+    /// the lightweight automatic terrain. Scenery, ordinary scene models and VFX are untouched.
+    /// </summary>
+    private void RefreshTrackMeshesOnly()
+    {
+        if (rebuiltRoot == null) // 기존 생성 월드가 없으면 갱신할 대상도 없습니다.
+            return;
+
+        bool hasTerrainModel = activeTerrainVisual != null; // 지형 모델이 지정되어 실제 표면을 사용하는지 확인합니다.
+
+        if (!hasTerrainModel) // 지형 모델이 없을 때만 자동 생성 지형을 현재 도로 높이에 맞춰 다시 만듭니다.
+            ReplaceGeneratedTerrainMesh();
+
+        terrainRenderer = FindGeneratedComponent<Renderer>("VISIBLE Snow Terrain"); // 현재 생성 지형 Renderer 참조를 다시 잡습니다.
+
+        ReplaceRibbonMesh("VISIBLE Curved Packed-Snow Road", ActiveRoadHalfWidth, 0f, 0.10f, true); // 실제 주행 충돌용 가벼운 도로 리본을 갱신합니다.
+        ReplaceRibbonMesh("Left Sled Track", 0.10f, -1.75f, 0.145f, false); // 왼쪽 썰매 자국을 현재 경로에 맞춥니다.
+        ReplaceRibbonMesh("Right Sled Track", 0.10f, 1.75f, 0.145f, false); // 오른쪽 썰매 자국을 현재 경로에 맞춥니다.
+
+        roadRenderer = FindGeneratedComponent<Renderer>("VISIBLE Curved Packed-Snow Road"); // 생성 도로 Renderer를 다시 찾습니다.
+
+        RefreshRoadModelInstances(); // 도로 모델이 지정되어 있으면 Mesh를 복제하지 않고 기존 구간 인스턴스 위치만 갱신합니다.
+        ApplyCustomCoursePresentation(); // 도로 모델/지형 모델 지정 여부에 따라 무엇을 보여줄지 최종 정리합니다.
+    }
+
+    /// <summary>
+    /// 지형 모델이 없을 때만 사용하는 자동 지형을 현재 도로 높이에 맞춰 갱신합니다.
+    /// 기존 GeneratedMaps 에셋을 수정하지 않고 DontSave 임시 Mesh만 사용합니다.
+    /// </summary>
+    private void ReplaceGeneratedTerrainMesh()
+    {
+        Transform target = rebuiltRoot.Find("VISIBLE Snow Terrain"); // 기존 자동 지형 오브젝트를 찾습니다.
+        if (target == null) // 정상 씬에서는 항상 존재하며, 없으면 전체 배경을 건드리지 않고 그대로 둡니다.
+            return;
+
+        MeshFilter filter = target.GetComponent<MeshFilter>(); // 지형 MeshFilter를 가져옵니다.
+        if (filter == null)
+            return;
+
+        Mesh generated = BuildRouteWidthTerrainMesh(); // 도로 높이와 곡선을 따라 자연스럽게 이어지는 원래 자동 지형을 계산합니다.
+        Mesh destination = filter.sharedMesh; // 씬이 원래 참조하던 작은 GeneratedMaps Mesh를 가져옵니다.
+
+        if (Application.isPlaying) // Play Mode에서는 프로젝트 에셋을 절대로 수정하지 않습니다.
+        {
+            generated.hideFlags = HideFlags.DontSave; // 플레이 중에만 쓰는 임시 Mesh로 둡니다.
+            filter.sharedMesh = generated; // 플레이가 끝나면 Unity가 씬 참조를 원래대로 되돌립니다.
+            destination = generated;
+        }
+        else if (destination != null) // Edit Mode에서는 MeshFilter의 참조를 바꾸지 않고 기존 작은 Mesh 내용만 갱신합니다.
+        {
+            CopyMeshGeometry(generated, destination); // DontSave Mesh를 씬에 연결하지 않으므로 저장 후 Mesh가 사라지지 않습니다.
+            DestroyImmediate(generated); // 계산용 Mesh는 즉시 정리합니다.
+        }
+        else // 과거 잘못된 패치로 Mesh 참조가 이미 비어 있는 경우에만 임시 복구 표시를 사용합니다.
+        {
+            generated.hideFlags = HideFlags.DontSave; // 이 경우에는 씬 저장 전에 정상 기준 씬 복원이 필요합니다.
+            filter.sharedMesh = generated;
+            destination = generated;
+        }
+
+        MeshCollider collider = target.GetComponent<MeshCollider>(); // 지형 충돌체도 현재 표시 Mesh와 맞춥니다.
+        if (collider != null)
+        {
+            collider.sharedMesh = null;
+            collider.sharedMesh = destination;
+        }
+    }
+
+    /// <summary>
+    /// Copies a freshly generated lightweight ribbon into the mesh already referenced by the scene.
+    /// Reusing the existing mesh prevents per-edit GameObject churn and avoids creating large baked assets.
+    /// </summary>
+    private void ReplaceRibbonMesh(
+        string objectName,
+        float halfWidth,
+        float lateralOffset,
+        float verticalOffset,
+        bool updateCollider)
+    {
+        Transform target = rebuiltRoot.Find(objectName); // 기존 도로/썰매 자국 오브젝트를 찾습니다.
+        if (target == null)
+            return;
+
+        MeshFilter filter = target.GetComponent<MeshFilter>(); // 씬이 원래 가진 MeshFilter를 사용합니다.
+        if (filter == null)
+            return;
+
+        Mesh generated = BuildRibbonMesh(halfWidth, lateralOffset, verticalOffset); // 현재 트랙 포인트로 가벼운 리본 Mesh만 계산합니다.
+        Mesh destination = filter.sharedMesh; // 기존 GeneratedMaps의 작은 Mesh 참조를 유지합니다.
+
+        if (Application.isPlaying) // Play Mode에서는 프로젝트 Mesh 에셋을 수정하지 않습니다.
+        {
+            generated.hideFlags = HideFlags.DontSave; // 실행 중에만 존재하는 Mesh로 사용합니다.
+            filter.sharedMesh = generated;
+            destination = generated;
+        }
+        else if (destination != null) // Edit Mode에서는 참조를 갈아끼우지 않고 기존 Mesh 데이터만 갱신합니다.
+        {
+            CopyMeshGeometry(generated, destination); // 씬 저장 후 MeshFilter가 null이 되는 문제를 막습니다.
+            DestroyImmediate(generated); // 계산용 임시 Mesh는 바로 제거합니다.
+        }
+        else // 이전 패치로 이미 참조가 손상된 씬을 열었을 때만 화면 확인용 임시 Mesh를 연결합니다.
+        {
+            generated.hideFlags = HideFlags.DontSave;
+            filter.sharedMesh = generated;
+            destination = generated;
+        }
+
+        if (updateCollider) // 실제 주행 도로만 Collider를 함께 갱신합니다.
+        {
+            MeshCollider collider = target.GetComponent<MeshCollider>();
+            if (collider != null)
+            {
+                collider.sharedMesh = null;
+                collider.sharedMesh = destination;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Copies only geometry data needed by the generated ribbon.
+    /// The target mesh asset stays tiny and keeps the scene's existing reference.
+    /// </summary>
+    private static void CopyMeshGeometry(Mesh source, Mesh destination)
+    {
+        destination.Clear(false);
+        destination.indexFormat = source.indexFormat;
+        destination.vertices = source.vertices;
+        destination.normals = source.normals;
+        destination.tangents = source.tangents;
+        destination.colors = source.colors;
+        destination.uv = source.uv;
+        destination.subMeshCount = source.subMeshCount;
+
+        for (int subMesh = 0; subMesh < source.subMeshCount; subMesh++)
+        {
+            destination.SetIndices(
+                source.GetIndices(subMesh, true),
+                source.GetTopology(subMesh),
+                subMesh,
+                false,
+                0);
+        }
+
+        destination.bounds = source.bounds;
+        destination.UploadMeshData(false);
     }
 
     private void DestroyGeneratedCourseObject(string objectName)
@@ -492,42 +674,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private void DisableImportedPresentation()
     {
-        Transform customContent = transform.Find(CustomSceneContentRootName);
-        foreach (Transform child in transform.GetComponentsInChildren<Transform>(true))
-        {
-            if (child == transform || child.name == GeneratedWorldRootName ||
-                child.name == RideTeamRootName ||
-                (customContent != null && (child == customContent || child.IsChildOf(customContent))))
-                continue;
-
-            if (child.name.Equals("FX_Blizzard_V2", StringComparison.OrdinalIgnoreCase) ||
-                child.name.Contains("StarDome", StringComparison.OrdinalIgnoreCase))
-                child.name = "OLD_DISABLED_" + child.name;
-        }
-
-        foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
-        {
-            if (childIsRideTeam(renderer.transform) || IsAssignedSceneVisual(renderer.transform))
-                continue;
-            if (customContent == null || !renderer.transform.IsChildOf(customContent))
-                renderer.enabled = false;
-        }
-        foreach (Collider collider in GetComponentsInChildren<Collider>(true))
-        {
-            if (childIsRideTeam(collider.transform) || IsAssignedSceneVisual(collider.transform))
-                continue;
-            if (customContent == null || !collider.transform.IsChildOf(customContent))
-                collider.enabled = false;
-        }
-        foreach (ParticleSystem particles in GetComponentsInChildren<ParticleSystem>(true))
-        {
-            if (childIsRideTeam(particles.transform) ||
-                IsAssignedSceneVisual(particles.transform) ||
-                (customContent != null && particles.transform.IsChildOf(customContent)))
-                continue;
-            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            particles.gameObject.SetActive(false);
-        }
+        // 일반 씬 오브젝트는 맵 편집기의 관리 대상이 아닙니다.
+        // 사용자가 Hierarchy 어디에 배치했든 Renderer/Collider/VFX 상태를 건드리지 않습니다.
+        // 맵 편집기는 자신이 생성한 "Mush Rebuilt Curved World"만 다시 만듭니다.
     }
 
     private bool childIsRideTeam(Transform candidate)
@@ -543,8 +692,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (candidate == null || activeAuthoring == null)
             return false;
 
-        return IsSameOrChild(candidate, activeAuthoring.CustomRoadVisual) ||
-               IsSameOrChild(candidate, activeAuthoring.CustomTerrainVisual);
+        return IsSameOrChild(candidate, activeAuthoring.CustomTerrainVisual);
     }
 
     private static bool IsSameOrChild(Transform candidate, GameObject root)
@@ -556,68 +704,207 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private void BuildActiveRoute()
     {
-        routePoints.Clear();
-        terrainBoundaryPoints.Clear();
-        terrainSurfacePoints.Clear();
-        terrainHeightPoints.Clear();
-        terrainTriangleIndices.Clear();
-        usesEditableTrack = false;
-        usesEditableTerrain = false;
-        overridesTrackWidths = false;
+        routePoints.Clear(); // 이전 도로 샘플을 비웁니다.
+        terrainBoundaryPoints.Clear(); // 폐기된 수동 지형 편집 데이터는 런타임에서도 사용하지 않습니다.
+        terrainSurfacePoints.Clear(); // 폐기된 수동 지형 삼각분할 데이터를 비웁니다.
+        terrainHeightPoints.Clear(); // 폐기된 수동 지형 높이점을 비웁니다.
+        terrainTriangleIndices.Clear(); // 폐기된 수동 지형 인덱스를 비웁니다.
+        usesEditableTrack = false; // 새 경로를 읽기 전 사용자 경로 사용 여부를 초기화합니다.
+        usesEditableTerrain = false; // 지형 직접 편집 기능은 완전히 사용하지 않습니다.
+        overridesTrackWidths = false; // 맵별 폭 지정 여부를 초기화합니다.
+        activeTerrainVisual = null; // 이번 경로에서 사용할 지형 모델 참조를 초기화합니다.
+        DestroyTerrainCollisionProxy(); // 이전 지형 모델용 임시 충돌 프록시가 있으면 먼저 제거합니다.
+        activeTerrainSurfaceColliders.Clear(); // 이전 지형 모델 Collider 참조를 새 투영 전에 비웁니다.
 
-        activeAuthoring = MushTrackAuthoring.FindFor(transform);
-        if (activeAuthoring != null)
+        activeAuthoring = MushTrackAuthoring.FindFor(transform); // 현재 맵에 연결된 트랙 편집 데이터를 찾습니다.
+        if (activeAuthoring != null) // 트랙 데이터가 있으면 폭 설정과 모델 설정을 읽습니다.
         {
-            overridesTrackWidths = activeAuthoring.OverridesTrackWidths;
-            authoredRoadHalfWidth = Mathf.Max(0.5f, activeAuthoring.RoadHalfWidth);
-            authoredTerrainHalfWidth = Mathf.Max(activeAuthoring.TerrainHalfWidth, authoredRoadHalfWidth + 4f);
+            overridesTrackWidths = activeAuthoring.OverridesTrackWidths; // 사용자 지정 폭 사용 여부를 가져옵니다.
+            authoredRoadHalfWidth = Mathf.Max(0.5f, activeAuthoring.RoadHalfWidth); // 도로 반폭을 최소값 이상으로 제한합니다.
+            authoredTerrainHalfWidth = Mathf.Max(activeAuthoring.TerrainHalfWidth, authoredRoadHalfWidth + 4f); // 자동 지형은 항상 도로보다 넓게 유지합니다.
         }
 
         if (activeAuthoring != null && activeAuthoring.TryBuildSampledRoute(
                 routePoints,
                 out activeCourseLength,
-                out activeSampleSpacing))
+                out activeSampleSpacing)) // 사용자 제어점을 실제 곡선 샘플로 변환합니다.
         {
-            usesEditableTrack = true;
+            usesEditableTrack = true; // 정상 사용자 경로를 사용 중임을 기록합니다.
         }
-        else
+        else // 사용자 경로가 없으면 기존 기본 직선을 사용합니다.
         {
-            MushTrackPathUtility.BuildDefaultRoute(routePoints);
-            activeCourseLength = MushTrackPathUtility.DefaultCourseLength;
-            activeSampleSpacing = MushTrackPathUtility.DefaultSampleSpacing;
-        }
-
-        if (routePoints.Count < 2)
-            throw new InvalidOperationException("Track generation requires at least two route samples.");
-
-        if (activeAuthoring != null &&
-            activeAuthoring.TryCopyTerrainBoundary(terrainBoundaryPoints))
-        {
-            NormalizeTerrainBoundaryWinding(terrainBoundaryPoints);
-            usesEditableTerrain = TryTriangulateTerrainBoundary(
-                terrainBoundaryPoints,
-                terrainTriangleIndices);
-            if (usesEditableTerrain)
-            {
-                terrainSurfacePoints.AddRange(terrainBoundaryPoints);
-                activeAuthoring.CopyTerrainHeightPoints(terrainHeightPoints);
-                for (int index = 0; index < terrainHeightPoints.Count; index++)
-                    InsertTerrainSurfacePoint(terrainHeightPoints[index]);
-                FitTerrainBelowRoad();
-            }
-            else
-            {
-                terrainBoundaryPoints.Clear();
-                terrainTriangleIndices.Clear();
-                Debug.LogWarning(
-                    "[Mush] 편집 지형 경계가 서로 교차하거나 면적이 없습니다. 기본 지형으로 표시합니다.",
-                    this);
-            }
+            MushTrackPathUtility.BuildDefaultRoute(routePoints); // 기본 960m 직선 경로를 만듭니다.
+            activeCourseLength = MushTrackPathUtility.DefaultCourseLength; // 기본 길이를 저장합니다.
+            activeSampleSpacing = MushTrackPathUtility.DefaultSampleSpacing; // 기본 샘플 간격을 저장합니다.
         }
 
-        StartForward = Vector3.ProjectOnPlane(routePoints[1] - routePoints[0], Vector3.up).normalized;
-        if (StartForward.sqrMagnitude < 0.0001f)
-            StartForward = Vector3.back;
+        if (routePoints.Count < 2) // 도로는 최소 두 샘플이 필요합니다.
+            throw new InvalidOperationException("Track generation requires at least two route samples."); // 잘못된 상태를 즉시 알립니다.
+
+        if (activeAuthoring != null && activeAuthoring.HasCustomTerrainVisual) // 지형 모델이 지정되어 있으면 도로가 지형 쪽에 맞춰집니다.
+        {
+            activeTerrainVisual = ResolveCustomVisual(
+                activeAuthoring.CustomTerrainVisual,
+                CustomTerrainVisualPrefix); // 씬 오브젝트면 그대로 쓰고 Prefab이면 가벼운 인스턴스를 한 번 준비합니다.
+
+            if (activeTerrainVisual != null) // 실제 지형 모델을 얻었을 때만 표면 투영을 수행합니다.
+                ProjectRouteOntoTerrainModel(activeTerrainVisual); // 모든 도로 샘플의 Y를 지형 표면 높이에 맞춥니다.
+        }
+        else // 지형 모델 슬롯을 None으로 바꾼 경우에는 이전에 자동 생성했던 Prefab 인스턴스만 정리합니다.
+        {
+            ResolveCustomVisual(null, CustomTerrainVisualPrefix); // 사용자가 직접 씬에 둔 일반 오브젝트는 건드리지 않고 시스템 생성 인스턴스만 제거합니다.
+        }
+
+        StartForward = Vector3.ProjectOnPlane(routePoints[1] - routePoints[0], Vector3.up).normalized; // 시작 진행 방향을 수평면에서 계산합니다.
+        if (StartForward.sqrMagnitude < 0.0001f) // 두 시작점이 수평상 거의 같은 위치면 안전한 기본 방향을 사용합니다.
+            StartForward = Vector3.back; // 기본 진행 방향은 기존 맵과 같은 뒤쪽 방향입니다.
+    }
+
+    /// <summary>
+    /// 지정된 지형 모델에 Collider가 있으면 그대로 사용하고,
+    /// Collider가 없으면 원본 Mesh를 공유하는 DontSave MeshCollider 프록시만 임시 생성합니다.
+    /// Mesh 데이터 자체는 복제하지 않습니다.
+    /// </summary>
+    private void PrepareTerrainSurfaceColliders(GameObject terrainVisual, List<Collider> output)
+    {
+        output.Clear(); // 이전 호출에서 사용한 Collider 목록을 비웁니다.
+        if (terrainVisual == null) // 지형 모델이 없으면 준비할 표면도 없습니다.
+            return;
+
+        Collider[] existingColliders = terrainVisual.GetComponentsInChildren<Collider>(true); // 모델이 원래 가진 Collider를 모두 찾습니다.
+        for (int index = 0; index < existingColliders.Length; index++) // 실제 표면으로 쓸 수 있는 Collider만 골라냅니다.
+        {
+            Collider collider = existingColliders[index]; // 현재 Collider를 가져옵니다.
+            if (collider != null && collider.enabled && !collider.isTrigger && collider.gameObject.activeInHierarchy) // 활성 일반 Collider만 도로 투영에 사용합니다.
+                output.Add(collider); // 별도 복제 없이 기존 Collider를 그대로 사용합니다.
+        }
+
+        if (output.Count > 0) // 모델 자체에 Collider가 있으면 임시 프록시를 만들 필요가 없습니다.
+            return;
+
+        MeshFilter[] meshFilters = terrainVisual.GetComponentsInChildren<MeshFilter>(true); // Collider가 없을 때 실제 표시 Mesh들을 찾습니다.
+        if (meshFilters.Length == 0) // MeshFilter조차 없다면 자동 표면 투영을 만들 수 없습니다.
+            return;
+
+        GameObject proxyRootObject = new(TerrainCollisionProxyRootName); // 표면 투영과 Play Mode 충돌에 사용할 숨은 프록시 루트를 만듭니다.
+        proxyRootObject.hideFlags = HideFlags.HideAndDontSave; // Hierarchy/씬/에셋에 저장되지 않는 완전 임시 오브젝트로 둡니다.
+        terrainCollisionProxyRoot = proxyRootObject.transform; // 다음 갱신 때 정확히 제거할 수 있도록 참조를 보관합니다.
+        if (gameObject.scene.IsValid()) // 현재 맵 씬이 정상적이면 프록시도 같은 씬에 두어 PhysicsScene을 정확히 공유합니다.
+            SceneManager.MoveGameObjectToScene(proxyRootObject, gameObject.scene); // 부모 없이 월드 좌표 그대로 사용할 수 있게 같은 씬 루트로 옮깁니다.
+
+        for (int index = 0; index < meshFilters.Length; index++) // 지형 모델의 각 Mesh를 공유 Collider로 만듭니다.
+        {
+            MeshFilter filter = meshFilters[index]; // 현재 지형 MeshFilter를 가져옵니다.
+            if (filter == null || filter.sharedMesh == null || !filter.gameObject.activeInHierarchy) // 표시되지 않는 Mesh는 건너뜁니다.
+                continue;
+
+            GameObject proxyObject = new($"Terrain Surface Proxy {index:000}"); // 한 Mesh당 아주 가벼운 Collider 전용 오브젝트를 만듭니다.
+            proxyObject.hideFlags = HideFlags.HideAndDontSave; // 프록시는 씬 파일에 저장하지 않습니다.
+            Transform proxyTransform = proxyObject.transform; // 원본 Mesh와 같은 월드 변환을 적용할 Transform을 가져옵니다.
+            proxyTransform.SetParent(terrainCollisionProxyRoot, false); // 숨은 프록시 루트 아래에 배치합니다.
+            proxyTransform.SetPositionAndRotation(filter.transform.position, filter.transform.rotation); // 원본 Mesh의 월드 위치와 회전을 그대로 맞춥니다.
+            proxyTransform.localScale = filter.transform.lossyScale; // 원본 Mesh의 최종 월드 스케일까지 동일하게 맞춥니다.
+
+            MeshCollider proxyCollider = proxyObject.AddComponent<MeshCollider>(); // 실제 표면 질의에 사용할 MeshCollider를 추가합니다.
+            proxyCollider.sharedMesh = filter.sharedMesh; // 새 Mesh를 만들지 않고 프로젝트의 원본 Mesh를 그대로 공유합니다.
+            proxyCollider.convex = false; // 지형 표면은 오목한 정적 Mesh로 취급합니다.
+            output.Add(proxyCollider); // 이후 도로 높이 투영과 Play Mode 충돌에 이 Collider를 사용합니다.
+        }
+    }
+
+    /// <summary>
+    /// 지형 모델 표면을 수직으로 샘플링해 현재 도로 중심선 높이를 맞춥니다.
+    /// 제어점 자체를 바꾸지 않으므로 지형 모델을 제거하면 원래 제어점 높이가 다시 사용됩니다.
+    /// </summary>
+    private void ProjectRouteOntoTerrainModel(GameObject terrainVisual)
+    {
+        PrepareTerrainSurfaceColliders(terrainVisual, activeTerrainSurfaceColliders); // 기존 Collider 또는 공유 Mesh 프록시를 한 번 준비해 도로 전체에서 재사용합니다.
+
+        if (activeTerrainSurfaceColliders.Count == 0)
+        {
+            Debug.LogWarning(
+                $"[Mush] Terrain model '{terrainVisual.name}' has no usable Collider or MeshFilter. The road keeps its authored height.",
+                activeAuthoring);
+            return;
+        }
+
+        Bounds surfaceBounds = activeTerrainSurfaceColliders[0].bounds; // 모든 지형 조각을 포함하는 높이 범위를 계산합니다.
+        for (int index = 1; index < activeTerrainSurfaceColliders.Count; index++)
+            surfaceBounds.Encapsulate(activeTerrainSurfaceColliders[index].bounds);
+
+        activeTerrainRayTop = surfaceBounds.max.y + Mathf.Max(50f, surfaceBounds.size.y + 10f); // 가장 높은 지형보다 충분히 위에서 시작합니다.
+        activeTerrainRayDistance = Mathf.Max(100f, surfaceBounds.size.y + 120f); // 가장 낮은 지형까지 충분히 내려갑니다.
+
+        int projectedCount = 0;
+        for (int routeIndex = 0; routeIndex < routePoints.Count; routeIndex++)
+        {
+            Vector3 localPoint = routePoints[routeIndex];
+            if (!TrySampleActiveTerrain(localPoint, out Vector3 sampledPoint, out _)) // 같은 XZ에 지형이 없으면 원래 높이를 유지합니다.
+                continue;
+
+            localPoint.y = sampledPoint.y; // 제어점 XZ는 보존하고 지형 표면의 Y만 사용합니다.
+            routePoints[routeIndex] = localPoint;
+            projectedCount++;
+        }
+
+        if (projectedCount >= 2)
+        {
+            activeCourseLength = 0f;
+            for (int index = 1; index < routePoints.Count; index++)
+                activeCourseLength += Vector3.Distance(routePoints[index - 1], routePoints[index]);
+
+            activeSampleSpacing = routePoints.Count > 1
+                ? activeCourseLength / (routePoints.Count - 1)
+                : MushTrackPathUtility.DefaultSampleSpacing;
+        }
+    }
+
+    private bool TrySampleActiveTerrain(Vector3 localQuery, out Vector3 localPoint, out Vector3 localNormal)
+    {
+        localPoint = localQuery; // 실패하면 호출자가 원래 좌표를 그대로 사용할 수 있게 초기화합니다.
+        localNormal = Vector3.up; // 실패 시 안전한 위쪽 노멀을 반환합니다.
+        if (activeTerrainSurfaceColliders.Count == 0 || activeTerrainRayDistance <= 0f)
+            return false;
+
+        Vector3 worldQuery = transform.TransformPoint(localQuery); // 지형 Collider가 사용하는 월드 XZ로 변환합니다.
+        Ray ray = new(new Vector3(worldQuery.x, activeTerrainRayTop, worldQuery.z), Vector3.down); // 같은 XZ에서 위에서 아래로 표면을 찾습니다.
+        bool found = false;
+        float nearestDistance = float.PositiveInfinity;
+        RaycastHit nearestHit = default;
+
+        for (int colliderIndex = 0; colliderIndex < activeTerrainSurfaceColliders.Count; colliderIndex++)
+        {
+            Collider collider = activeTerrainSurfaceColliders[colliderIndex];
+            if (collider == null || !collider.enabled)
+                continue;
+            if (!collider.Raycast(ray, out RaycastHit hit, activeTerrainRayDistance) || hit.distance >= nearestDistance)
+                continue;
+
+            nearestDistance = hit.distance;
+            nearestHit = hit;
+            found = true;
+        }
+
+        if (!found)
+            return false;
+
+        localPoint = transform.InverseTransformPoint(nearestHit.point); // 지형 실제 표면점을 맵 로컬 좌표로 되돌립니다.
+        localNormal = transform.InverseTransformDirection(nearestHit.normal).normalized; // 도로 모델/리본이 필요하면 지형 노멀도 함께 사용할 수 있습니다.
+        return true;
+    }
+
+    private void DestroyTerrainCollisionProxy()
+    {
+        if (terrainCollisionProxyRoot == null) // 이전 프록시가 없으면 아무것도 하지 않습니다.
+            return;
+
+        GameObject proxyObject = terrainCollisionProxyRoot.gameObject; // 제거할 임시 프록시 루트 오브젝트를 가져옵니다.
+        terrainCollisionProxyRoot = null; // Destroy 중 재진입해도 같은 오브젝트를 다시 잡지 않도록 참조부터 비웁니다.
+
+        if (Application.isPlaying) // Play Mode에서는 일반 Destroy를 사용합니다.
+            Destroy(proxyObject); // 프레임 종료 시 임시 Collider 프록시를 제거합니다.
+        else // Edit Mode에서는 즉시 제거할 수 있습니다.
+            DestroyImmediate(proxyObject); // 씬에 임시 프록시가 남지 않도록 바로 제거합니다.
     }
 
     private float RouteCenterHeightAtDistance(float distance)
@@ -673,73 +960,79 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private void ApplyCustomCoursePresentation()
     {
-        Transform deformedRoadRoot = rebuiltRoot != null ? rebuiltRoot.Find(DeformedRoadRootName) : null;
-        bool hasDeformedRoad = deformedRoadRoot != null &&
-                               activeAuthoring != null &&
-                               activeAuthoring.UsesDeformableRoadModule;
-        GameObject customRoad = ResolveCustomVisual(
-            activeAuthoring != null ? activeAuthoring.CustomRoadVisual : null,
-            CustomRoadVisualPrefix);
-        GameObject customTerrain = ResolveCustomVisual(
-            activeAuthoring != null ? activeAuthoring.CustomTerrainVisual : null,
-            CustomTerrainVisualPrefix);
-        bool hasCustomRoad = customRoad != null;
-        bool hasCustomTerrain = customTerrain != null;
+        Transform roadModelRoot = rebuiltRoot != null ? rebuiltRoot.Find(DeformedRoadRootName) : null; // 반복 배치된 도로 모델 루트를 찾습니다.
+        bool hasRoadModel = roadModelRoot != null &&
+                            activeAuthoring != null &&
+                            activeAuthoring.HasRoadModel; // 실제 도로 모델이 지정되어 있고 인스턴스 루트도 존재하는지 확인합니다.
+        bool hasTerrainModel = activeTerrainVisual != null; // 실제 사용할 지형 모델 인스턴스/씬 오브젝트가 있는지 확인합니다.
+        bool showGeneratedRoad = !hasRoadModel; // 도로 모델이 없을 때만 가벼운 기본 리본 도로를 눈에 보이게 합니다.
+        bool showGeneratedTerrain = !hasTerrainModel; // 지형 모델이 없을 때만 자동 생성 지형을 눈에 보이게 합니다.
 
-        // 고정형 커스텀 도로가 선택되어 있으면 그 모델만 보여주고,
-        // None으로 돌아오면 경로 변형 도로 모듈이 있을 때는 그 도로를 다시 보여줍니다.
-        bool showDeformedRoad = hasDeformedRoad && !hasCustomRoad;
-        bool showGeneratedRoad = activeAuthoring == null || (!hasCustomRoad && !hasDeformedRoad);
-        bool showGeneratedTerrain = activeAuthoring == null || !hasCustomTerrain;
+        if (roadRenderer != null) // 기본 생성 도로 Renderer가 있으면 표시 상태를 적용합니다.
+            roadRenderer.enabled = showGeneratedRoad; // 도로 모델이 있으면 기본 리본은 충돌용으로만 남기고 숨깁니다.
 
-        if (roadRenderer != null)
-            roadRenderer.enabled = showGeneratedRoad;
-        if (terrainRenderer != null)
-            terrainRenderer.enabled = showGeneratedTerrain;
+        if (terrainRenderer != null) // 기본 자동 지형 Renderer가 있으면 표시 상태를 적용합니다.
+            terrainRenderer.enabled = showGeneratedTerrain; // 지형 모델이 있으면 자동 지형은 숨깁니다.
 
-        Renderer leftTrackRenderer = FindGeneratedComponent<Renderer>("Left Sled Track");
-        Renderer rightTrackRenderer = FindGeneratedComponent<Renderer>("Right Sled Track");
-        if (leftTrackRenderer != null)
-            leftTrackRenderer.enabled = showGeneratedRoad;
-        if (rightTrackRenderer != null)
-            rightTrackRenderer.enabled = showGeneratedRoad;
+        Renderer leftTrackRenderer = FindGeneratedComponent<Renderer>("Left Sled Track"); // 왼쪽 기본 썰매 자국 Renderer를 찾습니다.
+        Renderer rightTrackRenderer = FindGeneratedComponent<Renderer>("Right Sled Track"); // 오른쪽 기본 썰매 자국 Renderer를 찾습니다.
+        if (leftTrackRenderer != null) // 왼쪽 자국이 있으면 도로 모델 표시와 겹치지 않게 맞춥니다.
+            leftTrackRenderer.enabled = showGeneratedRoad; // 기본 리본 도로를 쓸 때만 표시합니다.
+        if (rightTrackRenderer != null) // 오른쪽 자국이 있으면 동일하게 처리합니다.
+            rightTrackRenderer.enabled = showGeneratedRoad; // 도로 모델이 있으면 모델 자체 외형을 그대로 보여줍니다.
 
-        // 경로 변형 도로 루트도 표시 상태를 직접 관리해야 고정형 도로와 겹쳐 보이지 않습니다.
-        SetVisualRenderersEnabled(deformedRoadRoot, showDeformedRoad);
+        SetVisualRenderersEnabled(roadModelRoot, hasRoadModel); // 반복 배치된 도로 모델은 지정된 경우에만 보이게 합니다.
+        SetVisualRenderersEnabled(activeTerrainVisual, hasTerrainModel); // 지정한 지형 모델은 별도 저장 위치 규칙 없이 그대로 보이게 합니다.
 
-        // 현재 슬롯에 지정된 씬 모델은 재빌드 후에도 반드시 다시 보이게 합니다.
-        // 슬롯을 None으로 바꿨을 때 이전 모델을 숨기는 처리는 Editor 쪽에서 이전 참조를 기억해 처리합니다.
-        if (activeAuthoring != null)
-        {
-            SetVisualRenderersEnabled(customRoad, hasCustomRoad);
-            SetVisualRenderersEnabled(customTerrain, hasCustomTerrain);
-        }
+        Transform generatedTerrainTransform = rebuiltRoot != null ? rebuiltRoot.Find("VISIBLE Snow Terrain") : null; // 자동 지형 오브젝트를 찾습니다.
+        MeshCollider generatedTerrainCollider = generatedTerrainTransform != null
+            ? generatedTerrainTransform.GetComponent<MeshCollider>()
+            : null; // 자동 지형의 충돌체를 가져옵니다.
+        if (generatedTerrainCollider != null) // 지형 모델과 자동 지형 충돌이 겹치지 않게 합니다.
+            generatedTerrainCollider.enabled = !hasTerrainModel; // 지형 모델이 있을 때는 자동 지형 Collider를 끕니다.
     }
 
     private GameObject ResolveCustomVisual(GameObject source, string generatedPrefix)
     {
-        Transform customContent = transform.Find(CustomSceneContentRootName);
-        if (customContent == null)
+        if (source != null && source.scene.IsValid()) // 사용자가 Hierarchy 어디에 놓은 씬 모델이면 그대로 사용합니다.
         {
-            GameObject customContentObject = new(CustomSceneContentRootName);
-            customContent = customContentObject.transform;
-            customContent.SetParent(transform, false);
+            Transform oldPreviewRoot = transform.Find(CustomModelPreviewRootName); // 전에 Prefab 지형을 미리보기로 쓰고 있었다면 숨은 프리뷰만 정리합니다.
+            if (oldPreviewRoot != null && !Application.isPlaying)
+                DestroyImmediate(oldPreviewRoot.gameObject);
+            return source; // 전용 폴더로 옮기거나 복제하지 않습니다.
         }
 
-        if (source != null && source.scene.IsValid())
-        {
-            RemoveGeneratedVisualInstances(customContent, generatedPrefix, null);
-            return source;
-        }
-
-        string expectedName = source != null ? generatedPrefix + source.name : null;
-        GameObject reusable = RemoveGeneratedVisualInstances(customContent, generatedPrefix, expectedName);
+        Transform previewRoot = transform.Find(CustomModelPreviewRootName); // Prefab/FBX 슬롯용 저장되지 않는 미리보기 루트를 찾습니다.
         if (source == null)
+        {
+            if (previewRoot != null && !Application.isPlaying) // 모델 슬롯을 비웠다면 기존 임시 프리뷰만 정리합니다.
+                DestroyImmediate(previewRoot.gameObject);
             return null;
-        if (reusable != null)
-            return reusable;
+        }
 
-        GameObject instance = Instantiate(source, customContent, false);
+        string expectedName = generatedPrefix + source.name; // 현재 슬롯 모델과 재사용 프리뷰를 구분할 이름입니다.
+        if (previewRoot == null)
+        {
+            GameObject previewRootObject = new(CustomModelPreviewRootName); // 전용 저장 위치가 아니라 단순 미리보기 컨테이너입니다.
+            if (!Application.isPlaying)
+                previewRootObject.hideFlags = HideFlags.HideAndDontSave; // 씬 저장 대상에서 완전히 제외합니다.
+            previewRoot = previewRootObject.transform;
+            previewRoot.SetParent(transform, false);
+        }
+
+        for (int index = previewRoot.childCount - 1; index >= 0; index--) // 이전 슬롯 모델 프리뷰를 정리하거나 같은 모델을 재사용합니다.
+        {
+            Transform child = previewRoot.GetChild(index);
+            if (child.name == expectedName)
+                return child.gameObject;
+
+            if (Application.isPlaying)
+                Destroy(child.gameObject);
+            else
+                DestroyImmediate(child.gameObject);
+        }
+
+        GameObject instance = Instantiate(source, previewRoot, false); // 원본 Mesh/Material을 공유하는 가벼운 인스턴스만 만듭니다.
         instance.name = expectedName;
         return instance;
     }
@@ -866,67 +1159,163 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private void BuildDeformedRoadModule(GameObject sourceRoot)
     {
-        MeshFilter[] sourceFilters = sourceRoot.GetComponentsInChildren<MeshFilter>(true);
-        if (sourceFilters.Length == 0 || !TryMeasureRoadModule(sourceRoot, sourceFilters, out RoadModuleGeometry geometry))
+        if (sourceRoot == null || rebuiltRoot == null) // 도로 모델이나 생성 월드가 없으면 배치할 수 없습니다.
+            return;
+
+        MeshFilter[] sourceFilters = sourceRoot.GetComponentsInChildren<MeshFilter>(true); // 도로 모델이 공유할 원본 Mesh들을 찾습니다.
+        if (sourceFilters.Length == 0 ||
+            !TryMeasureRoadModule(sourceRoot, sourceFilters, out RoadModuleGeometry geometry) ||
+            geometry.Length <= 0.1f) // 길이/폭을 측정할 수 없는 모델은 잘못된 도로 모델입니다.
         {
-            Debug.LogWarning($"[Mush] '{sourceRoot.name}' does not contain a usable deformable road mesh.", activeAuthoring);
+            Debug.LogWarning(
+                $"[Mush] Road model '{sourceRoot.name}' needs at least one usable MeshFilter. Its local Z axis is treated as the road length.",
+                activeAuthoring); // 모델 방향 규칙과 실패 이유를 Console에 알려줍니다.
             return;
         }
 
-        GameObject visualRootObject = new(DeformedRoadRootName);
-        Transform visualRoot = visualRootObject.transform;
-        visualRoot.SetParent(rebuiltRoot, false);
-        Dictionary<Material, Material> generatedMaterials = new();
-        int generatedMeshCount = 0;
-
-        Material sourceSnowField = FindSourceMaterial(sourceFilters, "SnowField");
-        if (sourceSnowField != null && activeAuthoring.TerrainMaterialOverride == null)
+        Transform visualRoot = rebuiltRoot.Find(DeformedRoadRootName); // 기존 도로 모델 인스턴스 루트가 있으면 재사용합니다.
+        if (visualRoot == null) // 처음 도로 모델을 지정했을 때만 루트를 새로 만듭니다.
         {
-            Material generatedSnowField = CreateRoadModuleMaterial(sourceSnowField);
-            generatedMaterials[sourceSnowField] = generatedSnowField;
-            if (terrainRenderer != null)
-                terrainRenderer.sharedMaterial = generatedSnowField;
+            GameObject visualRootObject = new(DeformedRoadRootName); // 반복 도로 모델을 정리할 전용 루트를 만듭니다.
+            if (!Application.isPlaying)
+                visualRootObject.hideFlags = HideFlags.HideAndDontSave; // 편집 미리보기 구간은 씬에 수백 개씩 저장하지 않습니다.
+            visualRoot = visualRootObject.transform; // Transform을 가져옵니다.
+            visualRoot.SetParent(rebuiltRoot, false); // 생성 월드 아래에 배치합니다.
         }
 
-        for (int index = 0; index < sourceFilters.Length; index++)
+        string sourceMarker = $" [{sourceRoot.name}]"; // 현재 인스턴스들이 어느 도로 모델에서 만들어졌는지 이름으로 가볍게 식별합니다.
+        if (visualRoot.childCount > 0 &&
+            !visualRoot.GetChild(0).name.EndsWith(sourceMarker, StringComparison.Ordinal)) // 모델을 교체했는데 기존 구간이 남아 있으면 전부 새 모델로 바꿉니다.
         {
-            MeshFilter sourceFilter = sourceFilters[index];
-            if (sourceFilter.name.Contains("Terrain", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            Mesh sourceMesh = sourceFilter.sharedMesh;
-            if (sourceMesh == null || !sourceMesh.isReadable || sourceMesh.vertexCount == 0)
+            for (int childIndex = visualRoot.childCount - 1; childIndex >= 0; childIndex--) // 기존 모델 인스턴스를 뒤에서부터 제거합니다.
             {
-                Debug.LogWarning(
-                    $"[Mush] Road module mesh '{sourceFilter.name}' is not readable and was skipped. Enable Read/Write on the FBX importer.",
-                    activeAuthoring);
-                continue;
+                Transform oldChild = visualRoot.GetChild(childIndex); // 제거할 이전 모델 구간을 가져옵니다.
+                if (Application.isPlaying) // Play Mode에서는 일반 Destroy를 사용합니다.
+                    Destroy(oldChild.gameObject); // 프레임 종료 시 이전 도로 모델을 제거합니다.
+                else // Edit Mode에서는 즉시 제거합니다.
+                    DestroyImmediate(oldChild.gameObject); // 모델 슬롯을 바꾼 즉시 이전 외형이 사라지게 합니다.
+            }
+        }
+
+        float preferredSegmentLength = Mathf.Min(
+            geometry.Length,
+            Mathf.Max(2f, activeSampleSpacing * 2f)); // 급커브에서도 너무 긴 직선 조각이 되지 않도록 샘플 간격을 기준으로 구간 길이를 제한합니다.
+        int segmentCount = Mathf.Clamp(
+            Mathf.CeilToInt(activeCourseLength / Mathf.Max(0.1f, preferredSegmentLength)),
+            1,
+            256); // 씬 오브젝트 수가 폭증하지 않도록 최대 256구간으로 제한합니다.
+        float segmentDistance = activeCourseLength / segmentCount; // 전체 도로 길이를 정확히 같은 수의 구간으로 나눕니다.
+        float lateralScale = ActiveRoadHalfWidth / Mathf.Max(0.01f, geometry.RoadHalfWidth); // 선택한 모델 폭을 현재 도로 폭에 자동으로 맞춥니다.
+        Vector3 sourceScale = sourceRoot.transform.localScale; // 모델이 원래 가진 기본 스케일을 보존합니다.
+        Vector3 moduleCenter = new(
+            geometry.RoadCenterX,
+            geometry.SourceBaseY,
+            (geometry.MinZ + geometry.MaxZ) * 0.5f); // 모델의 길이/폭 중심과 바닥 높이를 계산합니다.
+
+        while (visualRoot.childCount < segmentCount) // 필요한 구간 수보다 기존 인스턴스가 적으면 부족한 만큼만 추가합니다.
+        {
+            int segmentIndex = visualRoot.childCount; // 새 인스턴스 번호를 현재 자식 수로 정합니다.
+            GameObject instance = Instantiate(sourceRoot, visualRoot, false); // Mesh/Material 원본을 공유하는 일반 인스턴스만 만듭니다.
+            instance.name = $"Road Module {segmentIndex + 1:000}{sourceMarker}"; // 구간 순서와 현재 원본 모델을 함께 기록해 교체를 자동 감지합니다.
+
+            Transform[] instanceTransforms = instance.GetComponentsInChildren<Transform>(true); // 모델 안에 지형 조각이 같이 들어 있는 경우를 찾습니다.
+            for (int childIndex = 0; childIndex < instanceTransforms.Length; childIndex++) // 모든 자식을 확인합니다.
+            {
+                Transform child = instanceTransforms[childIndex]; // 현재 자식을 가져옵니다.
+                if (child != instance.transform &&
+                    child.name.Contains("Terrain", StringComparison.OrdinalIgnoreCase)) // 도로 모델 안의 Terrain 이름 조각은 반복 배치하지 않습니다.
+                {
+                    child.gameObject.SetActive(false); // 실제 지형은 별도 지형 모델/자동 지형이 담당하므로 숨깁니다.
+                }
+            }
+        }
+
+        while (visualRoot.childCount > segmentCount) // 경로가 짧아져 필요 구간 수가 줄었으면 남는 인스턴스만 제거합니다.
+        {
+            Transform extra = visualRoot.GetChild(visualRoot.childCount - 1); // 맨 뒤의 초과 인스턴스를 가져옵니다.
+            if (Application.isPlaying) // Play Mode에서는 일반 Destroy를 사용합니다.
+                Destroy(extra.gameObject); // 프레임 종료 시 초과 구간을 제거합니다.
+            else // Edit Mode에서는 바로 제거합니다.
+                DestroyImmediate(extra.gameObject); // 즉시 Hierarchy에서 초과 구간을 없앱니다.
+        }
+
+        for (int segment = 0; segment < segmentCount; segment++) // 기존 인스턴스를 현재 곡선 위치에 맞춰 재배치합니다.
+        {
+            float startDistance = segment * segmentDistance; // 현재 구간의 시작 거리입니다.
+            float endDistance = segment == segmentCount - 1
+                ? activeCourseLength
+                : (segment + 1) * segmentDistance; // 마지막 구간은 정확히 도로 끝에 맞춥니다.
+            float segmentLength = Mathf.Max(0.01f, endDistance - startDistance); // 현재 구간의 실제 길이를 구합니다.
+            float middleDistance = (startDistance + endDistance) * 0.5f; // 위치/회전을 잡을 구간 중앙 거리입니다.
+
+            EvaluateRouteFrame(middleDistance, out Vector3 center, out _); // 지형 모델에 투영된 도로 중심 위치를 얻습니다.
+            float directionSample = Mathf.Min(1f, segmentLength * 0.25f); // 진행 방향을 계산할 앞뒤 샘플 거리를 정합니다.
+            EvaluateRouteFrame(Mathf.Max(0f, middleDistance - directionSample), out Vector3 before, out _); // 중앙보다 조금 전 위치를 구합니다.
+            EvaluateRouteFrame(Mathf.Min(activeCourseLength, middleDistance + directionSample), out Vector3 after, out _); // 중앙보다 조금 뒤 위치를 구합니다.
+            Vector3 forward = after - before; // 오르막/내리막까지 포함한 실제 3D 진행 방향을 계산합니다.
+            if (forward.sqrMagnitude < 0.0001f) // 거의 같은 위치라 방향을 만들 수 없으면 기본 방향을 사용합니다.
+                forward = Vector3.back; // 기존 도로 모델 방향과 맞는 안전한 진행 방향입니다.
+            forward.Normalize(); // 회전에 사용할 단위 방향으로 만듭니다.
+
+            Vector3 roadUp = Vector3.up; // 기본 자동 지형에서는 월드 위쪽을 도로의 위 방향으로 사용합니다.
+            if (activeTerrainVisual != null && TrySampleActiveTerrain(center, out _, out Vector3 terrainNormal)) // 지형 모델이 있으면 실제 표면 노멀을 읽습니다.
+                roadUp = terrainNormal.sqrMagnitude > 0.0001f ? terrainNormal.normalized : Vector3.up; // 경사면에서도 도로 모델이 표면 기울기를 따라 눕게 합니다.
+
+            Quaternion rotation = Quaternion.LookRotation(-forward, roadUp); // 진행 방향뿐 아니라 지형 표면 기울기까지 반영해 도로 모델을 배치합니다.
+            float longitudinalScale = segmentLength / geometry.Length; // 원본 도로 모델 길이를 현재 구간 길이에만 맞춰 늘이거나 줄입니다.
+            Vector3 instanceScale = new(
+                sourceScale.x * lateralScale,
+                sourceScale.y,
+                sourceScale.z * longitudinalScale); // 폭/길이만 자동 조절하고 모델 높이 스케일은 보존합니다.
+
+            Transform instanceTransform = visualRoot.GetChild(segment); // 새로 만들지 않고 기존 구간 인스턴스를 가져옵니다.
+            instanceTransform.localRotation = rotation; // 현재 도로의 3D 진행 방향에 맞춰 회전시킵니다.
+            instanceTransform.localScale = instanceScale; // 현재 구간 길이와 도로 폭에 맞춰 스케일을 적용합니다.
+            instanceTransform.localPosition =
+                center + roadUp * 0.10f - rotation * Vector3.Scale(moduleCenter, instanceScale); // 지형 노멀 방향으로 조금 띄워 모델 바닥이 실제 표면에 밀착되게 합니다.
+            instanceTransform.gameObject.SetActive(true); // 재사용 인스턴스가 혹시 비활성화돼 있었다면 다시 켭니다.
+        }
+    }
+
+    private void RefreshRoadModelInstances()
+    {
+        if (rebuiltRoot == null) // 생성 월드가 없으면 도로 모델 인스턴스를 관리할 수 없습니다.
+            return;
+
+        Transform existingRoot = rebuiltRoot.Find(DeformedRoadRootName); // 이전 도로 모델 인스턴스 루트를 찾습니다.
+
+        if (activeAuthoring == null || !activeAuthoring.HasRoadModel) // 도로 모델이 None이면 기존 반복 모델을 제거합니다.
+        {
+            if (existingRoot != null) // 이전에 모델을 사용했던 경우에만 제거합니다.
+            {
+                if (Application.isPlaying) // Play Mode에서는 일반 Destroy를 사용합니다.
+                    Destroy(existingRoot.gameObject); // 프레임 종료 시 기존 도로 모델 인스턴스를 제거합니다.
+                else // Edit Mode에서는 즉시 제거합니다.
+                    DestroyImmediate(existingRoot.gameObject); // Scene View에서 바로 기본 리본 도로로 돌아오게 합니다.
             }
 
-            Mesh deformedMesh = BuildDeformedModuleMesh(sourceRoot.transform, sourceFilter, geometry);
-            if (deformedMesh == null)
-                continue;
-
-            Material[] materials = BuildRoadModuleMaterials(
-                sourceFilter.GetComponent<Renderer>(),
-                deformedMesh.subMeshCount,
-                generatedMaterials);
-            GameObject meshObject = CreateMeshObject(
-                $"Deformed {sourceFilter.name}",
-                visualRoot,
-                deformedMesh,
-                materials[0],
-                false);
-            MeshRenderer meshRenderer = meshObject.GetComponent<MeshRenderer>();
-            meshRenderer.sharedMaterials = materials;
-            meshRenderer.receiveShadows = true;
-            generatedMeshCount++;
+            return; // 모델이 없으므로 추가 배치는 하지 않습니다.
         }
 
-        if (generatedMeshCount > 0)
+        BuildDeformedRoadModule(activeAuthoring.RoadModel); // 지정된 도로 모델 인스턴스를 현재 경로/지형 높이에 맞춰 갱신합니다.
+    }
+
+    public void InvalidateRoadModelInstances()
+    {
+        if (rebuiltRoot == null) // 생성 월드가 아직 연결되지 않았다면 지울 것도 없습니다.
+            rebuiltRoot = transform.Find(GeneratedWorldRootName); // 현재 씬의 생성 월드를 다시 찾아봅니다.
+
+        if (rebuiltRoot == null) // 생성 월드 자체가 없으면 안전하게 끝냅니다.
             return;
 
-        DestroyImmediate(visualRootObject);
+        Transform existingRoot = rebuiltRoot.Find(DeformedRoadRootName); // 이전 모델로 만든 반복 인스턴스 루트를 찾습니다.
+        if (existingRoot == null) // 도로 모델을 한 번도 사용하지 않았다면 아무것도 하지 않습니다.
+            return;
+
+        if (Application.isPlaying) // Play Mode에서는 일반 Destroy를 사용합니다.
+            Destroy(existingRoot.gameObject); // 프레임 종료 시 이전 모델 인스턴스를 제거합니다.
+        else // Edit Mode에서는 즉시 제거합니다.
+            DestroyImmediate(existingRoot.gameObject); // 모델 교체 즉시 새 모델로 다시 만들 수 있게 지웁니다.
     }
 
     private static bool TryMeasureRoadModule(
@@ -934,60 +1323,62 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         IReadOnlyList<MeshFilter> sourceFilters,
         out RoadModuleGeometry geometry)
     {
-        float minZ = float.PositiveInfinity;
-        float maxZ = float.NegativeInfinity;
-        float outerHalfWidth = 0f;
-        float roadMinX = float.PositiveInfinity;
-        float roadMaxX = float.NegativeInfinity;
-        float roadMinY = float.PositiveInfinity;
-        float roadMaxY = float.NegativeInfinity;
-        bool foundRoad = false;
+        float minZ = float.PositiveInfinity; // 도로 모델 전체의 로컬 Z 최소값을 찾습니다.
+        float maxZ = float.NegativeInfinity; // 도로 모델 전체의 로컬 Z 최대값을 찾습니다.
+        float minX = float.PositiveInfinity; // 도로 모델 전체의 로컬 X 최소값을 찾습니다.
+        float maxX = float.NegativeInfinity; // 도로 모델 전체의 로컬 X 최대값을 찾습니다.
+        float minY = float.PositiveInfinity; // 도로 모델 바닥 높이를 찾습니다.
+        bool foundRoad = false; // 실제 사용할 Mesh를 하나라도 측정했는지 기록합니다.
 
-        for (int filterIndex = 0; filterIndex < sourceFilters.Count; filterIndex++)
+        for (int filterIndex = 0; filterIndex < sourceFilters.Count; filterIndex++) // 도로 모델 안의 모든 MeshFilter를 확인합니다.
         {
-            MeshFilter filter = sourceFilters[filterIndex];
-            Mesh mesh = filter.sharedMesh;
-            if (mesh == null || !mesh.isReadable)
+            MeshFilter filter = sourceFilters[filterIndex]; // 현재 MeshFilter를 가져옵니다.
+            Mesh mesh = filter != null ? filter.sharedMesh : null; // 원본 공유 Mesh를 가져옵니다.
+            if (mesh == null) // Mesh가 없는 필터는 측정할 수 없습니다.
                 continue;
 
-            bool isRoad = filter.name.Contains("SnowRoad", StringComparison.OrdinalIgnoreCase) &&
-                          !filter.name.Contains("Terrain", StringComparison.OrdinalIgnoreCase);
-            Matrix4x4 sourceToModule = sourceRoot.transform.worldToLocalMatrix * filter.transform.localToWorldMatrix;
-            Vector3[] vertices = mesh.vertices;
-            for (int vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
+            if (filter.name.Contains("Terrain", StringComparison.OrdinalIgnoreCase)) // FBX에 도로와 지형이 같이 들어 있다면 Terrain 이름 조각은 폭/길이 측정에서 제외합니다.
+                continue;
+
+            Bounds bounds = mesh.bounds; // Read/Write 옵션과 무관하게 사용할 수 있는 원본 Mesh 로컬 Bounds를 가져옵니다.
+            Matrix4x4 sourceToModule =
+                sourceRoot.transform.worldToLocalMatrix * filter.transform.localToWorldMatrix; // 각 Mesh의 로컬 Bounds를 도로 모델 루트 로컬 좌표로 바꿀 행렬입니다.
+
+            for (int corner = 0; corner < 8; corner++) // Bounds의 8개 꼭짓점만 변환해 전체 크기를 매우 가볍게 측정합니다.
             {
-                Vector3 point = sourceToModule.MultiplyPoint3x4(vertices[vertexIndex]);
-                minZ = Mathf.Min(minZ, point.z);
-                maxZ = Mathf.Max(maxZ, point.z);
-                outerHalfWidth = Mathf.Max(outerHalfWidth, Mathf.Abs(point.x));
-                if (!isRoad)
-                    continue;
+                Vector3 localCorner = new(
+                    (corner & 1) == 0 ? bounds.min.x : bounds.max.x,
+                    (corner & 2) == 0 ? bounds.min.y : bounds.max.y,
+                    (corner & 4) == 0 ? bounds.min.z : bounds.max.z); // 현재 Bounds 모서리 좌표를 만듭니다.
+                Vector3 point = sourceToModule.MultiplyPoint3x4(localCorner); // 도로 모델 루트 기준 좌표로 변환합니다.
 
-                foundRoad = true;
-                roadMinX = Mathf.Min(roadMinX, point.x);
-                roadMaxX = Mathf.Max(roadMaxX, point.x);
-                roadMinY = Mathf.Min(roadMinY, point.y);
-                roadMaxY = Mathf.Max(roadMaxY, point.y);
+                minX = Mathf.Min(minX, point.x); // 전체 왼쪽 끝을 갱신합니다.
+                maxX = Mathf.Max(maxX, point.x); // 전체 오른쪽 끝을 갱신합니다.
+                minY = Mathf.Min(minY, point.y); // 모델 바닥 높이를 갱신합니다.
+                minZ = Mathf.Min(minZ, point.z); // 모델 길이 시작점을 갱신합니다.
+                maxZ = Mathf.Max(maxZ, point.z); // 모델 길이 끝점을 갱신합니다.
             }
+
+            foundRoad = true; // 사용할 수 있는 Mesh 하나를 정상 측정했습니다.
         }
 
-        float length = maxZ - minZ;
-        float roadWidth = roadMaxX - roadMinX;
-        if (!foundRoad || length < 0.1f || roadWidth < 0.1f)
+        float length = maxZ - minZ; // 모델 로컬 Z 방향의 실제 길이를 계산합니다.
+        float width = maxX - minX; // 모델 로컬 X 방향의 실제 폭을 계산합니다.
+        if (!foundRoad || length < 0.1f || width < 0.1f) // 길이나 폭이 사실상 0이면 도로 모듈로 사용할 수 없습니다.
         {
-            geometry = default;
-            return false;
+            geometry = default; // 실패한 경우 기본 구조체를 반환합니다.
+            return false; // 호출자에게 배치 불가를 알립니다.
         }
 
-        float roadCenterX = (roadMinX + roadMaxX) * 0.5f;
+        float roadCenterX = (minX + maxX) * 0.5f; // 모델 폭의 중심 X를 계산합니다.
         geometry = new RoadModuleGeometry(
             minZ,
             maxZ,
             roadCenterX,
-            roadWidth * 0.5f,
-            Mathf.Max(roadWidth * 0.5f, outerHalfWidth),
-            (roadMinY + roadMaxY) * 0.5f);
-        return true;
+            width * 0.5f,
+            width * 0.5f,
+            minY); // 바닥 Y를 도로 표면에 맞추도록 최소 Y를 기준으로 저장합니다.
+        return true; // 도로 모델의 길이/폭 측정이 성공했습니다.
     }
 
     private Mesh BuildDeformedModuleMesh(
@@ -1352,13 +1743,28 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         Vector3[] vertices = new Vector3[count * 2];
         Vector2[] uv = new Vector2[vertices.Length];
         int[] triangles = new int[(count - 1) * 6];
+        bool conformToTerrainModel = activeTerrainVisual != null && activeTerrainSurfaceColliders.Count > 0; // 지형 모델이 있으면 도로 양쪽 끝까지 실제 표면에 맞춥니다.
 
         for (int index = 0; index < count; index++)
         {
             Vector3 right = RouteRight(index);
-            Vector3 center = routePoints[index] + right * lateralOffset + Vector3.up * yLift;
-            vertices[index * 2] = center - right * halfWidth;
-            vertices[index * 2 + 1] = center + right * halfWidth;
+            Vector3 baseCenter = routePoints[index] + right * lateralOffset;
+            Vector3 left = baseCenter - right * halfWidth;
+            Vector3 rightPoint = baseCenter + right * halfWidth;
+
+            if (conformToTerrainModel) // 중심 Y만 맞추는 것이 아니라 도로 폭 양쪽을 각각 지형 표면에 투영합니다.
+            {
+                if (TrySampleActiveTerrain(left, out Vector3 sampledLeft, out _))
+                    left.y = sampledLeft.y;
+                if (TrySampleActiveTerrain(rightPoint, out Vector3 sampledRight, out _))
+                    rightPoint.y = sampledRight.y;
+            }
+
+            left.y += yLift; // 지형과 정확히 겹쳐 Z-fighting이 생기지 않도록 아주 조금만 띄웁니다.
+            rightPoint.y += yLift;
+            vertices[index * 2] = left;
+            vertices[index * 2 + 1] = rightPoint;
+
             float v = index * activeSampleSpacing * 0.1f;
             uv[index * 2] = new Vector2(0f, v);
             uv[index * 2 + 1] = new Vector2(1f, v);
@@ -1599,6 +2005,102 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         terrainSurfacePoints.AddRange(finalPoints);
         terrainTriangleIndices.Clear();
         terrainTriangleIndices.AddRange(finalIndices);
+    }
+
+    private void TessellateEditableTerrain(float maximumEdgeLength)
+    {
+        if (terrainTriangleIndices.Count < 3 || maximumEdgeLength <= 0f)
+            return;
+
+        float longestEdge = 0f;
+        for (int triangle = 0; triangle < terrainTriangleIndices.Count; triangle += 3)
+        {
+            Vector3 a = terrainSurfacePoints[terrainTriangleIndices[triangle]];
+            Vector3 b = terrainSurfacePoints[terrainTriangleIndices[triangle + 1]];
+            Vector3 c = terrainSurfacePoints[terrainTriangleIndices[triangle + 2]];
+            longestEdge = Mathf.Max(
+                longestEdge,
+                Vector3.Distance(a, b),
+                Vector3.Distance(b, c),
+                Vector3.Distance(c, a));
+        }
+
+        int subdivisions = Mathf.CeilToInt(longestEdge / maximumEdgeLength);
+        if (subdivisions <= 1)
+            return;
+        subdivisions = Mathf.Min(subdivisions, 64);
+
+        List<Vector3> tessellatedPoints = new();
+        List<int> tessellatedTriangles = new();
+        Dictionary<Vector3Int, int> pointLookup = new();
+        float inverseSubdivisions = 1f / subdivisions;
+
+        for (int triangle = 0; triangle < terrainTriangleIndices.Count; triangle += 3)
+        {
+            Vector3 a = terrainSurfacePoints[terrainTriangleIndices[triangle]];
+            Vector3 b = terrainSurfacePoints[terrainTriangleIndices[triangle + 1]];
+            Vector3 c = terrainSurfacePoints[terrainTriangleIndices[triangle + 2]];
+            int[,] grid = new int[subdivisions + 1, subdivisions + 1];
+
+            for (int row = 0; row <= subdivisions; row++)
+            for (int column = 0; column <= subdivisions - row; column++)
+            {
+                Vector3 point = a +
+                                (b - a) * (row * inverseSubdivisions) +
+                                (c - a) * (column * inverseSubdivisions);
+                grid[row, column] = GetTessellatedTerrainPoint(
+                    point,
+                    tessellatedPoints,
+                    pointLookup);
+            }
+
+            for (int row = 0; row < subdivisions; row++)
+            for (int column = 0; column < subdivisions - row; column++)
+            {
+                int lowerLeft = grid[row, column];
+                int lowerRight = grid[row + 1, column];
+                int upperLeft = grid[row, column + 1];
+                AddTerrainFace(
+                    tessellatedPoints,
+                    tessellatedTriangles,
+                    lowerLeft,
+                    lowerRight,
+                    upperLeft);
+
+                if (column >= subdivisions - row - 1)
+                    continue;
+                int upperRight = grid[row + 1, column + 1];
+                AddTerrainFace(
+                    tessellatedPoints,
+                    tessellatedTriangles,
+                    lowerRight,
+                    upperRight,
+                    upperLeft);
+            }
+        }
+
+        terrainSurfacePoints.Clear();
+        terrainSurfacePoints.AddRange(tessellatedPoints);
+        terrainTriangleIndices.Clear();
+        terrainTriangleIndices.AddRange(tessellatedTriangles);
+    }
+
+    private static int GetTessellatedTerrainPoint(
+        Vector3 point,
+        List<Vector3> points,
+        Dictionary<Vector3Int, int> lookup)
+    {
+        Vector3Int key = new(
+            Mathf.RoundToInt(point.x * 1000f),
+            Mathf.RoundToInt(point.y * 1000f),
+            Mathf.RoundToInt(point.z * 1000f));
+        if (lookup.TryGetValue(key, out int existing))
+            return existing;
+
+        int index = points.Count;
+        points.Add(point);
+        lookup.Add(key, index);
+        return index;
     }
 
     private static void StitchTerrainSurfaceEdges(List<Vector3> points, List<int> triangles)
@@ -1913,6 +2415,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private Mesh BuildEditableTerrainMesh()
     {
+        // The baked mesh needs short collider edges, but the route data does
+        // not need this extra topology during every Play Mode startup.
+        TessellateEditableTerrain(200f);
         Vector3[] vertices = terrainSurfacePoints.ToArray();
         Vector2[] uv = new Vector2[vertices.Length];
         for (int index = 0; index < vertices.Length; index++)

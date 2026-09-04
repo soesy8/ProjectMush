@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -32,7 +32,7 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     [SerializeField] private bool generateProceduralEnvironment = true;
 
     public bool UsesEditablePath => useEditablePath && controlPoints.Count >= 2;
-    public bool UsesEditableTerrain => useEditableTerrain && terrainControlPoints.Count >= 3;
+    public bool UsesEditableTerrain => false; // 수동 지형 편집은 폐기되었습니다. 저장된 옛 데이터는 호환용으로만 보존합니다.
     public int ControlPointCount => controlPoints.Count;
     public int TerrainControlPointCount => terrainControlPoints.Count;
     public int TerrainHeightPointCount => terrainHeightPoints.Count;
@@ -41,7 +41,9 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     public float TerrainHalfWidth => terrainHalfWidth;
     public bool OverridesTrackWidths => overrideTrackWidths;
     public GameObject DeformableRoadModule => deformableRoadModule;
-    public bool UsesDeformableRoadModule => useDeformableRoadModule && deformableRoadModule != null;
+    public GameObject RoadModel => deformableRoadModule; // 도로 외형 교체에 사용할 구간 모델입니다.
+    public bool UsesDeformableRoadModule => useDeformableRoadModule && deformableRoadModule != null; // 사용 토글이 켜진 모델만 가벼운 구간 인스턴스로 사용합니다.
+    public bool HasRoadModel => useDeformableRoadModule && deformableRoadModule != null;
     public GameObject CustomRoadVisual => customRoadVisual;
     public GameObject CustomTerrainVisual => customTerrainVisual;
     public Material RoadMaterialOverride => roadMaterialOverride;
@@ -318,6 +320,12 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     public void SetDeformableRoadModule(GameObject module)
     {
         deformableRoadModule = module;
+        useDeformableRoadModule = module != null; // 기존 직렬화 토글도 함께 맞춰 외부 코드와의 호환을 유지합니다.
+    }
+
+    public void SetTerrainModel(GameObject model)
+    {
+        customTerrainVisual = model; // 지형 모델이 있으면 런타임이 도로를 그 표면에 투영합니다.
     }
 
     public void SetProceduralEnvironmentEnabled(bool enabled)
