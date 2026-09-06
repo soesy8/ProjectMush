@@ -6,22 +6,22 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/MushLobby.unity
+    path: Assets/Mush/Scenes/MushLobby.unity
     guid: 200d4923331e0e14c89e8c2cda1f99c1
   - enabled: 1
-    path: Assets/Scenes/MushStore.unity
+    path: Assets/Mush/Scenes/MushStore.unity
     guid: d4ec4a00f95346cab3fc9cc2e3bad42b
   - enabled: 1
-    path: Assets/Scenes/MushHousing.unity
+    path: Assets/Mush/Scenes/MushHousing.unity
     guid: 21dcfb2dbb5e428591c222250ccb03ea
   - enabled: 1
-    path: Assets/Scenes/snow.unity
+    path: Assets/Mush/Scenes/snow.unity
     guid: be7e6eb6ec82f0a45bbfde49a91a7b32
   - enabled: 1
-    path: Assets/Scenes/Tree.unity
+    path: Assets/Mush/Scenes/Tree.unity
     guid: af6a8357de46f6c4499f91989f0b2637
   - enabled: 1
-    path: Assets/Scenes/SharpCurve.unity
+    path: Assets/Mush/Scenes/SharpCurve.unity
     guid: 6d31b4d8eb174da5b6a2ad94053f67c1
   m_configObjects:
     Unity.XR.Oculus.Settings: {fileID: 11400000, guid: bfa1182bd221b4ca89619141f66f1260, type: 2}

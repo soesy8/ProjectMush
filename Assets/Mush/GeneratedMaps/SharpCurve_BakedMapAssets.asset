@@ -514,8 +514,10 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
-  stringTagMap: {}
-  disabledShaderPasses: []
+  stringTagMap:
+    RenderType: Opaque
+  disabledShaderPasses:
+  - MOTIONVECTORS
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
@@ -1843,14 +1845,14 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _AtmosphereThickness: 0.75
-    - _Exposure: 1.2
+    - _AtmosphereThickness: 1.38
+    - _Exposure: 0.42
     - _SunDisk: 2
     - _SunSize: 0.045
     - _SunSizeConvergence: 5
     m_Colors:
-    - _GroundColor: {r: 0.21, g: 0.2856, b: 0.378, a: 0.42}
-    - _SkyTint: {r: 0.5, g: 0.68, b: 0.9, a: 1}
+    - _GroundColor: {r: 0.0050399997, g: 0.0105, b: 0.03864, a: 0.42}
+    - _SkyTint: {r: 0.012, g: 0.025, b: 0.092, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!21 &2749421371883531929
