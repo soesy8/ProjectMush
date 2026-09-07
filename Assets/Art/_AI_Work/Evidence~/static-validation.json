@@ -1,0 +1,9 @@
+{
+  "recoveredAt": "2026-09-07",
+  "candidateFiles": 204,
+  "candidateAssetGuids": 108,
+  "duplicateCandidateGuids": 0,
+  "originalGuidLeaks": 0,
+  "originalScenesModified": false,
+  "note": "Reconstructed after accidental deletion; original render captures and candidate scene blobs were restored byte-for-byte."
+}
