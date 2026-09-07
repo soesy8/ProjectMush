@@ -254,6 +254,10 @@ PrefabInstance:
       value: "\uC9D1 \uAFB8\uBBF8\uAE30"
       objectReference: {fileID: 0}
     - target: {fileID: 387354975706440540, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
+      propertyPath: m_fontSize
+      value: 36
+      objectReference: {fileID: 0}
+    - target: {fileID: 387354975706440540, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
       propertyPath: m_fontSizeMax
       value: 36
       objectReference: {fileID: 0}
@@ -373,6 +377,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7438802008461423013, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 60
+      objectReference: {fileID: 0}
     - target: {fileID: 8231257487936597334, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
       propertyPath: m_Name
       value: "Mush Wall Panel \uC9D1 \uAFB8\uBBF8\uAE30"
@@ -380,14 +388,6 @@ PrefabInstance:
     - target: {fileID: 8252297482892017528, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
       propertyPath: m_RaycastTarget
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 387354975706440540, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
-      propertyPath: m_fontSize
-      value: 36
-      objectReference: {fileID: 0}
-    - target: {fileID: 7438802008461423013, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 60
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -425,7 +425,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
-  m_AdditionalShaderChannelsFlag: 0
+  m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
   m_SortingOrder: 0
@@ -24383,6 +24383,10 @@ PrefabInstance:
       value: "\uC9C0\uB3C4"
       objectReference: {fileID: 0}
     - target: {fileID: 387354975706440540, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
+      propertyPath: m_fontSize
+      value: 36
+      objectReference: {fileID: 0}
+    - target: {fileID: 387354975706440540, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
       propertyPath: m_fontSizeMax
       value: 36
       objectReference: {fileID: 0}
@@ -24502,6 +24506,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7438802008461423013, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 60
+      objectReference: {fileID: 0}
     - target: {fileID: 8231257487936597334, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
       propertyPath: m_Name
       value: "Mush Wall Panel \uC9C0\uB3C4"
@@ -24509,14 +24517,6 @@ PrefabInstance:
     - target: {fileID: 8252297482892017528, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
       propertyPath: m_RaycastTarget
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 387354975706440540, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
-      propertyPath: m_fontSize
-      value: 36
-      objectReference: {fileID: 0}
-    - target: {fileID: 7438802008461423013, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 60
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -24554,7 +24554,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
-  m_AdditionalShaderChannelsFlag: 0
+  m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
   m_SortingOrder: 0
@@ -29672,6 +29672,10 @@ PrefabInstance:
       value: "\uC0C1\uC810"
       objectReference: {fileID: 0}
     - target: {fileID: 387354975706440540, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
+      propertyPath: m_fontSize
+      value: 36
+      objectReference: {fileID: 0}
+    - target: {fileID: 387354975706440540, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
       propertyPath: m_fontSizeMax
       value: 36
       objectReference: {fileID: 0}
@@ -29791,6 +29795,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7438802008461423013, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 60
+      objectReference: {fileID: 0}
     - target: {fileID: 8231257487936597334, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
       propertyPath: m_Name
       value: "Mush Wall Panel \uC0C1\uC810"
@@ -29798,14 +29806,6 @@ PrefabInstance:
     - target: {fileID: 8252297482892017528, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
       propertyPath: m_RaycastTarget
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 387354975706440540, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
-      propertyPath: m_fontSize
-      value: 36
-      objectReference: {fileID: 0}
-    - target: {fileID: 7438802008461423013, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 60
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -29843,7 +29843,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
-  m_AdditionalShaderChannelsFlag: 0
+  m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
   m_SortingOrder: 0
