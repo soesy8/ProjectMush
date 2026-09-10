@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: SM_Chest_Emblem
-  m_Shader: {fileID: 4800000, guid: dbc4a92342792cb46bf2f522a6f090a5, type: 3}
+  m_Shader: {fileID: 4800000, guid: 41f084b047394e07a04cbe27c20867a0, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
@@ -33,11 +33,12 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _NormalMap:
-        m_Texture: {fileID: 2800000, guid: 6897a6b7db0be9a4cb607e6693b78fa8, type: 3}
+        m_Texture: {fileID: 2800000, guid: 5248a23bb3e248c9be359f864ebbc3ef, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _BaseMapStrength: 1
     - _EmissionStrength: 0
     - _FacetCenter: 0.5
     - _FacetContrast: 1.35
@@ -46,11 +47,11 @@ Material:
     - _NormalStrength: 1
     - _RimLightInfluence: 0.5
     - _RimPower: 4
-    - _RimStrength: 0.1
+    - _RimStrength: 0.025
     - _ShadowSoftness: 0.2
-    - _ShadowStrength: 0.35
+    - _ShadowStrength: 0.18
     - _ShadowThreshold: 0.5
-    - _Smoothness: 0.85
+    - _Smoothness: 0.6
     - _UseEmissionMap: 0
     - _UseNormalMap: 1
     m_Colors:

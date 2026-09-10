@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: SM_DogFood
-  m_Shader: {fileID: 4800000, guid: dbc4a92342792cb46bf2f522a6f090a5, type: 3}
+  m_Shader: {fileID: 4800000, guid: 41f084b047394e07a04cbe27c20867a0, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -24,7 +24,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: a88a84116abc4b64f9c033dcdc75f08b, type: 3}
+        m_Texture: {fileID: 2800000, guid: b64023b23b7042ec9837896e9160d2e8, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
@@ -37,6 +37,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _BaseMapStrength: 1
     - _EmissionStrength: 0
     - _FacetCenter: 0.5
     - _FacetContrast: 1.35
@@ -45,9 +46,9 @@ Material:
     - _NormalStrength: 1
     - _RimLightInfluence: 0.5
     - _RimPower: 4
-    - _RimStrength: 0.1
+    - _RimStrength: 0.025
     - _ShadowSoftness: 0.2
-    - _ShadowStrength: 0.35
+    - _ShadowStrength: 0.18
     - _ShadowThreshold: 0.5
     - _Smoothness: 0.05
     - _UseEmissionMap: 0

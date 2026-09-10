@@ -1,0 +1,3522 @@
+{
+  "blender_version": "5.1.1",
+  "file": "E:\\CodexOutput_T9\\Passivity\\Sled_Dog\\Animation\\완성\\KAI_Walk_36f_6Key.blend",
+  "scene": {
+    "name": "Scene",
+    "frame_start": 1,
+    "frame_end": 36,
+    "frame_current": 1,
+    "fps": 45,
+    "fps_base": 1.0,
+    "unit_system": "METRIC"
+  },
+  "objects": [
+    {
+      "name": "Husky_KAI",
+      "type": "MESH",
+      "parent": "KAI_Rig",
+      "parent_type": "OBJECT",
+      "location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation_mode": "XYZ",
+      "rotation_euler": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        0.260615,
+        0.260615,
+        0.260615
+      ],
+      "dimensions": [
+        0.431024,
+        1.376637,
+        1.351154
+      ],
+      "matrix_world": [
+        [
+          0.260615,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.260615,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.260615,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "hidden_render": false,
+      "modifiers": [
+        {
+          "name": "Armature",
+          "type": "ARMATURE",
+          "object": "KAI_Rig"
+        }
+      ],
+      "animation": null,
+      "vertex_count": 2973,
+      "polygon_count": 4596,
+      "vertex_groups": [
+        "spine.004",
+        "spine.003",
+        "spine.002",
+        "spine.001",
+        "spine",
+        "spine.005",
+        "spine.006",
+        "spine.007",
+        "spine.008",
+        "spine.009",
+        "spine.010",
+        "spine.011",
+        "Ear.L",
+        "Ear.R",
+        "Head",
+        "Face",
+        "UpperMouse",
+        "JawBone",
+        "Jaw",
+        "shoulder.L",
+        "front_thigh.L",
+        "front_shin.L",
+        "front_foot.L",
+        "front_toe.L",
+        "shoulder.R",
+        "front_thigh.R",
+        "front_shin.R",
+        "front_foot.R",
+        "front_toe.R",
+        "breast.L",
+        "breast.R",
+        "pelvis.L",
+        "pelvis.R",
+        "thigh.L",
+        "shin.L",
+        "foot.L",
+        "toe.L",
+        "thigh.R",
+        "shin.R",
+        "foot.R",
+        "toe.R"
+      ]
+    },
+    {
+      "name": "KAI_Rig",
+      "type": "ARMATURE",
+      "parent": null,
+      "parent_type": "OBJECT",
+      "location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation_mode": "XYZ",
+      "rotation_euler": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "dimensions": [
+        0.310689,
+        1.313973,
+        1.34064
+      ],
+      "matrix_world": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "hidden_render": false,
+      "modifiers": [],
+      "animation": {
+        "action": "KAI_Walk_36f_6Key",
+        "nla_tracks": []
+      },
+      "display_type": "TEXTURED",
+      "bones": [
+        {
+          "name": "ROOT",
+          "parent": null,
+          "use_deform": false,
+          "head_local": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "tail_local": [
+            0.0,
+            0.25,
+            0.0
+          ],
+          "length": 0.25,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "BODY",
+          "parent": "ROOT",
+          "use_deform": false,
+          "head_local": [
+            0.0,
+            0.0,
+            0.72
+          ],
+          "tail_local": [
+            0.0,
+            0.0,
+            0.92
+          ],
+          "length": 0.2,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            -0.001,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.004",
+          "parent": "BODY",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            0.362277,
+            0.760656
+          ],
+          "tail_local": [
+            -0.0,
+            0.255544,
+            0.79536
+          ],
+          "length": 0.112234,
+          "roll": -1e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.003",
+          "parent": "spine.004",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            0.400903,
+            0.756112
+          ],
+          "tail_local": [
+            -0.0,
+            0.48212,
+            0.733921
+          ],
+          "length": 0.084194,
+          "roll": 0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.002",
+          "parent": "spine.003",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            0.48212,
+            0.733921
+          ],
+          "tail_local": [
+            -0.0,
+            0.550659,
+            0.711032
+          ],
+          "length": 0.07226,
+          "roll": 0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.001",
+          "parent": "spine.002",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            0.550659,
+            0.711032
+          ],
+          "tail_local": [
+            -0.0,
+            0.641311,
+            0.629963
+          ],
+          "length": 0.121615,
+          "roll": 0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine",
+          "parent": "spine.001",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            0.641311,
+            0.629963
+          ],
+          "tail_local": [
+            -0.0,
+            0.713098,
+            0.543981
+          ],
+          "length": 0.112009,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.005",
+          "parent": "spine.004",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            0.255544,
+            0.79536
+          ],
+          "tail_local": [
+            0.0,
+            0.132334,
+            0.779746
+          ],
+          "length": 0.124195,
+          "roll": -4e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.006",
+          "parent": "spine.005",
+          "use_deform": true,
+          "head_local": [
+            0.0,
+            0.132334,
+            0.779746
+          ],
+          "tail_local": [
+            -0.0,
+            -0.001897,
+            0.772248
+          ],
+          "length": 0.13444,
+          "roll": -4e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.007",
+          "parent": "spine.006",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            -0.001897,
+            0.772248
+          ],
+          "tail_local": [
+            -0.0,
+            -0.116934,
+            0.780299
+          ],
+          "length": 0.115318,
+          "roll": 1e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.008",
+          "parent": "spine.007",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            -0.116934,
+            0.780299
+          ],
+          "tail_local": [
+            -0.0,
+            -0.20355,
+            0.834357
+          ],
+          "length": 0.102101,
+          "roll": -1e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.009",
+          "parent": "spine.008",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            -0.20355,
+            0.834357
+          ],
+          "tail_local": [
+            0.0,
+            -0.263415,
+            0.954117
+          ],
+          "length": 0.133889,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.010",
+          "parent": "spine.009",
+          "use_deform": true,
+          "head_local": [
+            0.0,
+            -0.263415,
+            0.954117
+          ],
+          "tail_local": [
+            0.0,
+            -0.29662,
+            1.029178
+          ],
+          "length": 0.082079,
+          "roll": 0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "spine.011",
+          "parent": "spine.010",
+          "use_deform": true,
+          "head_local": [
+            0.0,
+            -0.29662,
+            1.029178
+          ],
+          "tail_local": [
+            0.0,
+            -0.335229,
+            1.138052
+          ],
+          "length": 0.115517,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "Ear.L",
+          "parent": "spine.011",
+          "use_deform": true,
+          "head_local": [
+            0.068321,
+            -0.352681,
+            1.183216
+          ],
+          "tail_local": [
+            0.095268,
+            -0.381412,
+            1.34164
+          ],
+          "length": 0.163248,
+          "roll": 0.163186,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "Ear.R",
+          "parent": "spine.011",
+          "use_deform": true,
+          "head_local": [
+            -0.065603,
+            -0.352681,
+            1.181145
+          ],
+          "tail_local": [
+            -0.094594,
+            -0.381412,
+            1.339208
+          ],
+          "length": 0.163248,
+          "roll": -0.175529,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "Head",
+          "parent": "spine.010",
+          "use_deform": true,
+          "head_local": [
+            0.0,
+            -0.317614,
+            1.034246
+          ],
+          "tail_local": [
+            0.0,
+            -0.410207,
+            1.136965
+          ],
+          "length": 0.138292,
+          "roll": -1e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "Face",
+          "parent": "Head",
+          "use_deform": true,
+          "head_local": [
+            0.0,
+            -0.410207,
+            1.136965
+          ],
+          "tail_local": [
+            0.0,
+            -0.505505,
+            0.988875
+          ],
+          "length": 0.176103,
+          "roll": -1e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "UpperMouse",
+          "parent": "Face",
+          "use_deform": true,
+          "head_local": [
+            0.0,
+            -0.505505,
+            0.988875
+          ],
+          "tail_local": [
+            0.0,
+            -0.600875,
+            0.932915
+          ],
+          "length": 0.110576,
+          "roll": -1e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "JawBone",
+          "parent": "spine.010",
+          "use_deform": true,
+          "head_local": [
+            0.0,
+            -0.317614,
+            1.034246
+          ],
+          "tail_local": [
+            -0.0,
+            -0.459199,
+            0.945607
+          ],
+          "length": 0.167043,
+          "roll": 0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "Jaw",
+          "parent": "JawBone",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            -0.459199,
+            0.945607
+          ],
+          "tail_local": [
+            -0.0,
+            -0.574625,
+            0.901673
+          ],
+          "length": 0.123505,
+          "roll": 1e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "shoulder.L",
+          "parent": "spine.008",
+          "use_deform": true,
+          "head_local": [
+            0.0596,
+            -0.218266,
+            0.813687
+          ],
+          "tail_local": [
+            0.1249,
+            -0.252951,
+            0.693728
+          ],
+          "length": 0.140916,
+          "roll": -0.489688,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "front_thigh.L",
+          "parent": "shoulder.L",
+          "use_deform": true,
+          "head_local": [
+            0.1249,
+            -0.250427,
+            0.695893
+          ],
+          "tail_local": [
+            0.140082,
+            -0.225617,
+            0.551451
+          ],
+          "length": 0.147341,
+          "roll": -0.098266,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            0.98321,
+            -0.181922,
+            -0.014257,
+            0.000362
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "front_shin.L",
+          "parent": "front_thigh.L",
+          "use_deform": true,
+          "head_local": [
+            0.140082,
+            -0.225617,
+            0.551451
+          ],
+          "tail_local": [
+            0.129787,
+            -0.25083,
+            0.28339
+          ],
+          "length": 0.269441,
+          "roll": 0.042588,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            0.963532,
+            -0.266766,
+            0.01405,
+            0.015625
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "front_foot.L",
+          "parent": "front_shin.L",
+          "use_deform": true,
+          "head_local": [
+            0.129787,
+            -0.25083,
+            0.28339
+          ],
+          "tail_local": [
+            0.136039,
+            -0.242569,
+            0.056685
+          ],
+          "length": 0.226942,
+          "roll": -0.027276,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            0.958726,
+            0.284218,
+            0.007833,
+            0.00202
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Paw placement",
+              "type": "IK",
+              "target": "KAI_Rig",
+              "subtarget": "IK_front_L",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "front_toe.L",
+          "parent": "front_foot.L",
+          "use_deform": true,
+          "head_local": [
+            0.136039,
+            -0.242569,
+            0.056685
+          ],
+          "tail_local": [
+            0.136039,
+            -0.373889,
+            0.00688
+          ],
+          "length": 0.140448,
+          "roll": 8e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            0.998756,
+            -0.049873,
+            0.0,
+            -0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Maintain anatomical paw orientation",
+              "type": "COPY_ROTATION",
+              "target": "KAI_Rig",
+              "subtarget": "PawOrientation_front_L",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "shoulder.R",
+          "parent": "spine.008",
+          "use_deform": true,
+          "head_local": [
+            -0.0596,
+            -0.218266,
+            0.813687
+          ],
+          "tail_local": [
+            -0.1249,
+            -0.252951,
+            0.693728
+          ],
+          "length": 0.140916,
+          "roll": 0.489688,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "front_thigh.R",
+          "parent": "shoulder.R",
+          "use_deform": true,
+          "head_local": [
+            -0.1249,
+            -0.250427,
+            0.695893
+          ],
+          "tail_local": [
+            -0.140082,
+            -0.225617,
+            0.551451
+          ],
+          "length": 0.147341,
+          "roll": 0.098265,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            0.999852,
+            -0.017163,
+            0.001345,
+            -3.4e-05
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "front_shin.R",
+          "parent": "front_thigh.R",
+          "use_deform": true,
+          "head_local": [
+            -0.140082,
+            -0.225617,
+            0.551451
+          ],
+          "tail_local": [
+            -0.129787,
+            -0.25083,
+            0.28339
+          ],
+          "length": 0.269441,
+          "roll": -0.042588,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            0.956121,
+            0.292068,
+            0.015383,
+            0.017107
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "front_foot.R",
+          "parent": "front_shin.R",
+          "use_deform": true,
+          "head_local": [
+            -0.129787,
+            -0.25083,
+            0.28339
+          ],
+          "tail_local": [
+            -0.136039,
+            -0.242569,
+            0.056685
+          ],
+          "length": 0.226942,
+          "roll": 0.027276,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            0.99882,
+            -0.048539,
+            0.001338,
+            0.000345
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Paw placement",
+              "type": "IK",
+              "target": "KAI_Rig",
+              "subtarget": "IK_front_R",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "front_toe.R",
+          "parent": "front_foot.R",
+          "use_deform": true,
+          "head_local": [
+            -0.136039,
+            -0.242569,
+            0.056685
+          ],
+          "tail_local": [
+            -0.136039,
+            -0.373889,
+            0.00688
+          ],
+          "length": 0.140448,
+          "roll": -8e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            0.989932,
+            0.141543,
+            -0.0,
+            -1e-06
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Maintain anatomical paw orientation",
+              "type": "COPY_ROTATION",
+              "target": "KAI_Rig",
+              "subtarget": "PawOrientation_front_R",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "breast.L",
+          "parent": "spine.008",
+          "use_deform": true,
+          "head_local": [
+            0.034,
+            -0.1694,
+            0.6676
+          ],
+          "tail_local": [
+            0.034,
+            -0.3139,
+            0.5296
+          ],
+          "length": 0.199811,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "breast.R",
+          "parent": "spine.008",
+          "use_deform": true,
+          "head_local": [
+            -0.034,
+            -0.1694,
+            0.6676
+          ],
+          "tail_local": [
+            -0.034,
+            -0.3139,
+            0.5296
+          ],
+          "length": 0.199811,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "pelvis.L",
+          "parent": "spine.005",
+          "use_deform": true,
+          "head_local": [
+            0.0,
+            0.3757,
+            0.6043
+          ],
+          "tail_local": [
+            0.0751,
+            0.2755,
+            0.8544
+          ],
+          "length": 0.279696,
+          "roll": 0.243299,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "pelvis.R",
+          "parent": "spine.005",
+          "use_deform": true,
+          "head_local": [
+            -0.0,
+            0.3757,
+            0.6043
+          ],
+          "tail_local": [
+            -0.0751,
+            0.2755,
+            0.8544
+          ],
+          "length": 0.279696,
+          "roll": -0.243299,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "thigh.L",
+          "parent": "spine.005",
+          "use_deform": true,
+          "head_local": [
+            0.114682,
+            0.3419,
+            0.7379
+          ],
+          "tail_local": [
+            0.157552,
+            0.298654,
+            0.474993
+          ],
+          "length": 0.269867,
+          "roll": -0.157402,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "shin.L",
+          "parent": "thigh.L",
+          "use_deform": true,
+          "head_local": [
+            0.157552,
+            0.298654,
+            0.474993
+          ],
+          "tail_local": [
+            0.148182,
+            0.445701,
+            0.245328
+          ],
+          "length": 0.272868,
+          "roll": 0.024631,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Controlled hind knee",
+              "type": "IK",
+              "target": "KAI_Rig",
+              "subtarget": "HockTarget.L",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "foot.L",
+          "parent": "shin.L",
+          "use_deform": true,
+          "head_local": [
+            0.148182,
+            0.445701,
+            0.245328
+          ],
+          "tail_local": [
+            0.148041,
+            0.445357,
+            0.064767
+          ],
+          "length": 0.180561,
+          "roll": 0.00077,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Hock to paw",
+              "type": "DAMPED_TRACK",
+              "target": "KAI_Rig",
+              "subtarget": "IK_L",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "toe.L",
+          "parent": "foot.L",
+          "use_deform": true,
+          "head_local": [
+            0.148041,
+            0.445357,
+            0.064767
+          ],
+          "tail_local": [
+            0.148041,
+            0.329771,
+            0.009586
+          ],
+          "length": 0.128082,
+          "roll": 7e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Maintain anatomical paw orientation",
+              "type": "COPY_ROTATION",
+              "target": "KAI_Rig",
+              "subtarget": "PawOrientation_L",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "thigh.R",
+          "parent": "spine.005",
+          "use_deform": true,
+          "head_local": [
+            -0.114682,
+            0.3419,
+            0.7379
+          ],
+          "tail_local": [
+            -0.157552,
+            0.298654,
+            0.474993
+          ],
+          "length": 0.269867,
+          "roll": 0.157402,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "shin.R",
+          "parent": "thigh.R",
+          "use_deform": true,
+          "head_local": [
+            -0.157552,
+            0.298654,
+            0.474993
+          ],
+          "tail_local": [
+            -0.148182,
+            0.445701,
+            0.245328
+          ],
+          "length": 0.272868,
+          "roll": -0.024631,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Controlled hind knee",
+              "type": "IK",
+              "target": "KAI_Rig",
+              "subtarget": "HockTarget.R",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "foot.R",
+          "parent": "shin.R",
+          "use_deform": true,
+          "head_local": [
+            -0.148182,
+            0.445701,
+            0.245328
+          ],
+          "tail_local": [
+            -0.148041,
+            0.445357,
+            0.064767
+          ],
+          "length": 0.180561,
+          "roll": -0.00077,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Hock to paw",
+              "type": "DAMPED_TRACK",
+              "target": "KAI_Rig",
+              "subtarget": "IK_R",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "toe.R",
+          "parent": "foot.R",
+          "use_deform": true,
+          "head_local": [
+            -0.148041,
+            0.445357,
+            0.064767
+          ],
+          "tail_local": [
+            -0.148041,
+            0.329771,
+            0.009586
+          ],
+          "length": 0.128082,
+          "roll": -8e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": [
+            {
+              "name": "Maintain anatomical paw orientation",
+              "type": "COPY_ROTATION",
+              "target": "KAI_Rig",
+              "subtarget": "PawOrientation_R",
+              "influence": 1.0
+            }
+          ]
+        },
+        {
+          "name": "IK_front_L",
+          "parent": "ROOT",
+          "use_deform": false,
+          "head_local": [
+            0.136039,
+            -0.242569,
+            0.056685
+          ],
+          "tail_local": [
+            0.136039,
+            -0.402569,
+            0.056685
+          ],
+          "length": 0.16,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.025385,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "PawOrientation_front_L",
+          "parent": "IK_front_L",
+          "use_deform": false,
+          "head_local": [
+            0.136039,
+            -0.242569,
+            0.056685
+          ],
+          "tail_local": [
+            0.136039,
+            -0.373889,
+            0.00688
+          ],
+          "length": 0.140448,
+          "roll": 8e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "IK_front_R",
+          "parent": "ROOT",
+          "use_deform": false,
+          "head_local": [
+            -0.136039,
+            -0.242569,
+            0.056685
+          ],
+          "tail_local": [
+            -0.136039,
+            -0.402569,
+            0.056685
+          ],
+          "length": 0.16,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            -0.066385,
+            0.0445
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "PawOrientation_front_R",
+          "parent": "IK_front_R",
+          "use_deform": false,
+          "head_local": [
+            -0.136039,
+            -0.242569,
+            0.056685
+          ],
+          "tail_local": [
+            -0.136039,
+            -0.373889,
+            0.00688
+          ],
+          "length": 0.140448,
+          "roll": -8e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "IK_L",
+          "parent": "ROOT",
+          "use_deform": false,
+          "head_local": [
+            0.148041,
+            0.445357,
+            0.064767
+          ],
+          "tail_local": [
+            0.148041,
+            0.285357,
+            0.064767
+          ],
+          "length": 0.16,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.11,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "PawOrientation_L",
+          "parent": "IK_L",
+          "use_deform": false,
+          "head_local": [
+            0.148041,
+            0.445357,
+            0.064767
+          ],
+          "tail_local": [
+            0.148041,
+            0.329771,
+            0.009586
+          ],
+          "length": 0.128082,
+          "roll": 7e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "IK_R",
+          "parent": "ROOT",
+          "use_deform": false,
+          "head_local": [
+            -0.148041,
+            0.445357,
+            0.064767
+          ],
+          "tail_local": [
+            -0.148041,
+            0.285357,
+            0.064767
+          ],
+          "length": 0.16,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            -0.059231,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "PawOrientation_R",
+          "parent": "IK_R",
+          "use_deform": false,
+          "head_local": [
+            -0.148041,
+            0.445357,
+            0.064767
+          ],
+          "tail_local": [
+            -0.148041,
+            0.329771,
+            0.009586
+          ],
+          "length": 0.128082,
+          "roll": -8e-06,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "HockTarget.L",
+          "parent": "ROOT",
+          "use_deform": false,
+          "head_local": [
+            0.148182,
+            0.445701,
+            0.245328
+          ],
+          "tail_local": [
+            0.148182,
+            0.565701,
+            0.245328
+          ],
+          "length": 0.12,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            -0.095915,
+            -0.000577
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "KneePole.L",
+          "parent": "ROOT",
+          "use_deform": false,
+          "head_local": [
+            0.114682,
+            -0.5,
+            0.45
+          ],
+          "tail_local": [
+            0.114682,
+            -0.5,
+            0.57
+          ],
+          "length": 0.12,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "HockTarget.R",
+          "parent": "ROOT",
+          "use_deform": false,
+          "head_local": [
+            -0.148182,
+            0.445701,
+            0.245328
+          ],
+          "tail_local": [
+            -0.148182,
+            0.565701,
+            0.245328
+          ],
+          "length": 0.12,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            0.0,
+            0.073316,
+            -0.000577
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        },
+        {
+          "name": "KneePole.R",
+          "parent": "ROOT",
+          "use_deform": false,
+          "head_local": [
+            -0.114682,
+            -0.5,
+            0.45
+          ],
+          "tail_local": [
+            -0.114682,
+            -0.5,
+            0.57
+          ],
+          "length": 0.12,
+          "roll": -0.0,
+          "pose_rotation_mode": "XYZ",
+          "pose_location": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "pose_rotation_euler": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "pose_rotation_quaternion": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "name": "Preview_Camera",
+      "type": "CAMERA",
+      "parent": null,
+      "parent_type": "OBJECT",
+      "location": [
+        3.0,
+        -0.6,
+        1.1
+      ],
+      "rotation_mode": "XYZ",
+      "rotation_euler": [
+        1.42175,
+        0.0,
+        1.366999
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "dimensions": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "matrix_world": [
+        [
+          0.20239,
+          -0.145422,
+          0.968448,
+          3.0
+        ],
+        [
+          0.979305,
+          0.030054,
+          -0.200146,
+          -0.6
+        ],
+        [
+          -0.0,
+          0.988913,
+          0.148495,
+          1.1
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "hidden_render": false,
+      "modifiers": [],
+      "animation": null
+    },
+    {
+      "name": "Area",
+      "type": "LIGHT",
+      "parent": null,
+      "parent_type": "OBJECT",
+      "location": [
+        2.0,
+        -3.0,
+        4.0
+      ],
+      "rotation_mode": "XYZ",
+      "rotation_euler": [
+        0.733581,
+        0.0,
+        0.588003
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "dimensions": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "matrix_world": [
+        [
+          0.83205,
+          -0.412021,
+          0.371391,
+          2.0
+        ],
+        [
+          0.5547,
+          0.618031,
+          -0.557086,
+          -3.0
+        ],
+        [
+          -0.0,
+          0.669534,
+          0.742781,
+          4.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "hidden_render": false,
+      "modifiers": [],
+      "animation": null
+    },
+    {
+      "name": "Area.001",
+      "type": "LIGHT",
+      "parent": null,
+      "parent_type": "OBJECT",
+      "location": [
+        -2.0,
+        0.0,
+        3.0
+      ],
+      "rotation_mode": "XYZ",
+      "rotation_euler": [
+        0.588003,
+        0.0,
+        -1.570796
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "dimensions": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "matrix_world": [
+        [
+          -0.0,
+          0.83205,
+          -0.5547,
+          -2.0
+        ],
+        [
+          -1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        [
+          -0.0,
+          0.5547,
+          0.83205,
+          3.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "hidden_render": false,
+      "modifiers": [],
+      "animation": null
+    },
+    {
+      "name": "Ref",
+      "type": "EMPTY",
+      "parent": null,
+      "parent_type": "OBJECT",
+      "location": [
+        -0.6689,
+        1.545367,
+        -2.392891
+      ],
+      "rotation_mode": "XYZ",
+      "rotation_euler": [
+        1.570796,
+        -0.0,
+        1.570796
+      ],
+      "scale": [
+        1.567739,
+        1.567739,
+        1.567739
+      ],
+      "dimensions": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "matrix_world": [
+        [
+          -0.0,
+          0.0,
+          1.567739,
+          -0.6689
+        ],
+        [
+          1.567739,
+          0.0,
+          0.0,
+          1.545367
+        ],
+        [
+          0.0,
+          1.567739,
+          -0.0,
+          -2.392891
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "hidden_render": false,
+      "modifiers": [],
+      "animation": null
+    }
+  ],
+  "actions": [
+    {
+      "name": "KAI_Walk_36f_6Key",
+      "frame_range": [
+        1.0,
+        36.0
+      ],
+      "users": 1,
+      "slots": [
+        {
+          "identifier": "OBKAI_Rig",
+          "target_id_type": "OBJECT"
+        }
+      ],
+      "fcurves": [
+        {
+          "data_path": "pose.bones[\"BODY\"].location",
+          "array_index": 0,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"BODY\"].location",
+          "array_index": 1,
+          "keys": [
+            [
+              1.0,
+              -0.001
+            ],
+            [
+              7.0,
+              -0.0115
+            ],
+            [
+              13.0,
+              -0.0115
+            ],
+            [
+              19.0,
+              -0.001
+            ],
+            [
+              25.0,
+              -0.0115
+            ],
+            [
+              31.0,
+              -0.0115
+            ],
+            [
+              37.0,
+              -0.001
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"BODY\"].location",
+          "array_index": 2,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"spine.009\"].rotation_euler",
+          "array_index": 0,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.015588
+            ],
+            [
+              13.0,
+              0.015588
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              -0.015588
+            ],
+            [
+              31.0,
+              -0.015588
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"spine.009\"].rotation_euler",
+          "array_index": 1,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"spine.009\"].rotation_euler",
+          "array_index": 2,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_front_L\"].location",
+          "array_index": 0,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_front_L\"].location",
+          "array_index": 1,
+          "keys": [
+            [
+              1.0,
+              0.025385
+            ],
+            [
+              7.0,
+              -0.031026
+            ],
+            [
+              13.0,
+              -0.087436
+            ],
+            [
+              19.0,
+              -0.066385
+            ],
+            [
+              25.0,
+              0.078524
+            ],
+            [
+              31.0,
+              0.081795
+            ],
+            [
+              37.0,
+              0.025385
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_front_L\"].location",
+          "array_index": 2,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0445
+            ],
+            [
+              25.0,
+              0.03368
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_front_R\"].location",
+          "array_index": 0,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_front_R\"].location",
+          "array_index": 1,
+          "keys": [
+            [
+              1.0,
+              -0.066385
+            ],
+            [
+              7.0,
+              0.078524
+            ],
+            [
+              13.0,
+              0.081795
+            ],
+            [
+              19.0,
+              0.025385
+            ],
+            [
+              25.0,
+              -0.031026
+            ],
+            [
+              31.0,
+              -0.087436
+            ],
+            [
+              37.0,
+              -0.066385
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_front_R\"].location",
+          "array_index": 2,
+          "keys": [
+            [
+              1.0,
+              0.0445
+            ],
+            [
+              7.0,
+              0.03368
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0445
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_L\"].location",
+          "array_index": 0,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_L\"].location",
+          "array_index": 1,
+          "keys": [
+            [
+              1.0,
+              0.11
+            ],
+            [
+              7.0,
+              0.05359
+            ],
+            [
+              13.0,
+              -0.002821
+            ],
+            [
+              19.0,
+              -0.059231
+            ],
+            [
+              25.0,
+              -0.108551
+            ],
+            [
+              31.0,
+              0.007851
+            ],
+            [
+              37.0,
+              0.11
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_L\"].location",
+          "array_index": 2,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.001617
+            ],
+            [
+              31.0,
+              0.072393
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_R\"].location",
+          "array_index": 0,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_R\"].location",
+          "array_index": 1,
+          "keys": [
+            [
+              1.0,
+              -0.059231
+            ],
+            [
+              7.0,
+              -0.108551
+            ],
+            [
+              13.0,
+              0.007851
+            ],
+            [
+              19.0,
+              0.11
+            ],
+            [
+              25.0,
+              0.05359
+            ],
+            [
+              31.0,
+              -0.002821
+            ],
+            [
+              37.0,
+              -0.059231
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"IK_R\"].location",
+          "array_index": 2,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.001617
+            ],
+            [
+              13.0,
+              0.072393
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"HockTarget.L\"].location",
+          "array_index": 0,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"HockTarget.L\"].location",
+          "array_index": 1,
+          "keys": [
+            [
+              1.0,
+              -0.095915
+            ],
+            [
+              7.0,
+              -0.039504
+            ],
+            [
+              13.0,
+              0.016906
+            ],
+            [
+              19.0,
+              0.073316
+            ],
+            [
+              25.0,
+              0.122636
+            ],
+            [
+              31.0,
+              0.006234
+            ],
+            [
+              37.0,
+              -0.095915
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"HockTarget.L\"].location",
+          "array_index": 2,
+          "keys": [
+            [
+              1.0,
+              -0.000577
+            ],
+            [
+              7.0,
+              -0.000577
+            ],
+            [
+              13.0,
+              -0.000577
+            ],
+            [
+              19.0,
+              -0.000577
+            ],
+            [
+              25.0,
+              0.000971
+            ],
+            [
+              31.0,
+              0.071747
+            ],
+            [
+              37.0,
+              -0.000577
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"HockTarget.R\"].location",
+          "array_index": 0,
+          "keys": [
+            [
+              1.0,
+              0.0
+            ],
+            [
+              7.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ],
+            [
+              19.0,
+              0.0
+            ],
+            [
+              25.0,
+              0.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"HockTarget.R\"].location",
+          "array_index": 1,
+          "keys": [
+            [
+              1.0,
+              0.073316
+            ],
+            [
+              7.0,
+              0.122636
+            ],
+            [
+              13.0,
+              0.006234
+            ],
+            [
+              19.0,
+              -0.095915
+            ],
+            [
+              25.0,
+              -0.039504
+            ],
+            [
+              31.0,
+              0.016906
+            ],
+            [
+              37.0,
+              0.073316
+            ]
+          ]
+        },
+        {
+          "data_path": "pose.bones[\"HockTarget.R\"].location",
+          "array_index": 2,
+          "keys": [
+            [
+              1.0,
+              -0.000577
+            ],
+            [
+              7.0,
+              0.000971
+            ],
+            [
+              13.0,
+              0.071747
+            ],
+            [
+              19.0,
+              -0.000577
+            ],
+            [
+              25.0,
+              -0.000577
+            ],
+            [
+              31.0,
+              -0.000577
+            ],
+            [
+              37.0,
+              -0.000577
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

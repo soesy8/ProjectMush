@@ -1,0 +1,26 @@
+{
+  "fbx": "Mush_Track_Snowbank_LowPoly.fbx",
+  "object_count": 1,
+  "mesh_object_count": 1,
+  "object_name": "Mush_Track_Snowbank_LowPoly",
+  "dimensions_m": [
+    12.0,
+    2.6746,
+    2.0279
+  ],
+  "location": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "vertices": 321,
+  "edges": 957,
+  "polygons": 638,
+  "all_triangles": true,
+  "non_manifold_edge_count": 0,
+  "degenerate_face_count": 0,
+  "material_slots": [
+    "Snow_Matte_White"
+  ],
+  "status": "PASS"
+}

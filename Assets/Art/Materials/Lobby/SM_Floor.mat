@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: SM_Floor
-  m_Shader: {fileID: 4800000, guid: dbc4a92342792cb46bf2f522a6f090a5, type: 3}
+  m_Shader: {fileID: 4800000, guid: 41f084b047394e07a04cbe27c20867a0, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
@@ -25,7 +25,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 62ecabc8115805b42b20098a7c93cb26, type: 3}
+        m_Texture: {fileID: 2800000, guid: b0444abc731818a4bb979715b60f315e, type: 3}
         m_Scale: {x: 5, y: 5}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
@@ -33,28 +33,29 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _NormalMap:
-        m_Texture: {fileID: 2800000, guid: 4a2f64dc99657ec4db6ae4e80400f274, type: 3}
+        m_Texture: {fileID: 2800000, guid: 9b63ea1b4af65e649aa484e918696bdc, type: 3}
         m_Scale: {x: 5, y: 5}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _BaseMapStrength: 1
     - _EmissionStrength: 0
     - _FacetCenter: 0.5
     - _FacetContrast: 1.35
     - _FacetStrength: 0.35
-    - _Metallic: 0.05
-    - _NormalStrength: 2
+    - _Metallic: 0
+    - _NormalStrength: 0.45
     - _RimLightInfluence: 0.5
     - _RimPower: 4
-    - _RimStrength: 0.1
+    - _RimStrength: 0.025
     - _ShadowSoftness: 0.2
-    - _ShadowStrength: 0.35
+    - _ShadowStrength: 0.18
     - _ShadowThreshold: 0.5
     - _Smoothness: 0.05
     - _UseEmissionMap: 0
     - _UseNormalMap: 1
     m_Colors:
-    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _BaseColor: {r: 0.6698113, g: 0.6698113, b: 0.6698113, a: 1}
     - _EmissionColor: {r: 1, g: 0.45, b: 0.08, a: 1}
     - _RimColor: {r: 1, g: 0.85, b: 0.62, a: 1}
     - _ShadowColor: {r: 0.24999997, g: 0.27999997, b: 0.34999996, a: 1}

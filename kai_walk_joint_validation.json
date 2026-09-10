@@ -1,0 +1,862 @@
+{
+  "file": "E:\\CodexOutput_T9\\Passivity\\Sled_Dog\\Animation\\\uc644\uc131\\KAI_Walk_36f_6Key.blend",
+  "forward_axis": "-Y",
+  "joint_definitions": {
+    "front_elbow": "front_thigh tail / front_shin head",
+    "front_carpus": "front_shin tail / front_foot head",
+    "hind_knee_stifle": "thigh tail / shin head",
+    "hind_hock_ankle": "shin tail / foot head"
+  },
+  "constraints": {
+    "front_foot.L": [
+      {
+        "name": "Paw placement",
+        "type": "IK",
+        "target": "KAI_Rig",
+        "subtarget": "IK_front_L",
+        "chain_count": 3,
+        "pole_target": null,
+        "pole_subtarget": "",
+        "pole_angle_degrees": 0.0,
+        "influence": 1.0
+      }
+    ],
+    "front_foot.R": [
+      {
+        "name": "Paw placement",
+        "type": "IK",
+        "target": "KAI_Rig",
+        "subtarget": "IK_front_R",
+        "chain_count": 3,
+        "pole_target": null,
+        "pole_subtarget": "",
+        "pole_angle_degrees": 0.0,
+        "influence": 1.0
+      }
+    ],
+    "shin.L": [
+      {
+        "name": "Controlled hind knee",
+        "type": "IK",
+        "target": "KAI_Rig",
+        "subtarget": "HockTarget.L",
+        "chain_count": 2,
+        "pole_target": "KAI_Rig",
+        "pole_subtarget": "KneePole.L",
+        "pole_angle_degrees": -77.00000100435535,
+        "influence": 1.0
+      }
+    ],
+    "shin.R": [
+      {
+        "name": "Controlled hind knee",
+        "type": "IK",
+        "target": "KAI_Rig",
+        "subtarget": "HockTarget.R",
+        "chain_count": 2,
+        "pole_target": "KAI_Rig",
+        "pole_subtarget": "KneePole.R",
+        "pole_angle_degrees": -102.99999717441182,
+        "influence": 1.0
+      }
+    ],
+    "foot.L": [
+      {
+        "name": "Hock to paw",
+        "type": "DAMPED_TRACK",
+        "target": "KAI_Rig",
+        "subtarget": "IK_L",
+        "chain_count": null,
+        "pole_target": null,
+        "pole_subtarget": "",
+        "pole_angle_degrees": 0.0,
+        "influence": 1.0
+      }
+    ],
+    "foot.R": [
+      {
+        "name": "Hock to paw",
+        "type": "DAMPED_TRACK",
+        "target": "KAI_Rig",
+        "subtarget": "IK_R",
+        "chain_count": null,
+        "pole_target": null,
+        "pole_subtarget": "",
+        "pole_angle_degrees": 0.0,
+        "influence": 1.0
+      }
+    ]
+  },
+  "frames": {
+    "1": {
+      "front": {
+        "L": {
+          "shoulder": [
+            0.1249,
+            -0.250427,
+            0.694893
+          ],
+          "elbow": [
+            0.140644,
+            -0.228002,
+            0.550122
+          ],
+          "carpus": [
+            0.129664,
+            -0.265463,
+            0.283524
+          ],
+          "paw": [
+            0.136039,
+            -0.267953,
+            0.056685
+          ],
+          "elbow_internal_angle_deg": 161.205,
+          "carpus_internal_angle_deg": 171.642,
+          "elbow_sagittal_offset": 0.027697,
+          "carpus_sagittal_offset": -0.015824
+        },
+        "R": {
+          "shoulder": [
+            -0.1249,
+            -0.250427,
+            0.694893
+          ],
+          "elbow": [
+            -0.162507,
+            -0.205876,
+            0.559577
+          ],
+          "carpus": [
+            -0.123194,
+            -0.278779,
+            0.303182
+          ],
+          "paw": [
+            -0.136039,
+            -0.176181,
+            0.101164
+          ],
+          "elbow_internal_angle_deg": 139.014,
+          "carpus_internal_angle_deg": 135.766,
+          "elbow_sagittal_offset": 0.054203,
+          "carpus_sagittal_offset": -0.089324
+        }
+      },
+      "hind": {
+        "L": {
+          "hip": [
+            0.114682,
+            0.3419,
+            0.7369
+          ],
+          "knee": [
+            0.128438,
+            0.232775,
+            0.490464
+          ],
+          "hock": [
+            0.148182,
+            0.349786,
+            0.24475
+          ],
+          "paw": [
+            0.148041,
+            0.335357,
+            0.064767
+          ],
+          "knee_internal_angle_deg": 130.737,
+          "hock_internal_angle_deg": 149.687,
+          "knee_sagittal_offset": -0.11306,
+          "hock_sagittal_offset": 0.056192
+        },
+        "R": {
+          "hip": [
+            -0.114682,
+            0.3419,
+            0.7369
+          ],
+          "knee": [
+            -0.131155,
+            0.363643,
+            0.468415
+          ],
+          "hock": [
+            -0.148182,
+            0.519017,
+            0.24475
+          ],
+          "paw": [
+            -0.148041,
+            0.504587,
+            0.064767
+          ],
+          "knee_internal_angle_deg": 149.902,
+          "hock_internal_angle_deg": 140.489,
+          "knee_sagittal_offset": -0.070456,
+          "hock_sagittal_offset": 0.072956
+        }
+      }
+    },
+    "7": {
+      "front": {
+        "L": {
+          "shoulder": [
+            0.1249,
+            -0.250427,
+            0.684393
+          ],
+          "elbow": [
+            0.150631,
+            -0.207539,
+            0.5458
+          ],
+          "carpus": [
+            0.127039,
+            -0.248094,
+            0.280475
+          ],
+          "paw": [
+            0.136039,
+            -0.211543,
+            0.056677
+          ],
+          "elbow_internal_angle_deg": 150.13,
+          "carpus_internal_angle_deg": 160.625,
+          "elbow_sagittal_offset": 0.042086,
+          "carpus_sagittal_offset": -0.038382
+        },
+        "R": {
+          "shoulder": [
+            -0.1249,
+            -0.250427,
+            0.684393
+          ],
+          "elbow": [
+            -0.158399,
+            -0.176992,
+            0.561126
+          ],
+          "carpus": [
+            -0.121766,
+            -0.270543,
+            0.311117
+          ],
+          "paw": [
+            -0.136039,
+            -0.321099,
+            0.090339
+          ],
+          "elbow_internal_angle_deg": 124.912,
+          "carpus_internal_angle_deg": 166.283,
+          "elbow_sagittal_offset": 0.079961,
+          "carpus_sagittal_offset": -0.016278
+        }
+      },
+      "hind": {
+        "L": {
+          "hip": [
+            0.114682,
+            0.3419,
+            0.7264
+          ],
+          "knee": [
+            0.129353,
+            0.25521,
+            0.471258
+          ],
+          "hock": [
+            0.148182,
+            0.406196,
+            0.24475
+          ],
+          "paw": [
+            0.148041,
+            0.391767,
+            0.064767
+          ],
+          "knee_internal_angle_deg": 127.648,
+          "hock_internal_angle_deg": 141.552,
+          "knee_sagittal_offset": -0.119688,
+          "hock_sagittal_offset": 0.070994
+        },
+        "R": {
+          "hip": [
+            -0.114682,
+            0.3419,
+            0.7264
+          ],
+          "knee": [
+            -0.131562,
+            0.405614,
+            0.464706
+          ],
+          "hock": [
+            -0.148182,
+            0.568337,
+            0.246298
+          ],
+          "paw": [
+            -0.148041,
+            0.553902,
+            0.066316
+          ],
+          "knee_internal_angle_deg": 157.04,
+          "hock_internal_angle_deg": 138.602,
+          "knee_sagittal_offset": -0.054006,
+          "hock_sagittal_offset": 0.076313
+        }
+      }
+    },
+    "13": {
+      "front": {
+        "L": {
+          "shoulder": [
+            0.1249,
+            -0.250427,
+            0.684393
+          ],
+          "elbow": [
+            0.14623,
+            -0.209185,
+            0.544558
+          ],
+          "carpus": [
+            0.128352,
+            -0.213893,
+            0.275752
+          ],
+          "paw": [
+            0.136039,
+            -0.155133,
+            0.056685
+          ],
+          "elbow_internal_angle_deg": 158.799,
+          "carpus_internal_angle_deg": 162.991,
+          "elbow_sagittal_offset": 0.028625,
+          "carpus_sagittal_offset": -0.03428
+        },
+        "R": {
+          "shoulder": [
+            -0.1249,
+            -0.250427,
+            0.684393
+          ],
+          "elbow": [
+            -0.145054,
+            -0.223454,
+            0.54095
+          ],
+          "carpus": [
+            -0.128529,
+            -0.294194,
+            0.281487
+          ],
+          "paw": [
+            -0.136039,
+            -0.324363,
+            0.056685
+          ],
+          "elbow_internal_angle_deg": 151.768,
+          "carpus_internal_angle_deg": 170.667,
+          "elbow_sagittal_offset": 0.042306,
+          "carpus_sagittal_offset": -0.016324
+        }
+      },
+      "hind": {
+        "L": {
+          "hip": [
+            0.114682,
+            0.3419,
+            0.7264
+          ],
+          "knee": [
+            0.13041,
+            0.296863,
+            0.460783
+          ],
+          "hock": [
+            0.148182,
+            0.462607,
+            0.24475
+          ],
+          "paw": [
+            0.148041,
+            0.448177,
+            0.064767
+          ],
+          "knee_internal_angle_deg": 132.974,
+          "hock_internal_angle_deg": 137.781,
+          "knee_sagittal_offset": -0.108256,
+          "hock_sagittal_offset": 0.077719
+        },
+        "R": {
+          "hip": [
+            -0.114682,
+            0.3419,
+            0.7264
+          ],
+          "knee": [
+            -0.12995,
+            0.233582,
+            0.479698
+          ],
+          "hock": [
+            -0.148182,
+            0.451935,
+            0.317075
+          ],
+          "paw": [
+            -0.148041,
+            0.4375,
+            0.137092
+          ],
+          "knee_internal_angle_deg": 103.145,
+          "hock_internal_angle_deg": 122.008,
+          "knee_sagittal_offset": -0.16865,
+          "hock_sagittal_offset": 0.104458
+        }
+      }
+    },
+    "19": {
+      "front": {
+        "L": {
+          "shoulder": [
+            0.1249,
+            -0.250427,
+            0.694893
+          ],
+          "elbow": [
+            0.162507,
+            -0.205876,
+            0.559577
+          ],
+          "carpus": [
+            0.123194,
+            -0.278779,
+            0.303182
+          ],
+          "paw": [
+            0.136039,
+            -0.176181,
+            0.101164
+          ],
+          "elbow_internal_angle_deg": 139.014,
+          "carpus_internal_angle_deg": 135.766,
+          "elbow_sagittal_offset": 0.054202,
+          "carpus_sagittal_offset": -0.089324
+        },
+        "R": {
+          "shoulder": [
+            -0.1249,
+            -0.250427,
+            0.694893
+          ],
+          "elbow": [
+            -0.140644,
+            -0.228002,
+            0.550122
+          ],
+          "carpus": [
+            -0.129664,
+            -0.265463,
+            0.283524
+          ],
+          "paw": [
+            -0.136039,
+            -0.267953,
+            0.056685
+          ],
+          "elbow_internal_angle_deg": 161.205,
+          "carpus_internal_angle_deg": 171.642,
+          "elbow_sagittal_offset": 0.027698,
+          "carpus_sagittal_offset": -0.015824
+        }
+      },
+      "hind": {
+        "L": {
+          "hip": [
+            0.114682,
+            0.3419,
+            0.7369
+          ],
+          "knee": [
+            0.131155,
+            0.363644,
+            0.468416
+          ],
+          "hock": [
+            0.148182,
+            0.519017,
+            0.24475
+          ],
+          "paw": [
+            0.148041,
+            0.504587,
+            0.064767
+          ],
+          "knee_internal_angle_deg": 149.902,
+          "hock_internal_angle_deg": 140.49,
+          "knee_sagittal_offset": -0.070456,
+          "hock_sagittal_offset": 0.072955
+        },
+        "R": {
+          "hip": [
+            -0.114682,
+            0.3419,
+            0.7369
+          ],
+          "knee": [
+            -0.128438,
+            0.232775,
+            0.490465
+          ],
+          "hock": [
+            -0.148182,
+            0.349786,
+            0.24475
+          ],
+          "paw": [
+            -0.148041,
+            0.335357,
+            0.064767
+          ],
+          "knee_internal_angle_deg": 130.737,
+          "hock_internal_angle_deg": 149.687,
+          "knee_sagittal_offset": -0.11306,
+          "hock_sagittal_offset": 0.056192
+        }
+      }
+    },
+    "25": {
+      "front": {
+        "L": {
+          "shoulder": [
+            0.1249,
+            -0.250427,
+            0.684393
+          ],
+          "elbow": [
+            0.158399,
+            -0.176992,
+            0.561126
+          ],
+          "carpus": [
+            0.121766,
+            -0.270543,
+            0.311117
+          ],
+          "paw": [
+            0.136039,
+            -0.3211,
+            0.090339
+          ],
+          "elbow_internal_angle_deg": 124.912,
+          "carpus_internal_angle_deg": 166.283,
+          "elbow_sagittal_offset": 0.079961,
+          "carpus_sagittal_offset": -0.016278
+        },
+        "R": {
+          "shoulder": [
+            -0.1249,
+            -0.250427,
+            0.684393
+          ],
+          "elbow": [
+            -0.150631,
+            -0.207539,
+            0.5458
+          ],
+          "carpus": [
+            -0.127039,
+            -0.248094,
+            0.280475
+          ],
+          "paw": [
+            -0.136039,
+            -0.211542,
+            0.056677
+          ],
+          "elbow_internal_angle_deg": 150.129,
+          "carpus_internal_angle_deg": 160.625,
+          "elbow_sagittal_offset": 0.042087,
+          "carpus_sagittal_offset": -0.038382
+        }
+      },
+      "hind": {
+        "L": {
+          "hip": [
+            0.114682,
+            0.3419,
+            0.7264
+          ],
+          "knee": [
+            0.131562,
+            0.405615,
+            0.464706
+          ],
+          "hock": [
+            0.148182,
+            0.568337,
+            0.246298
+          ],
+          "paw": [
+            0.148041,
+            0.553902,
+            0.066316
+          ],
+          "knee_internal_angle_deg": 157.04,
+          "hock_internal_angle_deg": 138.602,
+          "knee_sagittal_offset": -0.054006,
+          "hock_sagittal_offset": 0.076312
+        },
+        "R": {
+          "hip": [
+            -0.114682,
+            0.3419,
+            0.7264
+          ],
+          "knee": [
+            -0.129353,
+            0.25521,
+            0.471258
+          ],
+          "hock": [
+            -0.148182,
+            0.406196,
+            0.244751
+          ],
+          "paw": [
+            -0.148041,
+            0.391767,
+            0.064767
+          ],
+          "knee_internal_angle_deg": 127.648,
+          "hock_internal_angle_deg": 141.552,
+          "knee_sagittal_offset": -0.119688,
+          "hock_sagittal_offset": 0.070994
+        }
+      }
+    },
+    "31": {
+      "front": {
+        "L": {
+          "shoulder": [
+            0.1249,
+            -0.250427,
+            0.684393
+          ],
+          "elbow": [
+            0.145054,
+            -0.223455,
+            0.54095
+          ],
+          "carpus": [
+            0.128529,
+            -0.294194,
+            0.281487
+          ],
+          "paw": [
+            0.136039,
+            -0.324363,
+            0.056685
+          ],
+          "elbow_internal_angle_deg": 151.768,
+          "carpus_internal_angle_deg": 170.667,
+          "elbow_sagittal_offset": 0.042305,
+          "carpus_sagittal_offset": -0.016323
+        },
+        "R": {
+          "shoulder": [
+            -0.1249,
+            -0.250427,
+            0.684393
+          ],
+          "elbow": [
+            -0.14623,
+            -0.209185,
+            0.544558
+          ],
+          "carpus": [
+            -0.128352,
+            -0.213894,
+            0.275753
+          ],
+          "paw": [
+            -0.136039,
+            -0.155133,
+            0.056685
+          ],
+          "elbow_internal_angle_deg": 158.799,
+          "carpus_internal_angle_deg": 162.99,
+          "elbow_sagittal_offset": 0.028626,
+          "carpus_sagittal_offset": -0.03428
+        }
+      },
+      "hind": {
+        "L": {
+          "hip": [
+            0.114682,
+            0.3419,
+            0.7264
+          ],
+          "knee": [
+            0.12995,
+            0.233582,
+            0.479698
+          ],
+          "hock": [
+            0.148182,
+            0.451935,
+            0.317075
+          ],
+          "paw": [
+            0.148041,
+            0.4375,
+            0.137092
+          ],
+          "knee_internal_angle_deg": 103.145,
+          "hock_internal_angle_deg": 122.008,
+          "knee_sagittal_offset": -0.16865,
+          "hock_sagittal_offset": 0.104458
+        },
+        "R": {
+          "hip": [
+            -0.114682,
+            0.3419,
+            0.7264
+          ],
+          "knee": [
+            -0.13041,
+            0.296863,
+            0.460783
+          ],
+          "hock": [
+            -0.148182,
+            0.462607,
+            0.244751
+          ],
+          "paw": [
+            -0.148041,
+            0.448177,
+            0.064767
+          ],
+          "knee_internal_angle_deg": 132.974,
+          "hock_internal_angle_deg": 137.781,
+          "knee_sagittal_offset": -0.108256,
+          "hock_sagittal_offset": 0.077719
+        }
+      }
+    },
+    "36": {
+      "front": {
+        "L": {
+          "shoulder": [
+            0.1249,
+            -0.250427,
+            0.694115
+          ],
+          "elbow": [
+            0.141337,
+            -0.227142,
+            0.549557
+          ],
+          "carpus": [
+            0.129505,
+            -0.268001,
+            0.283495
+          ],
+          "paw": [
+            0.136039,
+            -0.272132,
+            0.056685
+          ],
+          "elbow_internal_angle_deg": 160.042,
+          "carpus_internal_angle_deg": 171.258,
+          "elbow_sagittal_offset": 0.029445,
+          "carpus_sagittal_offset": -0.016504
+        },
+        "R": {
+          "shoulder": [
+            -0.1249,
+            -0.250427,
+            0.694115
+          ],
+          "elbow": [
+            -0.16173,
+            -0.206032,
+            0.558534
+          ],
+          "carpus": [
+            -0.123503,
+            -0.275183,
+            0.300939
+          ],
+          "paw": [
+            -0.136039,
+            -0.174623,
+            0.097879
+          ],
+          "elbow_internal_angle_deg": 140.079,
+          "carpus_internal_angle_deg": 137.212,
+          "elbow_sagittal_offset": 0.052827,
+          "carpus_sagittal_offset": -0.086514
+        }
+      },
+      "hind": {
+        "L": {
+          "hip": [
+            0.114682,
+            0.3419,
+            0.736122
+          ],
+          "knee": [
+            0.12832,
+            0.228298,
+            0.491711
+          ],
+          "hock": [
+            0.148182,
+            0.353558,
+            0.250108
+          ],
+          "paw": [
+            0.148041,
+            0.339128,
+            0.070125
+          ],
+          "knee_internal_angle_deg": 127.759,
+          "hock_internal_angle_deg": 147.763,
+          "knee_sagittal_offset": -0.11943,
+          "hock_sagittal_offset": 0.059716
+        },
+        "R": {
+          "hip": [
+            -0.114682,
+            0.3419,
+            0.736122
+          ],
+          "knee": [
+            -0.131131,
+            0.359486,
+            0.467332
+          ],
+          "hock": [
+            -0.148182,
+            0.516405,
+            0.24475
+          ],
+          "paw": [
+            -0.148041,
+            0.501976,
+            0.064767
+          ],
+          "knee_internal_angle_deg": 148.621,
+          "hock_internal_angle_deg": 140.094,
+          "knee_sagittal_offset": -0.073382,
+          "hock_sagittal_offset": 0.073657
+        }
+      }
+    }
+  }
+}
