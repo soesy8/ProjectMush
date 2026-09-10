@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Mush/Scenes/MushTitle.unity
+    guid: 01e78a7f33b21d3f894f8a115a63e7ca
+  - enabled: 1
     path: Assets/Mush/Scenes/MushLobby.unity
     guid: 200d4923331e0e14c89e8c2cda1f99c1
   - enabled: 1

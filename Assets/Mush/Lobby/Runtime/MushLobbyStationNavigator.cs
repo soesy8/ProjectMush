@@ -14,7 +14,6 @@ namespace Mush.Lobby
         private const float LobbyMoveSpeed = 1.20f;
         private const float SnapTurnAngle = 30f;
         private const float ChairUseDistance = 2.20f;
-        private static readonly Vector3 FireplaceSeatPosition = new(-2.80f, 0f, -4.45f);
         private const float FireplaceYaw = 180f;
 
         private readonly struct Station
@@ -49,6 +48,7 @@ namespace Mush.Lobby
         private MushSeatedRigLock seatedRig;
         private MushDesktopSeatedLook desktopLook;
         private Transform menuRoot;
+        private Transform housingChair;
         private Material buttonMaterial;
         private Material selectedMaterial;
         private int selectedIndex;
@@ -328,15 +328,16 @@ namespace Mush.Lobby
 
         public void TrySitAtFireplace()
         {
-            if (seatedAtFireplace || lobbyCamera == null)
+            if (seatedAtFireplace || lobbyCamera == null || housingChair == null || !housingChair.gameObject.activeInHierarchy)
                 return;
 
-            Vector3 cameraToSeat = FireplaceSeatPosition - lobbyCamera.transform.position;
+            Vector3 seatPosition = housingChair.position;
+            Vector3 cameraToSeat = seatPosition - lobbyCamera.transform.position;
             cameraToSeat.y = 0f;
             if (cameraToSeat.sqrMagnitude > ChairUseDistance * ChairUseDistance)
                 return; // 방 반대편에서 의자를 눌러 순간이동하지 않고, 직접 걸어 의자 근처에 온 경우에만 앉는다.
 
-            MoveToStationPose(FireplaceSeatPosition, FireplaceYaw);
+            MoveToStationPose(seatPosition, housingChair.eulerAngles.y);
             seatedAtFireplace = true;
             controller?.ClosePanelsForTravel();
             Physics.SyncTransforms();
@@ -360,6 +361,7 @@ namespace Mush.Lobby
         private void EnsureChairSeatInteraction(Transform lobbyRoot)
         {
             Transform chair = FindDescendant(lobbyRoot, "Placed Housing Chair");
+            housingChair = chair;
             if (chair == null || !chair.gameObject.activeInHierarchy)
                 return; // 의자를 장착하지 않은 상태에서는 앉기 대상도 만들지 않는다.
 

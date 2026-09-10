@@ -323,6 +323,7 @@ namespace Mush.Customization
             storePreviewItem = item.id;
             bool acquired = workingState.Acquire(item.id);
             MushCustomizationSave.Save(workingState);
+            MushGameSave.Save();
             transientStatus = acquired
                 ? item.displayName + "을(를) 획득했습니다"
                 : item.displayName + "은(는) 이미 보유 중입니다";
@@ -520,9 +521,24 @@ namespace Mush.Customization
             Destroy(pedestal.GetComponent<Collider>());
         }
 
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused) SaveSession();
+        }
+
+        private void OnApplicationQuit() => SaveSession();
+
+        private void SaveSession()
+        {
+            if (workingState == null) return;
+            MushCustomizationSave.Save(workingState);
+            MushGameSave.EnterLobby();
+        }
+
         private void SaveAndReturnToLobby()
         {
             MushCustomizationSave.Save(workingState);
+            MushGameSave.EnterLobby();
             if (Application.CanStreamedLevelBeLoaded("MushLobby"))
                 SceneManager.LoadScene("MushLobby");
             else

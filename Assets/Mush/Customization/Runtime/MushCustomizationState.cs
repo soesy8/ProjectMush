@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
-using UnityEngine.SceneManagement;
 
 namespace Mush.Customization
 {
@@ -51,6 +49,26 @@ namespace Mush.Customization
         public const int TablePlacement = 1;
         public const int DogRestPlacement = 2;
         public const int PlacementCount = 3;
+
+        // The cabin shell is 8.8 x 9 metres, centred at z = -1.75.
+        public static readonly Rect FloorBounds = Rect.MinMaxRect(-4.22f, -6.07f, 4.22f, 2.57f);
+        public const float GridSize = 0.25f;
+
+        public static int PlacementForItem(string itemId) => itemId switch
+        {
+            MushCustomizationIds.FurnitureChair => ChairPlacement,
+            MushCustomizationIds.FurnitureTable => TablePlacement,
+            MushCustomizationIds.FurnitureDogBed => DogRestPlacement,
+            _ => -1,
+        };
+
+        public static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+
+        public static Vector3 ClampPosition(Vector3 position)
+        {
+            return new Vector3(Mathf.Clamp(position.x, FloorBounds.xMin, FloorBounds.xMax), 0f,
+                Mathf.Clamp(position.z, FloorBounds.yMin, FloorBounds.yMax));
+        }
 
         public static Vector3 Position(int placementIndex)
         {
@@ -174,6 +192,66 @@ namespace Mush.Customization
         public string housingTableItem = string.Empty;
         public string housingDogRestItem = string.Empty; // 개 침대 슬롯은 실제 가구만 저장하며 옛 "기본 개 돌보기" 가상 항목은 더 이상 기본값으로 사용하지 않는다.
 
+        [Serializable]
+        public sealed class HousingPose
+        {
+            public Vector3 position;
+            public float yaw;
+        }
+
+        public List<HousingPose> housingPoses = new();
+
+        public Vector3 GetHousingPosition(int index)
+        {
+            return housingPoses != null && index >= 0 && index < housingPoses.Count && housingPoses[index] != null
+                ? housingPoses[index].position : MushHousingLayout.Position(index);
+        }
+
+        public Quaternion GetHousingRotation(int index)
+        {
+            return housingPoses != null && index >= 0 && index < housingPoses.Count && housingPoses[index] != null
+                ? Quaternion.Euler(0f, housingPoses[index].yaw, 0f) : MushHousingLayout.Rotation(index);
+        }
+
+        public void SetHousingPose(int index, Vector3 position, float yaw)
+        {
+            if (index < 0 || index >= MushHousingLayout.PlacementCount ||
+                !MushHousingLayout.IsFinite(position.x) || !MushHousingLayout.IsFinite(position.z) ||
+                !MushHousingLayout.IsFinite(yaw))
+                return;
+            Normalize();
+            housingPoses[index].position = MushHousingLayout.ClampPosition(position);
+            housingPoses[index].yaw = Mathf.Repeat(yaw, 360f);
+        }
+
+        private void NormalizeHousingPoses()
+        {
+            housingPoses ??= new List<HousingPose>();
+            if (housingSaveVersion < 2)
+                housingPoses.Clear();
+            for (int index = 0; index < MushHousingLayout.PlacementCount; index++)
+            {
+                if (index >= housingPoses.Count)
+                    housingPoses.Add(null);
+                HousingPose pose = housingPoses[index];
+                if (pose == null || !MushHousingLayout.IsFinite(pose.position.x) ||
+                    !MushHousingLayout.IsFinite(pose.position.z) || !MushHousingLayout.IsFinite(pose.yaw))
+                {
+                    pose = new HousingPose
+                    {
+                        position = MushHousingLayout.Position(index),
+                        yaw = MushHousingLayout.Rotation(index).eulerAngles.y,
+                    };
+                    housingPoses[index] = pose;
+                }
+                pose.position = MushHousingLayout.ClampPosition(pose.position);
+                pose.yaw = Mathf.Repeat(pose.yaw, 360f);
+            }
+            if (housingPoses.Count > MushHousingLayout.PlacementCount)
+                housingPoses.RemoveRange(MushHousingLayout.PlacementCount, housingPoses.Count - MushHousingLayout.PlacementCount);
+            housingSaveVersion = 2;
+        }
+
         public bool Owns(string itemId)
         {
             return !string.IsNullOrEmpty(itemId) && ownedItems != null && ownedItems.Contains(itemId);
@@ -238,11 +316,16 @@ namespace Mush.Customization
 
         public void SetHousingPlacement(int placementIndex, string itemId)
         {
+            if (placementIndex < 0 || placementIndex >= MushHousingLayout.PlacementCount)
+                return;
+            Normalize();
             itemId ??= string.Empty;
+            if (itemId.Length > 0 && (!Owns(itemId) || MushHousingLayout.PlacementForItem(itemId) != placementIndex))
+                return;
             if (placementIndex == 0) housingChairItem = itemId;
             else if (placementIndex == 1) housingTableItem = itemId;
             else if (placementIndex == 2) housingDogRestItem = itemId;
-            housingSaveVersion = 1;
+            housingSaveVersion = 2;
             SyncLegacyHousingFlags();
         }
 
@@ -281,6 +364,8 @@ namespace Mush.Customization
             if (housingDogRestItem != MushCustomizationIds.FurnitureDogBed || !Owns(housingDogRestItem))
                 housingDogRestItem = string.Empty; // 세 번째 슬롯에는 실제로 보유한 개 침대 모델 외의 값이 남지 않게 한다.
             SyncLegacyHousingFlags();
+
+            NormalizeHousingPoses();
 
             if (string.IsNullOrEmpty(equippedSledBody) || !Owns(equippedSledBody))
                 equippedSledBody = MushCustomizationIds.SledNatural;

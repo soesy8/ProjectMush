@@ -47,7 +47,7 @@ namespace Mush.Prototype
         [SerializeField, Min(1f)] private float sharpCurveMaximumTurnRate = 48f;
         [SerializeField, Range(0.1f, 1f)] private float sharpCurveBoostTurnRateMultiplier = 0.42f;
 
-        [Header("Temporary Dog Buff / Penalty")]
+        [Header("Dog Condition Effects")]
         [SerializeField, Min(0f)] private float dogEffectSpeedChange = 5f;
         [SerializeField, Min(1f)] private float buffSteeringResponseMultiplier = 1.2f;
         [SerializeField, Range(0.1f, 1f)] private float penaltyAccelerationMultiplier = 0.8f;
@@ -82,6 +82,48 @@ namespace Mush.Prototype
         private MushDogRideEffect activeDogEffect;
         private bool externalSteeringActive;
         private float externalSteeringInput;
+
+        [System.Serializable]
+        public sealed class SavedMotion
+        {
+            public bool started;
+            public int level;
+            public float speed;
+            public float steering;
+            public bool boost;
+            public MushDogRideEffect effect;
+            public bool terrainLimited;
+            public float courseMultiplier = 1f;
+            public bool recoveryActive;
+            public float recoveryAcceleration = 1f;
+        }
+
+        public SavedMotion CaptureMotion() => new()
+        {
+            started = rideStarted, level = speedLevel, speed = currentSpeed,
+            steering = currentSteering, boost = commandBoostHeld, effect = activeDogEffect,
+            terrainLimited = terrainSpeedLimited, courseMultiplier = courseSpeedMultiplier,
+            recoveryActive = offCourseRecoveryActive, recoveryAcceleration = offCourseRecoveryAccelerationMultiplier,
+        };
+
+        public void RestoreMotion(SavedMotion motion)
+        {
+            if (motion == null) return;
+            rideStarted = motion.started;
+            speedLevel = rideStarted ? Mathf.Clamp(motion.level, 1, 2) : 0;
+            currentSpeed = Mathf.Max(0f, motion.speed);
+            currentSteering = float.IsFinite(motion.steering) ? Mathf.Clamp(motion.steering, -1f, 1f) : 0f;
+            commandBoostHeld = motion.boost;
+            // Derive effects from saved care/stamina state, never the old manual toggle.
+            activeDogEffect = EffectForDogCondition();
+            terrainSpeedLimited = motion.terrainLimited;
+            courseSpeedMultiplier = float.IsFinite(motion.courseMultiplier) ? Mathf.Max(0.01f, motion.courseMultiplier) : 1f;
+            offCourseRecoveryActive = motion.recoveryActive;
+            offCourseRecoveryAccelerationMultiplier = float.IsFinite(motion.recoveryAcceleration) ? Mathf.Max(0.01f, motion.recoveryAcceleration) : 1f;
+            currentSpeed = Mathf.Min(currentSpeed, GetSpeedForLevel(speedLevel));
+            reinsVisual?.SetHeld(rideStarted);
+            SetGripPose(rideStarted ? 1f : 0f);
+        }
 
         public bool RideStarted => rideStarted;
         public int SpeedLevel => speedLevel;
@@ -131,6 +173,8 @@ namespace Mush.Prototype
 
         private void Update()
         {
+            if (Time.timeScale <= 0f) return;
+            UpdateDogConditionEffect();
             UpdateDesktopMouseHands();
 
             Keyboard keyboard = Keyboard.current;
@@ -143,11 +187,6 @@ namespace Mush.Prototype
                 UpdateSteeringVisuals(0f, 0f);
                 return;
             }
-
-            if (keyboard != null && keyboard.qKey.wasPressedThisFrame)
-                ToggleDogBuff();
-            if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
-                ToggleDogPenalty();
 
             SetSpeedLevel((keyboard != null && keyboard.wKey.isPressed) || commandBoostHeld);
 
@@ -203,6 +242,7 @@ namespace Mush.Prototype
 
         public void StartRide()
         {
+            if (Time.timeScale <= 0f) return;
             if (rideStarted)
                 return;
 
@@ -215,6 +255,7 @@ namespace Mush.Prototype
 
         public void IncreaseSpeed()
         {
+            if (Time.timeScale <= 0f) return;
             if (!rideStarted)
                 return;
 
@@ -224,6 +265,7 @@ namespace Mush.Prototype
 
         public void SetBoost(bool held)
         {
+            if (Time.timeScale <= 0f) return;
             commandBoostHeld = held;
             if (rideStarted)
                 SetSpeedLevel(held);
@@ -303,22 +345,16 @@ namespace Mush.Prototype
             UpdateSteeringVisuals(0f, 0f);
         }
 
-        public void ToggleDogBuff()
+        private static MushDogRideEffect EffectForDogCondition() => MushGameSave.DogCondition switch
         {
-            if (!rideStarted)
-                return;
-            SetDogRideEffect(activeDogEffect == MushDogRideEffect.Buff
-                ? MushDogRideEffect.None
-                : MushDogRideEffect.Buff);
-        }
+            MushDogCondition.Good => MushDogRideEffect.Buff,
+            MushDogCondition.Bad => MushDogRideEffect.Penalty,
+            _ => MushDogRideEffect.None,
+        };
 
-        public void ToggleDogPenalty()
+        private void UpdateDogConditionEffect()
         {
-            if (!rideStarted)
-                return;
-            SetDogRideEffect(activeDogEffect == MushDogRideEffect.Penalty
-                ? MushDogRideEffect.None
-                : MushDogRideEffect.Penalty);
+            SetDogRideEffect(EffectForDogCondition());
         }
 
         private void SetDogRideEffect(MushDogRideEffect effect)
@@ -349,8 +385,7 @@ namespace Mush.Prototype
                     ? terrainLimitedSecondLevelSpeed
                     : terrainLimitedFirstLevelSpeed;
 
-                // Off-road values are hard limits. The downhill multiplier and
-                // temporary +5 buff must not erase the difficult map's penalty.
+                // Off-road values remain hard limits independent of the downhill multiplier.
                 return Mathf.Max(0.1f, levelSpeed);
             }
             else

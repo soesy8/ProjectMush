@@ -79,6 +79,8 @@ namespace Mush.Lobby
 
             bool near = CheckHand(leftHand, ref previousLeftPosition) |
                         CheckHand(rightHand, ref previousRightPosition);
+            if (near)
+                roamer.KeepStillForPetting();
             if (near && !handWasNear && !roamer.IsRestingAtFireplace && !roamer.IsOnLap)
                 roamer.PlayHeadTilt();
             handWasNear = near;

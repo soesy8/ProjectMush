@@ -29,7 +29,6 @@ namespace Mush.Lobby
         [SerializeField] private TextMesh housingStatusText;
 
         [Header("Lobby State")]
-        [SerializeField] private int startingGold = 150;
         [SerializeField] private GameObject[] dogScarves;
         [SerializeField] private GameObject[] placedFurniture;
         [SerializeField] private MushLobbyDogRoamer[] dogs;
@@ -45,10 +44,17 @@ namespace Mush.Lobby
         private const string RightControllerSecondaryButtonBinding = "<XRController>{RightHand}/secondaryButton"; // OpenXR의 오른손 XR 컨트롤러 보조 버튼을 지정한다. Quest Touch 계열에서는 이 경로가 B 버튼에 대응한다.
         private InputAction callDogsVrAction; // 로비에서 오른손 B 버튼을 눌렀을 때 개들을 부르기 위한 New Input System 액션을 런타임에 보관한다.
         private readonly List<MeshRenderer> suppressedLobbyTextRenderers = new();
+        private readonly List<UnityEngine.UI.Graphic> suppressedLobbyGraphics = new();
         private MushLobbyStationNavigator stationNavigator;
         private MushLobbyDogRoamer lapDog; // 벽난로 좌석에서 호출해 현재 무릎으로 올라오는 한 마리를 기억한다.
         private Vector2 previousPetPointerPosition;
         private bool petPointerReady;
+        private Mesh mapStarMesh;
+        private Material mapEarnedStarMaterial;
+        private Material mapEmptyStarMaterial;
+        private readonly MeshRenderer[,] mapStars = new MeshRenderer[3, 3];
+        private readonly TextMesh[] mapRecordLabels = new TextMesh[3];
+        private static readonly string[] MapSceneNames = { "snow", "Tree", "SharpCurve" };
 
         private static readonly Dictionary<string, string> KoreanLabels = new Dictionary<string, string>
         {
@@ -113,7 +119,7 @@ namespace Mush.Lobby
 
         private void Awake()
         {
-            gold = startingGold;
+            gold = MushGameSave.Current.gold;
             Font themeFont = MushUiPanelSkin.ThemeFont;
             if (themeFont != null)
                 koreanFont = themeFont;
@@ -160,10 +166,14 @@ namespace Mush.Lobby
         {
             callDogsVrAction?.Dispose(); // 직접 생성한 InputAction은 더 이상 필요 없을 때 Dispose해서 입력 시스템 자원을 명확하게 해제한다.
             callDogsVrAction = null; // 파괴 과정에서 폐기된 액션을 다시 참조하지 않도록 필드도 비운다.
+            if (mapStarMesh != null) Destroy(mapStarMesh);
+            if (mapEarnedStarMaterial != null) Destroy(mapEarnedStarMaterial);
+            if (mapEmptyStarMaterial != null) Destroy(mapEmptyStarMaterial);
         }
 
         private void Update()
         {
+            if (MushSceneUI.ModalOpen) return;
             if (lapDog != null && (stationNavigator == null || !stationNavigator.IsSeatedAtFireplace))
             {
                 lapDog.LeaveLap(); // 벽난로 좌석을 벗어나면 개가 카메라를 따라 날아오지 않고 의자 옆 바닥으로 내려간다.
@@ -175,7 +185,9 @@ namespace Mush.Lobby
                 stationNavigator?.ToggleMenu();
 
             Mouse mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame && lobbyCamera != null)
+            bool overUi = UnityEngine.EventSystems.EventSystem.current != null &&
+                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame && lobbyCamera != null && !overUi)
             {
                 Ray ray = lobbyCamera.ScreenPointToRay(mouse.position.ReadValue());
                 if (stationNavigator != null && stationNavigator.IsMenuOpen)
@@ -201,7 +213,7 @@ namespace Mush.Lobby
                         hit.collider.GetComponentInParent<MushLobbyDogInteraction>()?.Pet();
                 }
             }
-            HandleDesktopPointerPetting(mouse);
+            if (!overUi) HandleDesktopPointerPetting(mouse);
 
             if (keyboard != null)
             {
@@ -284,6 +296,7 @@ namespace Mush.Lobby
 
             transientMessage = displayName + " 출발 중";
             RefreshAllText();
+            MushSceneUI.Active?.SaveCurrent();
             SceneManager.LoadScene(sceneName);
         }
 
@@ -350,6 +363,7 @@ namespace Mush.Lobby
             switch (action)
             {
                 case MushLobbyAction.OpenMapBoard:
+                    RefreshMapRecords();
                     ShowOnly(mapPanel);
                     transientMessage = "맵 목록을 열었습니다";
                     break;
@@ -423,6 +437,7 @@ namespace Mush.Lobby
                 return;
             }
 
+            MushSceneUI.Active?.SaveCurrent();
             SceneManager.LoadScene("MushStore");
         }
 
@@ -436,6 +451,7 @@ namespace Mush.Lobby
                 return;
             }
 
+            MushSceneUI.Active?.SaveCurrent();
             SceneManager.LoadScene("MushHousing");
         }
 
@@ -486,6 +502,8 @@ namespace Mush.Lobby
             }
 
             gold -= amount;
+            MushGameSave.Current.gold = gold;
+            MushGameSave.Save();
             return true;
         }
 
@@ -581,9 +599,9 @@ namespace Mush.Lobby
                                    mapPanel.transform.Find("기본 설원 Button");
             Transform forestButton = mapPanel.transform.Find("PINE FOREST Button") ??
                                      mapPanel.transform.Find("나무 숲 Button");
-            Vector3 snowPosition = new(-0.84f, -0.14f, -0.075f);
-            Vector3 forestPosition = new(0f, -0.14f, -0.075f);
-            Vector3 sharpPosition = new(0.84f, -0.14f, -0.075f);
+            Vector3 snowPosition = new(-0.84f, 0.08f, -0.075f);
+            Vector3 forestPosition = new(0f, 0.08f, -0.075f);
+            Vector3 sharpPosition = new(0.84f, 0.08f, -0.075f);
             ArrangeMapButton(snowButton, "기본 설원", snowPosition);
             ArrangeMapButton(forestButton, "나무 숲", forestPosition);
 
@@ -630,6 +648,76 @@ namespace Mush.Lobby
 
             ArrangeMapButton(sharpButton, "급커브맵", sharpPosition);
             NormalizeMapPanelLayout();
+            BuildMapRecords();
+        }
+
+        private void BuildMapRecords()
+        {
+            if (mapPanel == null || mapStarMesh != null)
+                return;
+
+            mapStarMesh = new Mesh { name = "Map Progress Star" };
+            Vector3[] vertices = new Vector3[11];
+            int[] triangles = new int[60];
+            for (int point = 0; point < 10; point++)
+            {
+                float angle = (90f - point * 36f) * Mathf.Deg2Rad;
+                float radius = (point & 1) == 0 ? 0.055f : 0.025f;
+                vertices[point + 1] = new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, 0f);
+                int current = point + 1;
+                int next = (point + 1) % 10 + 1;
+                int offset = point * 6;
+                triangles[offset] = 0;
+                triangles[offset + 1] = current;
+                triangles[offset + 2] = next;
+                triangles[offset + 3] = 0;
+                triangles[offset + 4] = next;
+                triangles[offset + 5] = current;
+            }
+            mapStarMesh.vertices = vertices;
+            mapStarMesh.triangles = triangles;
+            mapStarMesh.RecalculateBounds();
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            mapEarnedStarMaterial = new Material(shader) { name = "Earned Map Star", color = new Color(1f, 0.72f, 0.12f) };
+            mapEmptyStarMaterial = new Material(shader) { name = "Empty Map Star", color = new Color(0.30f, 0.34f, 0.38f) };
+
+            for (int map = 0; map < MapSceneNames.Length; map++)
+            {
+                float x = (map - 1) * 0.84f;
+                for (int star = 0; star < 3; star++)
+                {
+                    GameObject icon = new(MapSceneNames[map] + " Progress Star " + (star + 1), typeof(MeshFilter), typeof(MeshRenderer));
+                    icon.transform.SetParent(mapPanel.transform, false);
+                    icon.transform.localPosition = new Vector3(x + (star - 1) * 0.15f, -0.19f, -0.145f);
+                    icon.GetComponent<MeshFilter>().sharedMesh = mapStarMesh;
+                    MeshRenderer renderer = icon.GetComponent<MeshRenderer>();
+                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    renderer.receiveShadows = false;
+                    mapStars[map, star] = renderer;
+                }
+                GameObject labelObject = new(MapSceneNames[map] + " Best Record", typeof(TextMesh));
+                labelObject.transform.SetParent(mapPanel.transform, false);
+                labelObject.transform.localPosition = new Vector3(x, -0.39f, -0.145f);
+                TextMesh text = labelObject.GetComponent<TextMesh>();
+                ConfigurePanelText(text, 0.0105f, 0.90f);
+                text.color = new Color(0.94f, 0.91f, 0.83f);
+                MushUiPanelSkin.ApplyFont(text);
+                mapRecordLabels[map] = text;
+            }
+            RefreshMapRecords();
+        }
+
+        private void RefreshMapRecords()
+        {
+            for (int map = 0; map < MapSceneNames.Length; map++)
+            {
+                int earned = MushMapRecords.GetBestStars(MapSceneNames[map]);
+                for (int star = 0; star < 3; star++)
+                    if (mapStars[map, star] != null)
+                        mapStars[map, star].sharedMaterial = star < earned ? mapEarnedStarMaterial : mapEmptyStarMaterial;
+                if (mapRecordLabels[map] != null)
+                    mapRecordLabels[map].text = MushMapRecords.BestTimeLabel(MapSceneNames[map]);
+            }
         }
 
         private void ArrangeMapButton(Transform button, string label, Vector3 position)
@@ -686,7 +774,7 @@ namespace Mush.Lobby
 
             if (mapStatusText != null)
             {
-                mapStatusText.transform.localPosition = new Vector3(0f, 0.26f, -0.085f);
+                mapStatusText.transform.localPosition = new Vector3(0f, 0.36f, -0.085f);
                 mapStatusText.transform.localRotation = Quaternion.identity;
                 mapStatusText.transform.localScale = Vector3.one;
                 ConfigurePanelText(mapStatusText, 0.012f, 0.78f);
@@ -697,7 +785,7 @@ namespace Mush.Lobby
             if (closeButton == null)
                 return;
 
-            closeButton.localPosition = new Vector3(0f, -0.61f, -0.075f);
+            closeButton.localPosition = new Vector3(0f, -0.69f, -0.075f);
             closeButton.localRotation = Quaternion.identity;
             closeButton.localScale = new Vector3(0.72f, 0.24f, 0.10f);
             TextMesh closeLabel = closeButton.GetComponentInChildren<TextMesh>(true);
@@ -741,10 +829,16 @@ namespace Mush.Lobby
                         renderer.enabled = true;
                 }
                 suppressedLobbyTextRenderers.Clear();
+                foreach (UnityEngine.UI.Graphic graphic in suppressedLobbyGraphics)
+                {
+                    if (graphic != null)
+                        graphic.enabled = true;
+                }
+                suppressedLobbyGraphics.Clear();
                 return;
             }
 
-            if (suppressedLobbyTextRenderers.Count > 0)
+            if (suppressedLobbyTextRenderers.Count > 0 || suppressedLobbyGraphics.Count > 0)
                 return;
 
             foreach (GameObject sceneRoot in gameObject.scene.GetRootGameObjects())
@@ -757,6 +851,14 @@ namespace Mush.Lobby
                         continue;
                     renderer.enabled = false;
                     suppressedLobbyTextRenderers.Add(renderer);
+                }
+                // The scene's signs now use UI images and TMP labels as well as mesh text.
+                foreach (UnityEngine.UI.Graphic graphic in sceneRoot.GetComponentsInChildren<UnityEngine.UI.Graphic>(true))
+                {
+                    if (!graphic.enabled || !graphic.gameObject.activeInHierarchy || IsPanelText(graphic.transform))
+                        continue;
+                    graphic.enabled = false;
+                    suppressedLobbyGraphics.Add(graphic);
                 }
             }
         }
@@ -828,8 +930,8 @@ namespace Mush.Lobby
                     MushHousingLayout.TablePlacement => "Placed Housing Table",
                     _ => "Placed Housing Dog Bed",
                 };
-                holder.transform.localPosition = MushHousingLayout.Position(index); // 하우징 종류가 바뀌어도 슬롯 자체의 위치는 항상 같은 고정 좌표를 사용한다.
-                holder.transform.localRotation = MushHousingLayout.Rotation(index); // 슬롯별 고정 회전도 모델 교체와 무관하게 유지한다.
+                holder.transform.SetLocalPositionAndRotation(
+                    customization.GetHousingPosition(index), customization.GetHousingRotation(index));
                 holder.SetActive(occupiedHousingSlots[index]); // 현재 저장 상태에서 실제로 장착된 가구 슬롯만 로비에 보이게 한다.
 
                 MushLobbyDogBedSpot bedSpot = holder.GetComponent<MushLobbyDogBedSpot>(); // 개 침대 슬롯에는 수면 접근/예약 지점 컴포넌트가 이미 있는지 확인한다.

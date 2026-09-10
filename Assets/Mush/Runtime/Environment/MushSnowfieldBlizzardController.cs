@@ -171,7 +171,12 @@ public sealed class MushSnowfieldBlizzardController : MonoBehaviour // 설원 �
             }
         }
 
-        if (windAudio != null) windAudio.volume = Mathf.Max(strength, rideSpeedStrength * 0.42f) * maxWindVolume; // 가속 중에도 약한 바람 소리를 낸다.
+        if (windAudio != null)
+        {
+            if (!windAudio.TryGetComponent(out MushAudioChannel channel))
+                channel = windAudio.gameObject.AddComponent<MushAudioChannel>();
+            channel.SetVolume(Mathf.Max(strength, rideSpeedStrength * 0.42f) * maxWindVolume);
+        }
     }
 
     private void AutoFindMarkers() // FBX 이름을 유지한 Transform을 현재 맵 자식에서 자동으로 찾아 Inspector 작업량을 줄인다.

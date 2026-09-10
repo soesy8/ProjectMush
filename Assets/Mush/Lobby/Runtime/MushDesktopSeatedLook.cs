@@ -78,6 +78,7 @@ namespace Mush.Lobby
 
         private void LateUpdate()
         {
+            if (MushSceneUI.ModalOpen) return;
             if (cameraTransform == null || XRSettings.isDeviceActive)
                 return;
 

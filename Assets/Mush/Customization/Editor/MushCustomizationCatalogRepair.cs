@@ -21,8 +21,8 @@ namespace Mush.Customization.Editor
                 return;
 
             bool changed = false;
-            changed |= Assign(ref catalog.koreanFont, "Assets/UI/UI_Panel_Sample/Font/HS두꺼비체.ttf");
-            changed |= Assign(ref catalog.uiPanelPrefab, "Assets/UI/UI_Panel_Sample/Prefab/LobbyUI_Panel.prefab");
+            changed |= Assign(ref catalog.koreanFont, "Assets/UI_Panel_Sample/Font/HS두꺼비체.ttf");
+            changed |= Assign(ref catalog.uiPanelPrefab, "Assets/UI_Panel_Sample/Prefab/LobbyUI_Panel.prefab");
             changed |= Assign(ref catalog.lobbyEnvironment, "Assets/Mush/Scenes/Mush_Lobby.fbx");
             changed |= Assign(ref catalog.sledNatural, "Assets/Mush/Scenes/Mush_Sled_Natural.fbx");
             changed |= Assign(ref catalog.sledRed, "Assets/Mush/Scenes/Mush_Sled_Red.fbx");

@@ -44,7 +44,10 @@ namespace Mush.UI
 
             Transform existing = panelRoot.Find(SkinObjectName);
             if (existing != null)
+            {
+                RestorePanelArtwork(existing.gameObject);
                 return existing.gameObject;
+            }
 
             MushCustomizationCatalog catalog = MushCustomizationCatalog.Load();
             if (catalog == null || catalog.uiPanelPrefab == null)
@@ -81,6 +84,32 @@ namespace Mush.UI
                 sampleText.gameObject.SetActive(false);
 
             return skin;
+        }
+
+        private static void RestorePanelArtwork(GameObject skin)
+        {
+            MushCustomizationCatalog catalog = MushCustomizationCatalog.Load();
+            if (catalog == null || catalog.uiPanelPrefab == null)
+                return;
+
+            // Previously baked panels still contain visible white masks and deleted sprite references.
+            // The current rounded sprites provide their own silhouette and need no mask chain.
+            foreach (Mask mask in skin.GetComponentsInChildren<Mask>(true))
+            {
+                if (mask.name != "Image_Mask") continue;
+                mask.enabled = false;
+                if (mask.TryGetComponent(out Image maskImage)) maskImage.enabled = false;
+            }
+            foreach (string part in new[] { "Image_Outside", "Image_Inside" })
+            {
+                Transform source = FindDeepChild(catalog.uiPanelPrefab.transform, part);
+                Transform target = FindDeepChild(skin.transform, part);
+                if (source == null || target == null || !source.TryGetComponent(out Image sourceImage) ||
+                    !target.TryGetComponent(out Image targetImage)) continue;
+                targetImage.sprite = sourceImage.sprite;
+                targetImage.color = sourceImage.color;
+                targetImage.type = Image.Type.Simple;
+            }
         }
 
         public static Image CreateCanvasPanel(

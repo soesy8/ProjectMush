@@ -254,7 +254,7 @@ namespace Mush.Lobby.Editor
                 GameObject controllerObject = new GameObject("Lobby Game State");
                 controllerObject.transform.SetParent(sceneRoot.transform, false);
                 MushLobbyController controller = controllerObject.AddComponent<MushLobbyController>();
-                controller.SetKoreanFont(AssetDatabase.LoadAssetAtPath<Font>("Assets/UI/UI_Panel_Sample/Font/HS두꺼비체.ttf"));
+                controller.SetKoreanFont(AssetDatabase.LoadAssetAtPath<Font>("Assets/UI_Panel_Sample/Font/HS두꺼비체.ttf"));
 
                 EnsureInteractionManager(sceneRoot.transform, xrRig);
 
@@ -1203,7 +1203,7 @@ namespace Mush.Lobby.Editor
             textMesh.fontSize = 64;
             textMesh.characterSize = characterSize;
             textMesh.color = color;
-            Font font = AssetDatabase.LoadAssetAtPath<Font>("Assets/UI/UI_Panel_Sample/Font/HS두꺼비체.ttf");
+            Font font = AssetDatabase.LoadAssetAtPath<Font>("Assets/UI_Panel_Sample/Font/HS두꺼비체.ttf");
             if (font != null)
             {
                 textMesh.font = font;
@@ -1253,7 +1253,8 @@ namespace Mush.Lobby.Editor
         {
             List<EditorBuildSettingsScene> scenes = EditorBuildSettings.scenes.ToList();
             scenes.RemoveAll(scene => scene.path == ScenePath);
-            scenes.Insert(0, new EditorBuildSettingsScene(ScenePath, true));
+            int titleIndex = scenes.FindIndex(scene => scene.path == "Assets/Mush/Scenes/MushTitle.unity");
+            scenes.Insert(titleIndex >= 0 ? titleIndex + 1 : 0, new EditorBuildSettingsScene(ScenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();
         }
     }

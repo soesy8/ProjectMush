@@ -3,6 +3,7 @@ using Mush.Quest;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using UnityEngine.XR;
 
 namespace Mush.Customization
 {
@@ -28,8 +29,10 @@ namespace Mush.Customization
             if (rect == null)
                 return;
 
-            bool hovered = mouse != null &&
-                           RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), null);
+            Canvas canvas = rect.GetComponentInParent<Canvas>();
+            Camera eventCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            bool hovered = !XRSettings.isDeviceActive && mouse != null &&
+                           RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), eventCamera);
             if (image != null)
                 image.color = hovered || questHovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
             if (hovered && mouse != null && mouse.leftButton.wasPressedThisFrame)

@@ -132,6 +132,7 @@ namespace Mush.Lobby
             if (bowlIndex < 0 || bowlIndex >= BowlCount || assignedDogs[bowlIndex] != dog)
                 return;
 
+            MushGameSave.RestoreStamina(100);
             assignedDogs[bowlIndex] = null;
             bowlReady[bowlIndex] = false;
             bowlFill[bowlIndex] = 0f;

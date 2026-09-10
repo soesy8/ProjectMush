@@ -31,6 +31,12 @@ namespace Mush.Lobby
         [SerializeField] private float callSideOffset;
         [SerializeField] private float callDistance = 1.25f;
         [SerializeField] private float unpettedCallWait = 5f;
+        [Header("Nearby Petting")]
+        [SerializeField, Min(0.1f)] private float petApproachDistance = 1.15f;
+        [SerializeField, Min(0.1f)] private float petLeaveDistance = 1.65f;
+        [SerializeField, Min(0.1f)] private float nearbyPetWait = 5f;
+        private float nearbyPetHoldUntil;
+        private bool greetedNearbyPlayer;
 
         private Vector3 target;
         private float pauseTimer;
@@ -423,6 +429,9 @@ namespace Mush.Lobby
 
         private void Start()
         {
+            if (callTarget == null && Camera.main != null)
+                callTarget = Camera.main.transform;
+
             if (animator == null || animator.runtimeAnimatorController == null)
                 return;
 
@@ -439,6 +448,9 @@ namespace Mush.Lobby
             if (tailWagTimer > 0f) tailWagTimer -= Time.deltaTime;
             if (idleBounceTimer > 0f) idleBounceTimer -= Time.deltaTime;
             if (socialCooldown > 0f) socialCooldown -= Time.deltaTime;
+
+            if (UpdateNearbyPetting())
+                return;
 
             if (fetchBall != null)
             {
@@ -460,6 +472,7 @@ namespace Mush.Lobby
 
             if (reactionTimer > 0f)
             {
+                StopNavAgent(false);
                 IsMoving = false;
                 SetAnimatorSpeed(0f);
                 Animate(false);
@@ -527,6 +540,82 @@ namespace Mush.Lobby
             }
 
             MoveTowardCurrentTarget(runningToTarget ? runSpeed : walkSpeed, runningToTarget ? 1f : 0.48f, false);
+        }
+
+        private bool CanWaitForNearbyPetting()
+        {
+            return callTarget != null && fetchBall == null && lapTarget == null &&
+                   feedingStation == null && !called && sleepTimer <= 0f &&
+                   !enteringBed && !leavingBed;
+        }
+
+        private bool UpdateNearbyPetting()
+        {
+            if (callTarget == null)
+                return false;
+
+            Vector3 towardPlayer = Vector3.ProjectOnPlane(callTarget.position - transform.position, Vector3.up);
+            float leaveDistance = Mathf.Max(petApproachDistance + 0.1f, petLeaveDistance);
+            if (towardPlayer.sqrMagnitude > leaveDistance * leaveDistance)
+            {
+                greetedNearbyPlayer = false;
+                nearbyPetHoldUntil = 0f;
+                return false;
+            }
+
+            if (!CanWaitForNearbyPetting())
+            {
+                nearbyPetHoldUntil = 0f;
+                return false;
+            }
+
+            // 한 번 다가올 때 잠깐 기다린다. 곁에 서 있기만 해도 계속 멈추는 것은 방지한다.
+            if (!greetedNearbyPlayer && towardPlayer.sqrMagnitude <= petApproachDistance * petApproachDistance)
+                KeepStillForPetting();
+
+            if (Time.time >= nearbyPetHoldUntil)
+                return false;
+
+            if (towardPlayer.sqrMagnitude > 0.01f)
+                transform.rotation = Quaternion.Slerp(transform.rotation,
+                    Quaternion.LookRotation(towardPlayer, Vector3.up), turnSpeed * Time.deltaTime);
+            IsMoving = false;
+            SetAnimatorSpeed(0f);
+            Animate(false);
+            return true;
+        }
+
+        public void KeepStillForPetting()
+        {
+            if (callTarget == null)
+                return;
+
+            float leaveDistance = Mathf.Max(petApproachDistance + 0.1f, petLeaveDistance);
+            Vector3 towardPlayer = Vector3.ProjectOnPlane(callTarget.position - transform.position, Vector3.up);
+            if (towardPlayer.sqrMagnitude > leaveDistance * leaveDistance)
+                return;
+
+            if (called && reachedCallPoint)
+            {
+                callWaitTimer = unpettedCallWait;
+                calledLookPointWorld = callTarget.position;
+                return;
+            }
+            if (!CanWaitForNearbyPetting())
+                return;
+
+            if (playPartner != null)
+                BreakPlayPair(false);
+            if (Time.time >= nearbyPetHoldUntil)
+            {
+                StopNavAgent(false);
+                WagTail(1.2f);
+            }
+            greetedNearbyPlayer = true;
+            nearbyPetHoldUntil = Time.time + nearbyPetWait;
+            pauseTimer = 0f;
+            IsMoving = false;
+            SetAnimatorSpeed(0f);
         }
 
         private void MoveTowardCurrentTarget(float moveSpeed, float animatorSpeed, bool playing)
@@ -680,7 +769,7 @@ namespace Mush.Lobby
                 if (other == null || other == this || other.called || other.sleepTimer > 0f ||
                     other.walkingToBed || other.enteringBed || other.leavingBed || other.HasReservedRestSpot() ||
                     other.playPartner != null || other.reactionTimer > 0f || other.socialCooldown > 0f ||
-                    other.feedingStation != null)
+                    other.feedingStation != null || Time.time < other.nearbyPetHoldUntil)
                     continue;
 
                 float duration = Random.Range(playDuration.x, playDuration.y);
@@ -1439,6 +1528,8 @@ namespace Mush.Lobby
 
         public void MarkPetted()
         {
+            MushGameSave.PetDog();
+            KeepStillForPetting();
             // Petting is activity, so keep the dog nearby for another five
             // seconds. It must still resume roaming when interaction stops.
             if (called && reachedCallPoint)
