@@ -1,0 +1,55 @@
+Track module diagnostic result
+==============================
+
+Compared source files
+---------------------
+- E:/Mush/Result/Track Module/FBX/Track_MainRoad.fbx
+  - Mesh name does not contain "SnowRoad", so the current runtime cannot identify it as a road.
+  - Geometry itself is an 8 x 15 m regular grid.
+- E:/Mush/Work/Track Module/Track_MainRoad_v2.fbx
+  - Longitudinal direction is local Y, scale 5 is not applied, and local Z is only the surface height.
+  - It does not satisfy the runtime's local-Z longitudinal grid contract.
+- E:/Mush/Work/Track Module/Track_SnowRoad.fbx
+  - Best match: name contains "SnowRoad" and the mesh is an 8 x 15 m regular grid.
+  - Direct model-root assignment still fails because Unity inserts an axis-correction child transform.
+
+Controlled source test
+----------------------
+- Track_SnowRoad with Read/Write disabled: FAILED (no deformed road root).
+- Track_SnowRoad with Read/Write enabled and a zero-transform wrapper prefab: PASS.
+- Generated result: 1 mesh, 1,386 vertices, 13 x 0.10 x 160 m bounds.
+
+Rebuilt model
+-------------
+- Asset: Model/Track_SnowRoad_CleanGrid.fbx
+- Wrapper: Model/Track_SnowRoad_CleanGrid.prefab
+- Source grid: 13 columns x 16 rows, 208 vertices, 180 quads.
+- Source bounds after Unity scale correction: 8 x 0.24 x 15 m.
+- Root transform: position 0, rotation 0, scale 1.
+- Read/Write: enabled.
+- Materials: PackedSnow, SnowField, SledTrack.
+
+Final scene result
+------------------
+- Scene: Track_MadeTest.unity
+- Deformable road module: Track_SnowRoad_CleanGrid.prefab
+- Use deformable road module: enabled
+- Fixed custom road visual: None
+- Generated hierarchy: VISIBLE Deformed Snow Road Module present
+- Generated result: 1 mesh, 2,288 vertices, 13 x 0.10 x 160 m bounds.
+- Existing generated-road MeshCollider remains enabled for gameplay collision.
+
+Single material update
+----------------------
+Material: Assets/Art_Track_Test/Material/M_Track_SnowRoad_Single.mat
+Mesh source: Assets/Art_Track_Test/Model/Track_MadeTest_LocalBaked.asset
+Textures: T_Track_SnowRoad_BaseColor, T_Track_SnowRoad_Normal_DX, T_Track_SnowRoad_Curvature
+Generated mesh submeshes: 1 -> 1
+Generated renderer material slots: 1
+Source prefab material slots: 1
+
+Texture mapping correction
+--------------------------
+Cause: the source image contains sawtooth-shaped grooves, and 1x1 mapping enlarged them across the full road module.
+UV correction: U 1x preserves the authored cross-road groove layout; V 4x shortens repetition along the driving direction.
+Surface correction: Base strength 0.72, Normal strength 0.75, Curvature strength 0.10, Smoothness 0.20.
