@@ -30,6 +30,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     [SerializeField, HideInInspector] private float bakedTerrainWidth = TerrainHalfWidth;
     [SerializeField, HideInInspector] private List<Collider> bakedSurfaceColliders = new();
     private readonly List<Vector3> routePoints = new();
+    private readonly MushRouteLookup routeLookup = new();
+    private MushSceneryDistanceCulling sceneryCulling;
+    private Camera sceneryCamera;
     private readonly List<Collider> activeTerrainSurfaceColliders = new();
     private readonly List<Material> runtimeMaterials = new();
     private float activeTerrainRayTop;
@@ -113,6 +116,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             }
             routePoints.Clear();
             routePoints.AddRange(bakedRoute);
+            routeLookup.Rebuild(routePoints);
             activeCourseLength = bakedLength;
             activeSampleSpacing = bakedSpacing;
             authoredRoadHalfWidth = bakedRoadWidth;
@@ -506,23 +510,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
         Vector3 localPosition = transform.InverseTransformPoint(worldPosition);
         Vector2 point = new(localPosition.x, localPosition.z);
-        float nearestSqrDistance = float.PositiveInfinity;
-
-        for (int index = 0; index < routePoints.Count - 1; index++)
-        {
-            Vector2 start = new(routePoints[index].x, routePoints[index].z);
-            Vector2 end = new(routePoints[index + 1].x, routePoints[index + 1].z);
-            Vector2 segment = end - start;
-            float segmentLengthSqr = segment.sqrMagnitude;
-            float t = segmentLengthSqr > 0.0001f
-                ? Mathf.Clamp01(Vector2.Dot(point - start, segment) / segmentLengthSqr)
-                : 0f;
-            float sqrDistance = (point - (start + segment * t)).sqrMagnitude;
-            if (sqrDistance < nearestSqrDistance)
-                nearestSqrDistance = sqrDistance;
-        }
-
-        lateralDistance = Mathf.Sqrt(nearestSqrDistance);
+        lateralDistance = Mathf.Sqrt(routeLookup.Find(point).sqrDistance);
         return true;
     }
 
@@ -550,27 +538,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
         Vector3 localPosition = transform.InverseTransformPoint(worldPosition);
         Vector2 point = new(localPosition.x, localPosition.z);
-        float nearestSqrDistance = float.PositiveInfinity;
-        int nearestSegment = 0;
-        float nearestT = 0f;
-
-        for (int index = 0; index < routePoints.Count - 1; index++)
-        {
-            Vector2 start = new(routePoints[index].x, routePoints[index].z);
-            Vector2 end = new(routePoints[index + 1].x, routePoints[index + 1].z);
-            Vector2 segment = end - start;
-            float segmentLengthSqr = segment.sqrMagnitude;
-            float t = segmentLengthSqr > 0.0001f
-                ? Mathf.Clamp01(Vector2.Dot(point - start, segment) / segmentLengthSqr)
-                : 0f;
-            float sqrDistance = (point - (start + segment * t)).sqrMagnitude;
-            if (sqrDistance >= nearestSqrDistance)
-                continue;
-
-            nearestSqrDistance = sqrDistance;
-            nearestSegment = index;
-            nearestT = t;
-        }
+        MushRouteLookup.Result nearest = routeLookup.Find(point);
+        int nearestSegment = nearest.segment;
+        float nearestT = nearest.t;
 
         Vector3 startPoint = routePoints[nearestSegment];
         Vector3 endPoint = routePoints[nearestSegment + 1];
@@ -717,6 +687,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         StartForward = Vector3.ProjectOnPlane(routePoints[1] - routePoints[0], Vector3.up).normalized;
         if (StartForward.sqrMagnitude < 0.0001f)
             StartForward = Vector3.back;
+        routeLookup.Rebuild(routePoints);
     }
 
     /// <summary>
@@ -1828,26 +1799,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
         Vector3 local = transform.InverseTransformPoint(worldPosition);
         Vector2 point = new(local.x, local.z);
-        float nearestSqrDistance = float.PositiveInfinity;
-        float nearestProgress = 0f;
-        for (int index = 0; index < routePoints.Count - 1; index++)
-        {
-            Vector2 start = new(routePoints[index].x, routePoints[index].z);
-            Vector2 end = new(routePoints[index + 1].x, routePoints[index + 1].z);
-            Vector2 segment = end - start;
-            float segmentLengthSqr = segment.sqrMagnitude;
-            float t = segmentLengthSqr > 0.0001f
-                ? Mathf.Clamp01(Vector2.Dot(point - start, segment) / segmentLengthSqr)
-                : 0f;
-            float sqrDistance = (point - (start + segment * t)).sqrMagnitude;
-            if (sqrDistance >= nearestSqrDistance)
-                continue;
-
-            nearestSqrDistance = sqrDistance;
-            nearestProgress = (index + t) / (routePoints.Count - 1f);
-        }
-
-        progress = Mathf.Clamp01(nearestProgress);
+        MushRouteLookup.Result nearest = routeLookup.Find(point);
+        progress = Mathf.Clamp01((nearest.segment + nearest.t) / (routePoints.Count - 1f));
         return true;
     }
 
@@ -2380,8 +2333,29 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return mesh;
     }
 
+    public void ConfigureSceneryCamera(Camera camera)
+    {
+        sceneryCamera = camera;
+        sceneryCulling?.Dispose();
+        sceneryCulling = Application.isPlaying && isActiveAndEnabled && camera != null && rebuiltRoot != null
+            ? new MushSceneryDistanceCulling(rebuiltRoot, camera, 300f)
+            : null;
+    }
+
+    private void OnEnable()
+    {
+        if (sceneryCamera != null) ConfigureSceneryCamera(sceneryCamera);
+    }
+
+    private void OnDisable()
+    {
+        sceneryCulling?.Dispose();
+        sceneryCulling = null;
+    }
+
     private void OnDestroy()
     {
+        sceneryCulling?.Dispose();
         foreach (Material material in runtimeMaterials)
         {
             if (material != null)
@@ -2400,6 +2374,174 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             if (Application.isPlaying) Destroy(mountainMesh);
             else DestroyImmediate(mountainMesh);
         }
+    }
+}
+
+/// <summary>
+/// Exact nearest-segment queries with conservative block bounds and a small
+/// position cache shared by progress, road-edge and surface queries.
+/// </summary>
+internal sealed class MushRouteLookup
+{
+    private const int BlockSize = 16;
+    private readonly Result[] cache = new Result[16];
+    private readonly Vector2[] cachePoints = new Vector2[16];
+    private Vector2[] starts = Array.Empty<Vector2>();
+    private Vector2[] deltas = Array.Empty<Vector2>();
+    private float[] lengthsSquared = Array.Empty<float>();
+    private Vector2[] blockMin = Array.Empty<Vector2>();
+    private Vector2[] blockMax = Array.Empty<Vector2>();
+    private int cacheCount;
+    private int cacheNext;
+    private int previousSegment;
+
+    internal struct Result
+    {
+        public int segment;
+        public float t;
+        public float sqrDistance;
+    }
+
+    public void Rebuild(List<Vector3> route)
+    {
+        int count = Mathf.Max(0, route.Count - 1);
+        starts = new Vector2[count];
+        deltas = new Vector2[count];
+        lengthsSquared = new float[count];
+        int blocks = (count + BlockSize - 1) / BlockSize;
+        blockMin = new Vector2[blocks];
+        blockMax = new Vector2[blocks];
+        cacheCount = cacheNext = previousSegment = 0;
+        for (int index = 0; index < count; index++)
+        {
+            Vector2 start = new(route[index].x, route[index].z);
+            Vector2 end = new(route[index + 1].x, route[index + 1].z);
+            starts[index] = start;
+            deltas[index] = end - start;
+            lengthsSquared[index] = deltas[index].sqrMagnitude;
+            int block = index / BlockSize;
+            if (index % BlockSize == 0)
+            {
+                blockMin[block] = Vector2.Min(start, end);
+                blockMax[block] = Vector2.Max(start, end);
+            }
+            else
+            {
+                blockMin[block] = Vector2.Min(blockMin[block], Vector2.Min(start, end));
+                blockMax[block] = Vector2.Max(blockMax[block], Vector2.Max(start, end));
+            }
+        }
+        // Include floating-point rounding at segment endpoints in the bounds.
+        for (int block = 0; block < blocks; block++)
+        {
+            blockMin[block] -= Vector2.one * 0.01f;
+            blockMax[block] += Vector2.one * 0.01f;
+        }
+    }
+
+    public Result Find(Vector2 point)
+    {
+        for (int index = 0; index < cacheCount; index++)
+        {
+            // Vector2.operator== is approximate; projection reuse must be exact.
+            if (cachePoints[index].Equals(point)) return cache[index];
+        }
+
+        Result best = new() { segment = 0, sqrDistance = float.PositiveInfinity };
+        int first = Mathf.Max(0, previousSegment - 2);
+        int end = Mathf.Min(starts.Length, previousSegment + 3);
+        for (int index = first; index < end; index++) Evaluate(point, index, ref best);
+
+        // A nearby seed is only an upper bound. Check every potentially closer
+        // block so crossings, reversing, off-road queries and teleports stay exact.
+        for (int block = 0; block < blockMin.Length; block++)
+        {
+            Vector2 min = blockMin[block];
+            Vector2 max = blockMax[block];
+            float dx = Mathf.Max(0f, Mathf.Max(min.x - point.x, point.x - max.x));
+            float dy = Mathf.Max(0f, Mathf.Max(min.y - point.y, point.y - max.y));
+            if (dx * dx + dy * dy > best.sqrDistance) continue;
+            int blockEnd = Mathf.Min(starts.Length, (block + 1) * BlockSize);
+            for (int index = block * BlockSize; index < blockEnd; index++)
+            {
+                if (index >= first && index < end) continue;
+                Evaluate(point, index, ref best);
+            }
+        }
+
+        previousSegment = best.segment;
+        cachePoints[cacheNext] = point;
+        cache[cacheNext] = best;
+        cacheNext = (cacheNext + 1) % cache.Length;
+        cacheCount = Mathf.Min(cacheCount + 1, cache.Length);
+        return best;
+    }
+
+    private void Evaluate(Vector2 point, int index, ref Result best)
+    {
+        Vector2 delta = deltas[index];
+        float lengthSquared = lengthsSquared[index];
+        float t = lengthSquared > 0.0001f
+            ? Mathf.Clamp01(Vector2.Dot(point - starts[index], delta) / lengthSquared)
+            : 0f;
+        float distance = (point - (starts[index] + delta * t)).sqrMagnitude;
+        if (distance > best.sqrDistance || (distance == best.sqrDistance && index >= best.segment)) return;
+        best = new Result { segment = index, t = t, sqrDistance = distance };
+    }
+}
+
+/// <summary>Distance-only culling of static baked scenery; colliders remain active.</summary>
+internal sealed class MushSceneryDistanceCulling : IDisposable
+{
+    private readonly List<Renderer> renderers = new();
+    private readonly List<bool> originalForceOff = new();
+    private CullingGroup group;
+
+    public MushSceneryDistanceCulling(Transform root, Camera camera, float distance)
+    {
+        // Select known decorative roots only. Road, stars, aurora, particles,
+        // gameplay markers and user-authored interactive content are excluded.
+        foreach (Transform child in root)
+        {
+            if (child.name != "Visible Snow Pine" && child.name != "Snow Rock" &&
+                child.name != "Distant Snow Mountain" && child.name != "Visible Snow Cabin") continue;
+            renderers.AddRange(child.GetComponentsInChildren<MeshRenderer>(true));
+        }
+        BoundingSphere[] spheres = new BoundingSphere[renderers.Count];
+        for (int index = 0; index < renderers.Count; index++)
+        {
+            Renderer renderer = renderers[index];
+            Bounds bounds = renderer.bounds;
+            spheres[index] = new BoundingSphere(bounds.center, bounds.extents.magnitude);
+            originalForceOff.Add(renderer.forceRenderingOff);
+            // Initialize before the first asynchronous CullingGroup callback.
+            float limit = distance + spheres[index].radius;
+            renderer.forceRenderingOff = originalForceOff[index] ||
+                (camera.transform.position - bounds.center).sqrMagnitude > limit * limit;
+        }
+        group = new CullingGroup { targetCamera = camera };
+        group.SetBoundingSpheres(spheres);
+        group.SetBoundingSphereCount(spheres.Length);
+        group.SetBoundingDistances(new[] { distance });
+        group.SetDistanceReferencePoint(camera.transform);
+        group.onStateChanged = OnStateChanged;
+    }
+
+    private void OnStateChanged(CullingGroupEvent state)
+    {
+        Renderer renderer = renderers[state.index];
+        if (renderer != null)
+            renderer.forceRenderingOff = originalForceOff[state.index] || state.currentDistance > 0;
+    }
+
+    public void Dispose()
+    {
+        if (group == null) return;
+        group.onStateChanged = null;
+        group.Dispose();
+        group = null;
+        for (int index = 0; index < renderers.Count; index++)
+            if (renderers[index] != null) renderers[index].forceRenderingOff = originalForceOff[index];
     }
 }
 

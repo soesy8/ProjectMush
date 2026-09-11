@@ -421,9 +421,11 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         rideController.SetCourseSurface(curvedWorld);
         InitializeCourseRecoveryCheckpoint();
 
-        // Preserve the camera pose, layers, clipping and authored rendering settings.
+        // Preserve the authored pose and rendering settings, with the Quest view limit.
         if (rideCamera != null)
         {
+            rideCamera.farClipPlane = Mathf.Min(rideCamera.farClipPlane, 500f);
+            curvedWorld?.ConfigureSceneryCamera(rideCamera);
             cameraBaseLocalPosition = savedSeat.InverseTransformPoint(rideCamera.transform.position);
             cameraRestLocalRotation = Quaternion.Inverse(savedSeat.rotation) * rideCamera.transform.rotation;
             normalFieldOfView = rideCamera.fieldOfView;
@@ -894,7 +896,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             : Quaternion.identity;
         cameraRestLocalRotation = rideCamera.transform.localRotation;
         rideCamera.nearClipPlane = 0.04f;
-        rideCamera.farClipPlane = 1500f;
+        rideCamera.farClipPlane = 500f;
+        curvedWorld?.ConfigureSceneryCamera(rideCamera);
         rideCamera.fieldOfView = normalFieldOfView;
         rideCamera.clearFlags = CameraClearFlags.Skybox;
         rideCamera.cullingMask = ~0;
