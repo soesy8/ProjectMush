@@ -1,5 +1,14 @@
 {
   "dependencies": {
+    "com.breadpack.unity-mcp": {
+      "version": "https://github.com/breadpack/UnityMcp.git?path=UnityMcpEditor#00640f746dd4dadbcf481fd53f71c4305b9ed1cc",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.2.1"
+      },
+      "hash": "00640f746dd4dadbcf481fd53f71c4305b9ed1cc"
+    },
     "com.unity.burst": {
       "version": "1.8.29",
       "depth": 2,

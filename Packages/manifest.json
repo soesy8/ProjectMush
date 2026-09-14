@@ -50,6 +50,7 @@
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0",
-    "com.unity.pipeline": "0.5.0-exp.1"
+    "com.unity.pipeline": "0.5.0-exp.1",
+    "com.breadpack.unity-mcp": "https://github.com/breadpack/UnityMcp.git?path=UnityMcpEditor#00640f746dd4dadbcf481fd53f71c4305b9ed1cc"
   }
 }
