@@ -27,6 +27,15 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     [SerializeField] private List<Vector3> controlPoints = new();
     [SerializeField] private bool generateProceduralEnvironment = true;
 
+    [Header("Track Edge Objects")]
+    [SerializeField] private GameObject trackEdgeObjectPrefab;
+    [SerializeField] private bool generateTrackEdgeObjects;
+    [SerializeField, Min(0.5f)] private float trackEdgeObjectSpacing = 6f;
+    [SerializeField, Min(0f)] private float trackEdgeOutsideOffset = 0.25f;
+    [SerializeField] private float trackEdgeVerticalOffset;
+    [SerializeField] private Vector3 trackEdgeRotationOffset;
+    [SerializeField, Min(0.01f)] private float trackEdgeScaleMultiplier = 1f;
+
     public bool UsesEditablePath => useEditablePath && controlPoints.Count >= 2;
     public int ControlPointCount => controlPoints.Count;
     public bool GenerateProceduralEnvironment => generateProceduralEnvironment;
@@ -44,6 +53,13 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     public Texture TerrainTextureOverride => terrainTextureOverride;
     public bool HasCustomTerrainVisual => customTerrainVisual != null;
     public bool HasDeformableRoadModule => deformableRoadModule != null;
+    public GameObject TrackEdgeObjectPrefab => trackEdgeObjectPrefab;
+    public bool GeneratesTrackEdgeObjects => generateTrackEdgeObjects && trackEdgeObjectPrefab != null;
+    public float TrackEdgeObjectSpacing => Mathf.Max(0.5f, trackEdgeObjectSpacing);
+    public float TrackEdgeOutsideOffset => Mathf.Max(0f, trackEdgeOutsideOffset);
+    public float TrackEdgeVerticalOffset => trackEdgeVerticalOffset;
+    public Vector3 TrackEdgeRotationOffset => trackEdgeRotationOffset;
+    public float TrackEdgeScaleMultiplier => Mathf.Max(0.01f, trackEdgeScaleMultiplier);
     public float PreviewRoadHalfWidth => overrideTrackWidths
         ? Mathf.Max(0.5f, roadHalfWidth)
         : 6.5f;
@@ -241,6 +257,30 @@ public sealed class MushTrackAuthoring : MonoBehaviour
     {
         controlPoints.Reverse();
         return controlPoints.Count > 0 ? controlPoints.Count - 1 - selectedIndex : -1;
+    }
+
+    /// <summary>
+    /// Converts an overly dense imported route back into a practical number of
+    /// editable control points while preserving its complete start-to-end shape.
+    /// </summary>
+    public int SimplifyControlPoints(float targetSpacing)
+    {
+        if (controlPoints.Count <= 2)
+            return controlPoints.Count;
+
+        List<Vector3> simplified = new();
+        if (!MushTrackPathUtility.BuildUniformRoute(
+                controlPoints,
+                Mathf.Max(8f, targetSpacing),
+                simplified,
+                out _,
+                out _))
+            return controlPoints.Count;
+
+        controlPoints.Clear();
+        controlPoints.AddRange(simplified);
+        useEditablePath = controlPoints.Count >= 2;
+        return controlPoints.Count;
     }
 
 

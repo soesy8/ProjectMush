@@ -11,6 +11,9 @@ using UnityEngine.SceneManagement;
 [CustomEditor(typeof(MushTrackAuthoring))]
 public sealed class MushTrackAuthoringEditor : Editor
 {
+    private const int DenseControlPointThreshold = 64;
+    private const float RecommendedControlPointSpacing = 32f;
+
     private readonly List<Vector3> previewRoute = new();
     private readonly List<Vector3> previewControlPoints = new();
     private readonly List<Vector3> projectedRoutePreview = new();
@@ -27,6 +30,13 @@ public sealed class MushTrackAuthoringEditor : Editor
     private SerializedProperty roadTextureOverrideProperty;
     private SerializedProperty terrainMaterialOverrideProperty;
     private SerializedProperty terrainTextureOverrideProperty;
+    private SerializedProperty trackEdgeObjectPrefabProperty;
+    private SerializedProperty generateTrackEdgeObjectsProperty;
+    private SerializedProperty trackEdgeObjectSpacingProperty;
+    private SerializedProperty trackEdgeOutsideOffsetProperty;
+    private SerializedProperty trackEdgeVerticalOffsetProperty;
+    private SerializedProperty trackEdgeRotationOffsetProperty;
+    private SerializedProperty trackEdgeScaleMultiplierProperty;
 
     private int selectedPoint = -1;
     private bool editingTrack;
@@ -54,9 +64,26 @@ public sealed class MushTrackAuthoringEditor : Editor
             return;
 
         pendingTrackEdit = null;
+        SimplifyDensePathForEditing(authoring);
         editingTrack = true;
-        if (authoring.ControlPointCount > 0 && selectedPoint < 0)
-            selectedPoint = 0;
+        if (authoring.ControlPointCount > 0)
+            selectedPoint = authoring.ControlPointCount - 1;
+    }
+
+    private static bool SimplifyDensePathForEditing(MushTrackAuthoring authoring)
+    {
+        if (authoring == null || authoring.ControlPointCount <= DenseControlPointThreshold)
+            return false;
+
+        int previousCount = authoring.ControlPointCount;
+        Undo.RecordObject(authoring, "Simplify Dense Mush Track");
+        int currentCount = authoring.SimplifyControlPoints(RecommendedControlPointSpacing);
+        EditorUtility.SetDirty(authoring);
+        MushTrackEditorWorldPreview.RequestRebuild(authoring);
+        Debug.Log(
+            $"[Mush] 편집하기 쉽도록 트랙 제어점을 {previousCount}개에서 {currentCount}개로 정리했습니다.",
+            authoring);
+        return true;
     }
 
     private void OnEnable()
@@ -73,6 +100,13 @@ public sealed class MushTrackAuthoringEditor : Editor
         roadTextureOverrideProperty = serializedObject.FindProperty("roadTextureOverride");
         terrainMaterialOverrideProperty = serializedObject.FindProperty("terrainMaterialOverride");
         terrainTextureOverrideProperty = serializedObject.FindProperty("terrainTextureOverride"); // 자동 지형 텍스처 참조를 찾습니다.
+        trackEdgeObjectPrefabProperty = serializedObject.FindProperty("trackEdgeObjectPrefab");
+        generateTrackEdgeObjectsProperty = serializedObject.FindProperty("generateTrackEdgeObjects");
+        trackEdgeObjectSpacingProperty = serializedObject.FindProperty("trackEdgeObjectSpacing");
+        trackEdgeOutsideOffsetProperty = serializedObject.FindProperty("trackEdgeOutsideOffset");
+        trackEdgeVerticalOffsetProperty = serializedObject.FindProperty("trackEdgeVerticalOffset");
+        trackEdgeRotationOffsetProperty = serializedObject.FindProperty("trackEdgeRotationOffset");
+        trackEdgeScaleMultiplierProperty = serializedObject.FindProperty("trackEdgeScaleMultiplier");
         // 실제 도로 포인트/모델/재질 값이 바뀐 순간에만 아래 편집 코드에서 RequestRebuild를 호출합니다.
         ConsumeTrackEditRequest(target as MushTrackAuthoring);
     }
@@ -149,18 +183,55 @@ public sealed class MushTrackAuthoringEditor : Editor
         }
 
         EditorGUILayout.Space(8f);
+        EditorGUILayout.LabelField("도로 가장자리 자동 배치", EditorStyles.boldLabel);
+        GameObject edgeObjectBeforeField = trackEdgeObjectPrefabProperty.objectReferenceValue as GameObject;
+        EditorGUILayout.PropertyField(trackEdgeObjectPrefabProperty, new GUIContent("배치 오브젝트"));
+        GameObject edgeObjectAfterField = trackEdgeObjectPrefabProperty.objectReferenceValue as GameObject;
+        if (edgeObjectAfterField != edgeObjectBeforeField)
+            generateTrackEdgeObjectsProperty.boolValue = edgeObjectAfterField != null;
+
+        using (new EditorGUI.DisabledScope(edgeObjectAfterField == null))
+            EditorGUILayout.PropertyField(generateTrackEdgeObjectsProperty, new GUIContent("자동 배치 사용"));
+
+        if (edgeObjectAfterField != null && generateTrackEdgeObjectsProperty.boolValue)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(trackEdgeObjectSpacingProperty, new GUIContent("배치 간격 (m)"));
+            EditorGUILayout.PropertyField(trackEdgeOutsideOffsetProperty, new GUIContent("도로 밖 여백 (m)"));
+            EditorGUILayout.PropertyField(trackEdgeVerticalOffsetProperty, new GUIContent("높이 보정 (m)"));
+            EditorGUILayout.PropertyField(trackEdgeRotationOffsetProperty, new GUIContent("회전 보정"));
+            EditorGUILayout.PropertyField(trackEdgeScaleMultiplierProperty, new GUIContent("크기 배율"));
+            EditorGUI.indentLevel--;
+
+            EditorGUILayout.HelpBox(
+                "오브젝트를 도로 양옆에 배치하고 현재 지형 높이와 경사에 맞춥니다. 트랙 포인트나 간격을 바꾸면 도로 갱신과 함께 자동으로 다시 배치됩니다.",
+                MessageType.None);
+        }
+
+        EditorGUILayout.Space(8f);
         EditorGUILayout.LabelField("도로 포인트 편집", EditorStyles.boldLabel);
 
         if (GUILayout.Button(editingTrack ? "도로 편집 종료 (Esc)" : "도로 포인트 편집"))
         {
-            editingTrack = !editingTrack;
+            if (editingTrack)
+            {
+                editingTrack = false;
+            }
+            else
+            {
+                serializedObject.ApplyModifiedProperties();
+                SimplifyDensePathForEditing(authoring);
+                selectedPoint = authoring.ControlPointCount - 1;
+                serializedObject.Update();
+                editingTrack = true;
+            }
             SceneView.RepaintAll();
         }
 
         EditorGUILayout.HelpBox(
             editingTrack
-                ? "도로 선 위 Shift+클릭: 포인트 추가 / Delete: 선택 포인트 삭제 / 이동 핸들: 위치·높이 변경 / Esc: 편집 종료"
-                : "도로 포인트 편집 버튼을 눌렀을 때만 트랙 제어점을 조작합니다.",
+                ? "도로 선 위 Shift+클릭: 중간 포인트 삽입 / 경로 끝 연장 버튼: 뒤쪽으로 연장 / Delete: 선택 포인트 삭제 / 이동 핸들: 위치·높이 변경 / Esc: 편집 종료"
+                : "도로 포인트 편집을 시작하면 마지막 포인트가 선택됩니다. 지나치게 촘촘한 이전 경로는 편집 가능한 간격으로 한 번 정리됩니다.",
             MessageType.None);
 
         bool wasEditable = useEditablePathProperty.boolValue;
@@ -175,7 +246,7 @@ public sealed class MushTrackAuthoringEditor : Editor
                 serializedObject.ApplyModifiedProperties();
                 Undo.RecordObject(authoring, "Enable Mush Editable Track");
                 authoring.SetEditablePathEnabled(true);
-                selectedPoint = 0;
+                selectedPoint = authoring.ControlPointCount - 1;
                 EditorUtility.SetDirty(authoring);
                 MushTrackEditorWorldPreview.RequestRebuild(authoring);
                 serializedObject.Update();
@@ -188,7 +259,7 @@ public sealed class MushTrackAuthoringEditor : Editor
                 serializedObject.ApplyModifiedProperties();
                 Undo.RecordObject(authoring, "Convert Mush Track To Editable Path");
                 authoring.BakeDefaultPath();
-                selectedPoint = 0;
+                selectedPoint = authoring.ControlPointCount - 1;
                 EditorUtility.SetDirty(authoring);
                 MushTrackEditorWorldPreview.RequestRebuild(authoring);
                 serializedObject.Update();
@@ -198,12 +269,22 @@ public sealed class MushTrackAuthoringEditor : Editor
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button("선택 뒤에 포인트 추가"))
+                if (GUILayout.Button("선택 뒤에 삽입"))
                 {
                     serializedObject.ApplyModifiedProperties();
                     Undo.RecordObject(authoring, "Add Mush Track Point");
                     selectedPoint = authoring.InsertControlPointAfter(
                         selectedPoint >= 0 ? selectedPoint : authoring.ControlPointCount - 1);
+                    EditorUtility.SetDirty(authoring);
+                    MushTrackEditorWorldPreview.RequestRebuild(authoring);
+                    serializedObject.Update();
+                }
+
+                if (GUILayout.Button("경로 끝 연장"))
+                {
+                    serializedObject.ApplyModifiedProperties();
+                    Undo.RecordObject(authoring, "Extend Mush Track End");
+                    selectedPoint = authoring.InsertControlPointAfter(authoring.ControlPointCount - 1);
                     EditorUtility.SetDirty(authoring);
                     MushTrackEditorWorldPreview.RequestRebuild(authoring);
                     serializedObject.Update();
@@ -223,6 +304,18 @@ public sealed class MushTrackAuthoringEditor : Editor
                 }
             }
 
+
+            if (authoring.ControlPointCount > 2 && GUILayout.Button("편집 포인트 간격 정리 (약 32m)"))
+            {
+                serializedObject.ApplyModifiedProperties();
+                Undo.RecordObject(authoring, "Simplify Mush Track Points");
+                authoring.SimplifyControlPoints(RecommendedControlPointSpacing);
+                selectedPoint = authoring.ControlPointCount - 1;
+                EditorUtility.SetDirty(authoring);
+                MushTrackEditorWorldPreview.RequestRebuild(authoring);
+                serializedObject.Update();
+            }
+
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button("경로 방향 뒤집기"))
@@ -240,7 +333,7 @@ public sealed class MushTrackAuthoringEditor : Editor
                     serializedObject.ApplyModifiedProperties();
                     Undo.RecordObject(authoring, "Reset Mush Track Path");
                     authoring.BakeDefaultPath();
-                    selectedPoint = 0;
+                    selectedPoint = authoring.ControlPointCount - 1;
                     EditorUtility.SetDirty(authoring);
                     MushTrackEditorWorldPreview.RequestRebuild(authoring);
                     serializedObject.Update();

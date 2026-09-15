@@ -20,6 +20,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     public const string DeformedRoadRootName = "VISIBLE Deformed Snow Road Module";
     public const string CustomSceneContentRootName = "SCENE CONTENT - Add Models Here";
     public const string RideTeamRootName = "Mush Ride Team";
+    public const string TrackEdgeObjectsRootName = "GENERATED Track Edge Objects";
     private const string TerrainCollisionProxyRootName = "Mush Terrain Surface Collision Proxy";
     private const string CustomModelPreviewRootName = "Mush Custom Model Preview";
 
@@ -261,6 +262,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
         RefreshRoadModelInstances();
         ApplyCustomCoursePresentation();
+        RefreshTrackEdgeObjects();
     }
 
     /// <summary>
@@ -884,6 +886,149 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (activeAuthoring != null && activeAuthoring.UsesDeformableRoadModule)
             BuildDeformedRoadModule(activeAuthoring.DeformableRoadModule);
         ApplyCustomCoursePresentation();
+        RefreshTrackEdgeObjects();
+    }
+
+    /// <summary>
+    /// Recreates deterministic prefab placements along both road edges. These
+    /// are ordinary saved scene objects, so play mode only renders the baked
+    /// result and performs no route-wide spawning work on the headset.
+    /// </summary>
+    private void RefreshTrackEdgeObjects()
+    {
+        if (Application.isPlaying || rebuiltRoot == null)
+            return;
+
+        Transform existingRoot = rebuiltRoot.Find(TrackEdgeObjectsRootName);
+        if (activeAuthoring == null || !activeAuthoring.GeneratesTrackEdgeObjects)
+        {
+            if (existingRoot != null)
+                DestroyImmediate(existingRoot.gameObject);
+            return;
+        }
+
+        GameObject source = activeAuthoring.TrackEdgeObjectPrefab;
+        if (source == null || source.transform == rebuiltRoot || source.transform.IsChildOf(rebuiltRoot))
+        {
+            Debug.LogWarning(
+                "[Mush] 도로 가장자리 배치 오브젝트는 생성 결과물 바깥의 프리팹 또는 씬 오브젝트를 지정해야 합니다.",
+                activeAuthoring);
+            return;
+        }
+
+        if (existingRoot != null)
+            DestroyImmediate(existingRoot.gameObject);
+
+        GameObject rootObject = new(TrackEdgeObjectsRootName);
+        Transform edgeRoot = rootObject.transform;
+        edgeRoot.SetParent(rebuiltRoot, false);
+
+        const int maximumIntervals = 4095;
+        float requestedSpacing = activeAuthoring.TrackEdgeObjectSpacing;
+        int intervalCount = Mathf.Clamp(
+            Mathf.CeilToInt(activeCourseLength / requestedSpacing),
+            1,
+            maximumIntervals);
+        float actualSpacing = activeCourseLength / intervalCount;
+
+        for (int index = 0; index <= intervalCount; index++)
+        {
+            float distance = index == intervalCount ? activeCourseLength : index * actualSpacing;
+            CreateTrackEdgeObject(source, edgeRoot, distance, -1, index);
+            CreateTrackEdgeObject(source, edgeRoot, distance, 1, index);
+        }
+    }
+
+    private void CreateTrackEdgeObject(
+        GameObject source,
+        Transform parent,
+        float routeDistance,
+        int side,
+        int index)
+    {
+        float signedLateralDistance = side *
+                                      (ActiveRoadHalfWidth + activeAuthoring.TrackEdgeOutsideOffset);
+        SampleTrackEdgeSurface(
+            routeDistance,
+            signedLateralDistance,
+            out Vector3 position,
+            out Vector3 surfaceNormal,
+            out Vector3 routeRight);
+
+        float derivativeDistance = Mathf.Min(
+            1f,
+            Mathf.Max(0.1f, activeAuthoring.TrackEdgeObjectSpacing * 0.1f));
+        float beforeDistance = Mathf.Max(0f, routeDistance - derivativeDistance);
+        float afterDistance = Mathf.Min(activeCourseLength, routeDistance + derivativeDistance);
+        SampleTrackEdgeSurface(beforeDistance, signedLateralDistance, out Vector3 before, out _, out _);
+        SampleTrackEdgeSurface(afterDistance, signedLateralDistance, out Vector3 after, out _, out _);
+
+        Vector3 forward = after - before;
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.Cross(routeRight, Vector3.up);
+        forward = Vector3.ProjectOnPlane(forward, surfaceNormal).normalized;
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.back;
+
+        position += surfaceNormal * activeAuthoring.TrackEdgeVerticalOffset;
+        Quaternion rotation = Quaternion.LookRotation(forward, surfaceNormal) *
+                              Quaternion.Euler(activeAuthoring.TrackEdgeRotationOffset) *
+                              source.transform.localRotation;
+
+        GameObject instance = Instantiate(source, parent, false);
+        instance.name = $"{(side < 0 ? "Left" : "Right")} Edge {index:0000}";
+        instance.transform.SetLocalPositionAndRotation(position, rotation);
+        instance.transform.localScale = source.transform.localScale *
+                                        activeAuthoring.TrackEdgeScaleMultiplier;
+    }
+
+    private void SampleTrackEdgeSurface(
+        float routeDistance,
+        float signedLateralDistance,
+        out Vector3 position,
+        out Vector3 normal,
+        out Vector3 routeRight)
+    {
+        EvaluateRouteFrame(routeDistance, out Vector3 center, out routeRight);
+        position = center + routeRight * signedLateralDistance;
+        normal = Vector3.up;
+
+        if (activeTerrainVisual != null)
+        {
+            if (TrySampleActiveTerrain(position, out Vector3 sampledPosition, out Vector3 sampledNormal))
+            {
+                position = sampledPosition;
+                normal = sampledNormal.y >= 0f ? sampledNormal : -sampledNormal;
+            }
+            return;
+        }
+
+        position.y = TerrainHeight(routeDistance, signedLateralDistance, center.y);
+
+        const float normalSampleDistance = 0.5f;
+        float beforeDistance = Mathf.Max(0f, routeDistance - normalSampleDistance);
+        float afterDistance = Mathf.Min(activeCourseLength, routeDistance + normalSampleDistance);
+        EvaluateRouteFrame(beforeDistance, out Vector3 beforeCenter, out Vector3 beforeRight);
+        EvaluateRouteFrame(afterDistance, out Vector3 afterCenter, out Vector3 afterRight);
+        Vector3 before = beforeCenter + beforeRight * signedLateralDistance;
+        Vector3 after = afterCenter + afterRight * signedLateralDistance;
+        before.y = TerrainHeight(beforeDistance, signedLateralDistance, beforeCenter.y);
+        after.y = TerrainHeight(afterDistance, signedLateralDistance, afterCenter.y);
+
+        Vector3 lateralBefore = center + routeRight * (signedLateralDistance - normalSampleDistance);
+        Vector3 lateralAfter = center + routeRight * (signedLateralDistance + normalSampleDistance);
+        lateralBefore.y = TerrainHeight(
+            routeDistance,
+            signedLateralDistance - normalSampleDistance,
+            center.y);
+        lateralAfter.y = TerrainHeight(
+            routeDistance,
+            signedLateralDistance + normalSampleDistance,
+            center.y);
+
+        Vector3 calculatedNormal = Vector3.Cross(after - before, lateralAfter - lateralBefore).normalized;
+        if (calculatedNormal.sqrMagnitude > 0.0001f)
+            normal = calculatedNormal.y >= 0f ? calculatedNormal : -calculatedNormal;
     }
 
     private void ApplyCustomCoursePresentation()

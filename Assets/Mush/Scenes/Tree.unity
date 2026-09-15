@@ -38785,10 +38785,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1050473556}
     m_Modifications:
-    - target: {fileID: 1794923090986031107, guid: 9c305a011d3fe744f9c26893fedefaa9, type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 1257738056451418062, guid: 9c305a011d3fe744f9c26893fedefaa9, type: 3}
       propertyPath: m_RaycastTarget
       value: 0
@@ -38796,6 +38792,10 @@ PrefabInstance:
     - target: {fileID: 1794923090986031107, guid: 9c305a011d3fe744f9c26893fedefaa9, type: 3}
       propertyPath: m_Name
       value: Mush Progress HUD
+      objectReference: {fileID: 0}
+    - target: {fileID: 1794923090986031107, guid: 9c305a011d3fe744f9c26893fedefaa9, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2031804631866388326, guid: 9c305a011d3fe744f9c26893fedefaa9, type: 3}
       propertyPath: m_AnchoredPosition.y
@@ -39116,12 +39116,12 @@ PrefabInstance:
     m_TransformParent: {fileID: 1822423840}
     m_Modifications:
     - target: {fileID: 2375908429525831019, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2375908429525831019, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
       propertyPath: m_Name
       value: Mush Track HUD
+      objectReference: {fileID: 0}
+    - target: {fileID: 2375908429525831019, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3740751146801880013, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
       propertyPath: m_Pivot.x
@@ -39250,65 +39250,13 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 2375908429525831019, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 736588601}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
 --- !u!224 &736588596 stripped
 RectTransform:
-  m_CorrespondingSourceObject: {fileID: 3740751146801880013, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
+  m_CorrespondingSourceObject: {fileID: 7012121370362190593, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
   m_PrefabInstance: {fileID: 736588595}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &736588597 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 5248507709345873984, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
-  m_PrefabInstance: {fileID: 736588595}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
---- !u!224 &736588598 stripped
-RectTransform:
-  m_CorrespondingSourceObject: {fileID: 876493621942288551, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
-  m_PrefabInstance: {fileID: 736588595}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &736588599 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8033454334107375316, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
-  m_PrefabInstance: {fileID: 736588595}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &736588600 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 2375908429525831019, guid: fa375e5b7cfc1c942a7d1d960dfb9a9e, type: 3}
-  m_PrefabInstance: {fileID: 736588595}
-  m_PrefabAsset: {fileID: 0}
---- !u!223 &736588601
-Canvas:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 736588600}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_RenderMode: 2
-  m_Camera: {fileID: 0}
-  m_PlaneDistance: 100
-  m_PixelPerfect: 0
-  m_ReceivesEvents: 1
-  m_OverrideSorting: 0
-  m_OverridePixelPerfect: 0
-  m_SortingBucketNormalizedSize: 0
-  m_VertexColorAlwaysGammaSpace: 0
-  m_AdditionalShaderChannelsFlag: 0
-  m_UpdateRectTransformForStandalone: 0
-  m_SortingLayerID: 0
-  m_SortingOrder: 0
-  m_TargetDisplay: 0
 --- !u!1 &736870648
 GameObject:
   m_ObjectHideFlags: 0
@@ -69277,6 +69225,7 @@ MonoBehaviour:
   sharpCurveMaximumTurnRate: 48
   sharpCurveBoostTurnRateMultiplier: 0.42
   dogEffectSpeedChange: 5
+  buffSteeringResponseMultiplier: 1.2
   penaltyAccelerationMultiplier: 0.8
   groundProbeHeight: 2.5
   groundProbeDistance: 6
@@ -95653,14 +95602,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MushRideHud
   ride: {fileID: 2135000003}
-  timerSource: {fileID: 795021205}
-  timer: {fileID: 736588597}
+  timer: {fileID: 0}
   progress: {fileID: 736096476}
+  staminaFill: {fileID: 0}
   progressIcon: {fileID: 736096475}
   progressRoot: {fileID: 736096477}
-  trackRoot: {fileID: 736588600}
-  standingDog: {fileID: 736588599}
-  runningDog: {fileID: 736588598}
+  trackRoot: {fileID: 0}
+  standingDog: {fileID: 0}
+  runningDog: {fileID: 0}
 --- !u!1 &1827488750
 GameObject:
   m_ObjectHideFlags: 0
@@ -110632,6 +110581,13 @@ MonoBehaviour:
   - {x: 127.878876, y: 1.7183688, z: -768.70465}
   - {x: 83.028824, y: -0.6958278, z: -926.4431}
   generateProceduralEnvironment: 1
+  trackEdgeObjectPrefab: {fileID: 0}
+  generateTrackEdgeObjects: 0
+  trackEdgeObjectSpacing: 6
+  trackEdgeOutsideOffset: 0.25
+  trackEdgeVerticalOffset: 0
+  trackEdgeRotationOffset: {x: 0, y: 0, z: 0}
+  trackEdgeScaleMultiplier: 1
 --- !u!1 &2138229801
 GameObject:
   m_ObjectHideFlags: 0
@@ -111448,15 +111404,6 @@ Transform:
   - {fileID: 204818322}
   m_Father: {fileID: 1452090077}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1660057539 &9223372036854775807
-SceneRoots:
-  m_ObjectHideFlags: 0
-  m_Roots:
-  - {fileID: 1880128754}
-  - {fileID: 1900283780}
-  - {fileID: 2135000002}
-  - {fileID: 2140000002}
-  - {fileID: 88000000000002}
 --- !u!1 &88000000000001
 GameObject:
   m_ObjectHideFlags: 0
@@ -111465,13 +111412,13 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 88000000000002}
   - component: {fileID: 88000000000247}
   - component: {fileID: 88000000000053}
   - component: {fileID: 88000000000006}
   - component: {fileID: 88000000000005}
   - component: {fileID: 88000000000004}
   - component: {fileID: 88000000000003}
-  - component: {fileID: 88000000000002}
   m_Layer: 5
   m_Name: Mush Scene UI
   m_TagString: Untagged
@@ -111488,7 +111435,7 @@ RectTransform:
   m_GameObject: {fileID: 88000000000001}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 88000000000008}
@@ -111498,11 +111445,11 @@ RectTransform:
   - {fileID: 88000000000244}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 1920, y: 1080}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0, y: 0}
 --- !u!223 &88000000000003
 Canvas:
   m_ObjectHideFlags: 0
@@ -111588,9 +111535,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 88000000000008}
   - component: {fileID: 88000000000010}
   - component: {fileID: 88000000000009}
-  - component: {fileID: 88000000000008}
   m_Layer: 5
   m_Name: EventSystem
   m_TagString: Untagged
@@ -111648,6 +111595,17 @@ MonoBehaviour:
   m_MoveRepeatDelay: 0.5
   m_MoveRepeatRate: 0.1
   m_XRTrackingOrigin: {fileID: 0}
+  m_ActionsAsset: {fileID: 0}
+  m_PointAction: {fileID: 0}
+  m_MoveAction: {fileID: 0}
+  m_SubmitAction: {fileID: 0}
+  m_CancelAction: {fileID: 0}
+  m_LeftClickAction: {fileID: 0}
+  m_MiddleClickAction: {fileID: 0}
+  m_RightClickAction: {fileID: 0}
+  m_ScrollWheelAction: {fileID: 0}
+  m_TrackedDevicePositionAction: {fileID: 0}
+  m_TrackedDeviceOrientationAction: {fileID: 0}
   m_DeselectOnBackgroundClick: 1
   m_PointerBehavior: 0
   m_CursorLockBehavior: 0
@@ -111980,7 +111938,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "02:00"
+  m_text: 02:00
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 11a43c8a281d98a488e0013075203c16, type: 2}
   m_sharedMaterial: {fileID: 6244877723564527639, guid: 11a43c8a281d98a488e0013075203c16, type: 2}
@@ -112213,8 +112171,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 88000000000248}
   - component: {fileID: 88000000000038}
+  - component: {fileID: 88000000000248}
   m_Layer: 5
   m_Name: TrackUI
   m_TagString: Untagged
@@ -112230,7 +112188,7 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 88000000000037}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.95, z: -0.63}
+  m_LocalPosition: {x: 0, y: 0, z: -0.63}
   m_LocalScale: {x: 0.002, y: 0.002, z: 0.002}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -112522,8 +112480,8 @@ MonoBehaviour:
   progress: {fileID: 88000000000042}
   staminaFill: {fileID: 88000000000036}
   progressIcon: {fileID: 88000000000050}
-  trackRoot: {fileID: 88000000000037}
   progressRoot: {fileID: 88000000000043}
+  trackRoot: {fileID: 88000000000037}
   standingDog: {fileID: 88000000000011}
   runningDog: {fileID: 88000000000016}
 --- !u!1 &88000000000058
@@ -112572,9 +112530,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 88000000000061}
   - component: {fileID: 88000000000063}
   - component: {fileID: 88000000000062}
-  - component: {fileID: 88000000000061}
   m_Layer: 5
   m_Name: Modal Background
   m_TagString: Untagged
@@ -114187,9 +114145,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 88000000000124}
   - component: {fileID: 88000000000126}
   - component: {fileID: 88000000000125}
-  - component: {fileID: 88000000000124}
   m_Layer: 5
   m_Name: Modal Background
   m_TagString: Untagged
@@ -115040,8 +114998,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 88000000000242}
   - component: {fileID: 88000000000156}
+  - component: {fileID: 88000000000242}
   - component: {fileID: 88000000000157}
   - component: {fileID: 88000000000158}
   m_Layer: 5
@@ -117028,9 +116986,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 88000000000244}
   - component: {fileID: 88000000000246}
   - component: {fileID: 88000000000245}
-  - component: {fileID: 88000000000244}
   m_Layer: 5
   m_Name: Save Status
   m_TagString: Untagged
@@ -117085,7 +117043,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: ""
+  m_text: 
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 11a43c8a281d98a488e0013075203c16, type: 2}
   m_sharedMaterial: {fileID: 6244877723564527639, guid: 11a43c8a281d98a488e0013075203c16, type: 2}
@@ -117170,16 +117128,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MushSceneUI
   ride: {fileID: 2135000003}
-  lobby: {fileID: 0}
+  titlePanel: {fileID: 0}
   pausePanel: {fileID: 88000000000058}
   optionPanel: {fileID: 88000000000121}
-  master: {fileID: 88000000000202}
-  masterCount: {fileID: 88000000000199}
-  music: {fileID: 88000000000144}
-  musicCount: {fileID: 88000000000154}
-  effects: {fileID: 88000000000129}
-  effectsCount: {fileID: 88000000000148}
   message: {fileID: 88000000000246}
+  master: {fileID: 88000000000202}
+  music: {fileID: 88000000000144}
+  effects: {fileID: 88000000000129}
+  masterCount: {fileID: 88000000000199}
+  musicCount: {fileID: 88000000000154}
+  effectsCount: {fileID: 88000000000148}
 --- !u!223 &88000000000248
 Canvas:
   m_ObjectHideFlags: 0
@@ -117268,7 +117226,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "코스 복귀 (Z)"
+  m_text: "\uCF54\uC2A4 \uBCF5\uADC0 (Z)"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 11a43c8a281d98a488e0013075203c16, type: 2}
   m_sharedMaterial: {fileID: 6244877723564527639, guid: 11a43c8a281d98a488e0013075203c16, type: 2}
@@ -117575,8 +117533,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 88000000000267}
   - component: {fileID: 88000000000266}
+  - component: {fileID: 88000000000267}
   m_Layer: 5
   m_Name: Button_Recover
   m_TagString: Untagged
@@ -117657,9 +117615,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 88000000000269}
   - component: {fileID: 88000000000271}
   - component: {fileID: 88000000000270}
-  - component: {fileID: 88000000000269}
   m_Layer: 5
   m_Name: Pause Controls
   m_TagString: Untagged
@@ -117714,7 +117672,12 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "SPACE 출발 · W 가속 · A / D 조향\nESC 일시정지 / 재개\nZ 코스 복귀 (아래 코스 복귀 버튼으로도 가능)\nQuest: B 일시정지 · 체력 0: 속도·가속력 감소\nN Pos 재보정: 일시정지 중 그립을 놓았다가 양손 그립 1초"
+  m_text: "SPACE \uCD9C\uBC1C \xB7 W \uAC00\uC18D \xB7 A / D \uC870\uD5A5\nESC \uC77C\uC2DC\uC815\uC9C0
+    / \uC7AC\uAC1C\nZ \uCF54\uC2A4 \uBCF5\uADC0 (\uC544\uB798 \uCF54\uC2A4 \uBCF5\uADC0
+    \uBC84\uD2BC\uC73C\uB85C\uB3C4 \uAC00\uB2A5)\nQuest: B \uC77C\uC2DC\uC815\uC9C0
+    \xB7 \uCCB4\uB825 0: \uC18D\uB3C4\xB7\uAC00\uC18D\uB825 \uAC10\uC18C\nN Pos \uC7AC\uBCF4\uC815:
+    \uC77C\uC2DC\uC815\uC9C0 \uC911 \uADF8\uB9BD\uC744 \uB193\uC558\uB2E4\uAC00 \uC591\uC190
+    \uADF8\uB9BD 1\uCD08"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 11a43c8a281d98a488e0013075203c16, type: 2}
   m_sharedMaterial: {fileID: 6244877723564527639, guid: 11a43c8a281d98a488e0013075203c16, type: 2}
@@ -117786,3 +117749,12 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!1660057539 &9223372036854775807
+SceneRoots:
+  m_ObjectHideFlags: 0
+  m_Roots:
+  - {fileID: 1880128754}
+  - {fileID: 1900283780}
+  - {fileID: 2135000002}
+  - {fileID: 2140000002}
+  - {fileID: 88000000000002}
