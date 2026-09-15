@@ -18,6 +18,7 @@ public static class BuildSnowfieldTrack980
     private const string ScenePath = "Assets/Art_Track_Test/Track_MadeTest.unity";
     private const string LocalBakePath = "Assets/Art_Track_Test/Model/Track_MadeTest_LocalBaked.asset";
     private const string ReportPath = "Assets/Art_Track_Test/Track_980m_Setup_Report.txt";
+    private const float TerrainHalfWidth = 99f;
 
     // Centripetal Catmull-Rom length at 4 m sampling: approximately 979.1 m.
     // The restrained lateral offsets and elevation changes create readable,
@@ -106,7 +107,7 @@ public static class BuildSnowfieldTrack980
         serialized.FindProperty("sampleSpacing").floatValue = 4f;
         serialized.FindProperty("overrideTrackWidths").boolValue = true;
         serialized.FindProperty("roadHalfWidth").floatValue = 6.5f;
-        serialized.FindProperty("terrainHalfWidth").floatValue = 55f;
+        serialized.FindProperty("terrainHalfWidth").floatValue = TerrainHalfWidth;
         serialized.FindProperty("useEditableTerrain").boolValue = false;
         serialized.FindProperty("generateProceduralEnvironment").boolValue = false;
 
@@ -117,7 +118,7 @@ public static class BuildSnowfieldTrack980
 
         // Keep a useful editable envelope serialized for later art iteration,
         // while the production terrain uses the denser non-folding grid.
-        Vector3[] terrainEnvelope = BuildTerrainEnvelope(RouteControlPoints, 55f);
+        Vector3[] terrainEnvelope = BuildTerrainEnvelope(RouteControlPoints, TerrainHalfWidth);
         SerializedProperty terrainPoints = serialized.FindProperty("terrainControlPoints");
         terrainPoints.arraySize = terrainEnvelope.Length;
         for (int index = 0; index < terrainEnvelope.Length; index++)
@@ -356,7 +357,7 @@ public static class BuildSnowfieldTrack980
             $"Control points: {RouteControlPoints.Length}\n" +
             $"Uniform route samples: {sampleCount} at {sampleSpacing:0.000} m\n" +
             "Road width: 13.0 m\n" +
-            "Terrain corridor width: 110.0 m\n" +
+            $"Terrain corridor width: {TerrainHalfWidth * 2f:0.0} m\n" +
             "Route style: broad snowfield S-curves with gentle rolling elevation\n" +
             "Track module: Track_SnowRoad_CleanGrid (existing scene module)\n" +
             "Props/scenery generation: disabled\n" +

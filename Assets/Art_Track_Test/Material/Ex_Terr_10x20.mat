@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: SM_Track_Ground
+  m_Name: Ex_Terr_10x20
   m_Shader: {fileID: 4800000, guid: 20093febacf14e8dbac1c1d203d1ac52, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -31,7 +31,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _BaseMap:
         m_Texture: {fileID: 2800000, guid: f0a3078e347973244a9bfa774c731a8a, type: 3}
-        m_Scale: {x: 1, y: 1}
+        m_Scale: {x: 10, y: 20}
         m_Offset: {x: 0, y: 0}
     - _CurvatureMap:
         m_Texture: {fileID: 2800000, guid: 938e228b102f5d74982e6c6eca944226, type: 3}
@@ -57,22 +57,22 @@ Material:
     m_Floats:
     - _AOMapStrength: 1
     - _BaseMapStrength: 1
-    - _CurvatureContrast: 0.75
-    - _CurvatureStrength: 0.25
+    - _CurvatureContrast: 1.15
+    - _CurvatureStrength: 1
     - _EmissionStrength: 0
     - _FacetCenter: 0.5
     - _FacetContrast: 1.35
     - _FacetStrength: 0.35
     - _Metallic: 0
     - _MetallicMapStrength: 1
-    - _NormalStrength: 2
+    - _NormalStrength: 1
     - _RimLightInfluence: 0.5
     - _RimPower: 4
     - _RimStrength: 0.025
     - _ShadowSoftness: 0.2
     - _ShadowStrength: 0.18
     - _ShadowThreshold: 0.5
-    - _Smoothness: 0
+    - _Smoothness: 0.25
     - _SmoothnessMapStrength: 1
     - _UseAOMap: 0
     - _UseCurvatureMap: 1

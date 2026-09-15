@@ -1654,6 +1654,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     {
         Vector2 query = new(x, z);
         float bestDistanceSqr = float.PositiveInfinity;
+        int bestSegment = -1;
         TerrainRouteSample best = new(
             routePoints[0].y,
             0f,
@@ -1678,6 +1679,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
                 continue;
 
             bestDistanceSqr = distanceSqr;
+            bestSegment = segment;
             Vector2 right = new(segmentXZ.y, -segmentXZ.x);
             right.Normalize();
             best = new TerrainRouteSample(
@@ -1685,6 +1687,65 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
                 (segment + t) * activeSampleSpacing,
                 Vector2.Dot(centerToQuery, right),
                 Mathf.Sqrt(distanceSqr));
+        }
+
+        // On the broad side of a large S-curve, a point can be almost equally
+        // close to two route branches that are tens of metres apart along the
+        // course. Picking only the closest branch creates a Voronoi seam: the
+        // sampled route height jumps as soon as the winner changes. Blend the
+        // two independent branches near that hand-off while retaining the true
+        // nearest distance for terrain clipping.
+        int independentBranchGap = Mathf.Max(
+            3,
+            Mathf.CeilToInt(64f / Mathf.Max(1f, activeSampleSpacing)));
+        float secondaryDistanceSqr = float.PositiveInfinity;
+        TerrainRouteSample secondary = default;
+        for (int segment = 0; segment < routePoints.Count - 1; segment++)
+        {
+            if (Mathf.Abs(segment - bestSegment) <= independentBranchGap)
+                continue;
+
+            Vector3 start = routePoints[segment];
+            Vector3 end = routePoints[segment + 1];
+            Vector2 startXZ = new(start.x, start.z);
+            Vector2 segmentXZ = new(end.x - start.x, end.z - start.z);
+            float segmentLengthSqr = segmentXZ.sqrMagnitude;
+            if (segmentLengthSqr <= 0.0001f)
+                continue;
+
+            float t = Mathf.Clamp01(Vector2.Dot(query - startXZ, segmentXZ) / segmentLengthSqr);
+            Vector2 centerXZ = startXZ + segmentXZ * t;
+            Vector2 centerToQuery = query - centerXZ;
+            float distanceSqr = centerToQuery.sqrMagnitude;
+            if (distanceSqr >= secondaryDistanceSqr)
+                continue;
+
+            secondaryDistanceSqr = distanceSqr;
+            Vector2 right = new(segmentXZ.y, -segmentXZ.x);
+            right.Normalize();
+            secondary = new TerrainRouteSample(
+                Mathf.Lerp(start.y, end.y, t),
+                (segment + t) * activeSampleSpacing,
+                Vector2.Dot(centerToQuery, right),
+                Mathf.Sqrt(distanceSqr));
+        }
+
+        const float branchBlendDistance = 18f;
+        if (secondaryDistanceSqr < float.PositiveInfinity)
+        {
+            float distanceDifference = Mathf.Sqrt(secondaryDistanceSqr) - Mathf.Sqrt(bestDistanceSqr);
+            if (distanceDifference < branchBlendDistance)
+            {
+                float nearestWeight = 0.5f + 0.5f * Mathf.SmoothStep(
+                    0f,
+                    1f,
+                    Mathf.Clamp01(distanceDifference / branchBlendDistance));
+                best = new TerrainRouteSample(
+                    Mathf.Lerp(secondary.CenterHeight, best.CenterHeight, nearestWeight),
+                    Mathf.Lerp(secondary.DistanceAlongRoute, best.DistanceAlongRoute, nearestWeight),
+                    best.SignedLateralDistance,
+                    best.DistanceFromRoute);
+            }
         }
 
         return best;
@@ -1755,11 +1816,21 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private float TerrainHeight(float distance, float lateral, float routeHeight)
     {
-        float outsideRoad = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(ActiveRoadHalfWidth + 1.5f, 42f, Mathf.Abs(lateral)));
-        float rolling = Mathf.Sin(distance * 0.019f + lateral * 0.043f) * 1.4f +
-                        Mathf.Sin(distance * 0.007f - lateral * 0.085f) * 0.75f;
+        // A wide S-curve can classify two neighbouring vertices against route
+        // segments whose local "right" vectors point to opposite sides.  Using
+        // signed lateral distance in the terrain phase then creates a visible
+        // height seam on the concave side of the course.  Radial distance is
+        // continuous across that nearest-segment hand-off, so use it for every
+        // symmetric terrain term.
+        float distanceFromRoute = Mathf.Abs(lateral);
+        float outsideRoad = Mathf.SmoothStep(
+            0f,
+            1f,
+            Mathf.InverseLerp(ActiveRoadHalfWidth + 1.5f, 42f, distanceFromRoute));
+        float rolling = Mathf.Sin(distance * 0.019f + distanceFromRoute * 0.043f) * 1.4f +
+                        Mathf.Sin(distance * 0.007f - distanceFromRoute * 0.085f) * 0.75f;
         float distantRise = Mathf.Pow(
-            Mathf.InverseLerp(24f, ActiveTerrainHalfWidth, Mathf.Abs(lateral)),
+            Mathf.InverseLerp(24f, ActiveTerrainHalfWidth, distanceFromRoute),
             1.35f) * (isSharpCurve ? 15f : 8.5f);
         return routeHeight - 0.18f + outsideRoad * (0.55f + rolling + distantRise);
     }
