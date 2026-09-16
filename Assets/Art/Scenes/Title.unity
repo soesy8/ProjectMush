@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: cb5bf5de524d6894c93611f2c9ae5c2c, type: 2}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 25ee22badc5782c4eb6dde3c6eb37623, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -179,6 +179,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3326564599887570666, guid: 921845f9efbba424db869960b843f529, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: cebc0f9cba624ea44ad8018ab60a8a57, type: 2}
     - target: {fileID: 5101989935999640198, guid: 921845f9efbba424db869960b843f529, type: 3}
       propertyPath: m_Name
       value: Track_Mountain02
@@ -501,6 +505,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3326564599887570666, guid: 921845f9efbba424db869960b843f529, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: cebc0f9cba624ea44ad8018ab60a8a57, type: 2}
     - target: {fileID: 5101989935999640198, guid: 921845f9efbba424db869960b843f529, type: 3}
       propertyPath: m_Name
       value: Track_Mountain02 (1)
@@ -594,11 +602,13 @@ Material:
   - _FLIPBOOKBLENDING_OFF
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
+  m_DoubleSidedGI: 1
   m_CustomRenderQueue: 3000
   stringTagMap:
     RenderType: Transparent
-  disabledShaderPasses: []
+  disabledShaderPasses:
+  - DepthOnly
+  - SHADOWCASTER
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
@@ -632,7 +642,7 @@ Material:
     - _DistortionStrength: 1
     - _DistortionStrengthScaled: 0.1
     - _DstBlend: 10
-    - _DstBlendAlpha: 0
+    - _DstBlendAlpha: 10
     - _FlipbookBlending: 0
     - _FlipbookMode: 0
     - _Mode: 0
@@ -647,7 +657,7 @@ Material:
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _BaseColorAddSubDiff: {r: 0, g: 0, b: 0, a: 0}
-    - _CameraFadeParams: {r: 0, g: 0, b: 0, a: 0}
+    - _CameraFadeParams: {r: 0, g: Infinity, b: 0, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SoftParticleFadeParams: {r: 0, g: 0, b: 0, a: 0}
@@ -1633,7 +1643,7 @@ Transform:
   m_GameObject: {fileID: 1134802709}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0.23, y: 5.2, z: -1.1}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1802,8 +1812,8 @@ ParticleSystem:
     startLifetime:
       serializedVersion: 2
       minMaxState: 3
-      scalar: 6
-      minScalar: 4
+      scalar: 21
+      minScalar: 17
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -1973,8 +1983,8 @@ ParticleSystem:
     startSize:
       serializedVersion: 2
       minMaxState: 3
-      scalar: 0.075
-      minScalar: 0.035
+      scalar: 0.25
+      minScalar: 0.15
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -2025,7 +2035,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeY:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -2078,7 +2088,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeZ:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -2131,7 +2141,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startRotationX:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 0
       minScalar: 0
       maxCurve:
@@ -2184,7 +2194,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startRotationY:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 0
       minScalar: 0
       maxCurve:
@@ -2290,7 +2300,7 @@ ParticleSystem:
         m_RotationOrder: 4
     randomizeRotationDirection: 0
     gravitySource: 0
-    maxNumParticles: 120
+    maxNumParticles: 200
     customEmitterVelocity: {x: 0, y: 0, z: 0}
     size3D: 0
     rotation3D: 0
@@ -2358,7 +2368,7 @@ ParticleSystem:
     donutRadius: 0.2
     m_Position: {x: 0, y: 0, z: 0}
     m_Rotation: {x: 0, y: 0, z: 0}
-    m_Scale: {x: 16, y: 5, z: 5}
+    m_Scale: {x: 27.16, y: 5, z: 10.7}
     placementMode: 0
     m_MeshMaterialIndex: 0
     m_MeshNormalOffset: 0
@@ -2556,7 +2566,7 @@ ParticleSystem:
     rateOverTime:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 18
+      scalar: 7
       minScalar: 10
       maxCurve:
         serializedVersion: 2
@@ -7054,8 +7064,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1582297311}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.042078055, y: 0.9016891, z: -0.08547568, w: 0.42175835}
-  m_LocalPosition: {x: -17.384272, y: 4.1972723, z: 9.038435}
+  m_LocalRotation: {x: -0.027519261, y: 0.9160541, z: 0.06875525, w: 0.39415765}
+  m_LocalPosition: {x: -17.82549, y: 2.4159741, z: 9.379472}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7070,20 +7080,24 @@ PrefabInstance:
     m_TransformParent: {fileID: 1920603930}
     m_Modifications:
     - target: {fileID: 8101247736827445983, guid: 63c9238f87838b3419f51253cd02db00, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 8101247736827445983, guid: 63c9238f87838b3419f51253cd02db00, type: 3}
       propertyPath: m_LocalScale.y
-      value: 1.5
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 8101247736827445983, guid: 63c9238f87838b3419f51253cd02db00, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 218.0369
+      value: 38.3
       objectReference: {fileID: 0}
     - target: {fileID: 8101247736827445983, guid: 63c9238f87838b3419f51253cd02db00, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -17.400002
+      value: 18.3
       objectReference: {fileID: 0}
     - target: {fileID: 8101247736827445983, guid: 63c9238f87838b3419f51253cd02db00, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -36.384872
+      value: -495
       objectReference: {fileID: 0}
     - target: {fileID: 8101247736827445983, guid: 63c9238f87838b3419f51253cd02db00, type: 3}
       propertyPath: m_LocalRotation.w
@@ -7117,6 +7131,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Track_Mountain01 (3)
       objectReference: {fileID: 0}
+    - target: {fileID: 8467810002863116096, guid: 63c9238f87838b3419f51253cd02db00, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: cebc0f9cba624ea44ad8018ab60a8a57, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -7880,6 +7898,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Track_Mountain01 (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 8467810002863116096, guid: 63c9238f87838b3419f51253cd02db00, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: cebc0f9cba624ea44ad8018ab60a8a57, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
