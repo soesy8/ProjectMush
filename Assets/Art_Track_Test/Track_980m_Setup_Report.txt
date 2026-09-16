@@ -12,6 +12,6 @@ Props/scenery generation: disabled
 Generated meshes: 5
 Generated mesh colliders: 2
 Road bounds: (121.5, 20.2, 910.0)
-Terrain bounds: (318.5, 31.0, 1117.0)
+Terrain bounds: (318.5, 31.2, 1117.0)
 Baked asset: Assets/Art_Track_Test/Model/Track_MadeTest_LocalBaked.asset
 All generated mesh assets are stored under Assets/Art_Track_Test.
