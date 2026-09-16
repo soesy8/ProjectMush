@@ -13,8 +13,8 @@ public static class MushMapRuntimeValidator
         try
         {
             Directory.CreateDirectory(Path.Combine(Directory.GetParent(Application.dataPath)!.FullName, "Logs"));
-            ValidateScene("Assets/Scenes/snow.unity", true);
-            ValidateScene("Assets/Scenes/Tree.unity", false);
+            ValidateScene("Assets/Mush/Scenes/snow.unity", true);
+            ValidateScene("Assets/Mush/Scenes/Tree.unity", false);
             Debug.Log("[Mush Map Validation] PASS: both rebuilt maps rendered successfully.");
             EditorApplication.Exit(0);
         }
@@ -237,7 +237,7 @@ public static class MushPlayModeRuntimeValidator
         SessionState.SetString(ErrorKey, string.Empty);
         SessionState.SetInt(StageKey, 1);
         Subscribe();
-        EditorSceneManager.OpenScene("Assets/Scenes/snow.unity", OpenSceneMode.Single);
+        EditorSceneManager.OpenScene("Assets/Mush/Scenes/snow.unity", OpenSceneMode.Single);
         EditorApplication.isPlaying = true;
     }
 
@@ -265,7 +265,7 @@ public static class MushPlayModeRuntimeValidator
         {
             try
             {
-                EditorSceneManager.OpenScene("Assets/Scenes/Tree.unity", OpenSceneMode.Single);
+                EditorSceneManager.OpenScene("Assets/Mush/Scenes/Tree.unity", OpenSceneMode.Single);
                 SessionState.SetInt(StageKey, 3);
                 EditorApplication.isPlaying = true;
             }

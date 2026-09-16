@@ -29,7 +29,7 @@ public static class MushLobbyFlowValidator
         waitFrames = 0;
         mapPanelOpened = false;
         Subscribe();
-        EditorSceneManager.OpenScene("Assets/Scenes/MushLobby.unity", OpenSceneMode.Single);
+        EditorSceneManager.OpenScene("Assets/Mush/Scenes/MushLobby.unity", OpenSceneMode.Single);
         EditorApplication.isPlaying = true;
     }
 
