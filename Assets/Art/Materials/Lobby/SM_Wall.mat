@@ -51,7 +51,7 @@ Material:
     - _ShadowSoftness: 0.2
     - _ShadowStrength: 0.18
     - _ShadowThreshold: 0.5
-    - _Smoothness: 0.1
+    - _Smoothness: 0.05
     - _UseEmissionMap: 0
     - _UseNormalMap: 1
     m_Colors:

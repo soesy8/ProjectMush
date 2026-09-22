@@ -7,12 +7,11 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: SM_Roof
-  m_Shader: {fileID: 4800000, guid: 41f084b047394e07a04cbe27c20867a0, type: 3}
+  m_Name: Project Mush_AI Review_Test_HLSL_Mush
+  m_Shader: {fileID: 4800000, guid: 20093febacf14e8dbac1c1d203d1ac52, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords:
-  - _NORMAL_MAP
+  m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -24,26 +23,46 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _AOMap:
+        m_Texture: {fileID: 2800000, guid: ca9df587b0e004d4dbee4687d732207c, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 8bf0f915df9e489e8fe22e6389628ae0, type: 3}
+        m_Texture: {fileID: 2800000, guid: 83e5a89ca8b91bf45947e44934f66585, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _CurvatureMap:
+        m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _MetallicMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _NormalMap:
-        m_Texture: {fileID: 2800000, guid: 8a8a1a180a294ceab303b864ab4830bc, type: 3}
+        m_Texture: {fileID: 2800000, guid: 77604d9daf7bb4b46a2fe41b3000509f, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SmoothnessMap:
+        m_Texture: {fileID: 2800000, guid: 82b661b6e11d49842a3005b4ebfe89ed, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _AOMapStrength: 0
     - _BaseMapStrength: 1
+    - _CurvatureContrast: 1
+    - _CurvatureStrength: 0.25
     - _EmissionStrength: 0
     - _FacetCenter: 0.5
     - _FacetContrast: 1.35
     - _FacetStrength: 0.35
     - _Metallic: 0
+    - _MetallicMapStrength: 1
     - _NormalStrength: 0.45
     - _RimLightInfluence: 0.5
     - _RimPower: 4
@@ -51,9 +70,14 @@ Material:
     - _ShadowSoftness: 0.2
     - _ShadowStrength: 0.18
     - _ShadowThreshold: 0.5
-    - _Smoothness: 0.05
+    - _Smoothness: 0
+    - _SmoothnessMapStrength: 0
+    - _UseAOMap: 0
+    - _UseCurvatureMap: 0
     - _UseEmissionMap: 0
-    - _UseNormalMap: 1
+    - _UseMetallicMap: 0
+    - _UseNormalMap: 0
+    - _UseSmoothnessMap: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 1, g: 0.45, b: 0.08, a: 1}
