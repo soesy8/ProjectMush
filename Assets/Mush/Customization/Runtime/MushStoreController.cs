@@ -45,9 +45,17 @@ namespace Mush.Customization
         private static readonly Color ButtonColor = new(0.16f, 0.23f, 0.31f, 0.96f);
         private static readonly Color SelectedColor = new(0.82f, 0.40f, 0.08f, 0.98f);
         private static readonly Color AcquiredColor = new(0.16f, 0.48f, 0.30f, 0.98f);
+        private static bool openOnCustomizationPage;
+
+        public static void RequestCustomizationPage() => openOnCustomizationPage = true;
 
         private void Awake()
         {
+            if (openOnCustomizationPage)
+            {
+                mainPage = MainPage.Customize;
+                openOnCustomizationPage = false;
+            }
             catalog = MushCustomizationCatalog.Load();
             workingState = MushCustomizationSave.Load().Clone();
             font = catalog != null ? catalog.koreanFont : null;
@@ -214,14 +222,15 @@ namespace Mush.Customization
                 int row = index / 3;
                 Vector2 position = new(column * 280f, -112f - row * 112f);
                 bool owned = workingState.Owns(item.id);
-                string label = item.displayName + (owned ? "\n보유 중" : "\n눌러서 획득");
+                string label = item.displayName + (owned ? "\n보유 중" : $"\n{item.price} 골드");
                 CreateButton(dynamicUi, label, position, new Vector2(260f, 96f),
                     () => AcquireItem(item), owned ? AcquiredColor : ButtonColor);
             }
 
-            statusText.text = string.IsNullOrEmpty(transientStatus)
-                ? $"상점 · {CategoryName(storeCategory)}     보유 물품 {workingState.ownedItems.Count}개"
+            string pageStatus = string.IsNullOrEmpty(transientStatus)
+                ? $"상점 · {CategoryName(storeCategory)} · 보유 물품 {workingState.ownedItems.Count}개"
                 : transientStatus;
+            statusText.text = $"보유 골드 {MushGameSave.Current.gold} · {pageStatus}";
         }
 
         private void BuildCustomizationPage()
@@ -321,11 +330,24 @@ namespace Mush.Customization
         private void AcquireItem(MushCustomizationItemDefinition item)
         {
             storePreviewItem = item.id;
+            if (workingState.Owns(item.id))
+            {
+                transientStatus = item.displayName + "은(는) 이미 보유 중입니다";
+                RefreshPage();
+                return;
+            }
+            if (!MushGameSave.TrySpendGold(item.price))
+            {
+                transientStatus = $"골드가 부족합니다 · 필요 {item.price} / 보유 {MushGameSave.Current.gold}";
+                RefreshPage();
+                return;
+            }
+
             bool acquired = workingState.Acquire(item.id);
             MushCustomizationSave.Save(workingState);
             MushGameSave.Save();
             transientStatus = acquired
-                ? item.displayName + "을(를) 획득했습니다"
+                ? $"{item.displayName} 구매 완료 · {item.price} 골드 사용"
                 : item.displayName + "은(는) 이미 보유 중입니다";
             RefreshPage();
         }
@@ -457,9 +479,12 @@ namespace Mush.Customization
             }
             else
             {
-                GameObject holder = MushCustomizationVisuals.CreateFittedModel(
-                    catalog != null ? catalog.GetPrefab(item.id) : null,
-                    previewRoot, item.displayName + " Preview", 3.0f, new Vector3(0f, -1.15f, 0f), true);
+                GameObject holder = item.id == MushCustomizationIds.FurnitureDogPlay
+                    ? MushCustomizationVisuals.CreateDogPlaySet(previewRoot, item.displayName + " Preview", 3.0f,
+                        new Vector3(0f, -1.15f, 0f), Quaternion.Euler(0f, 25f, 0f))
+                    : MushCustomizationVisuals.CreateFittedModel(
+                        catalog != null ? catalog.GetPrefab(item.id) : null,
+                        previewRoot, item.displayName + " Preview", 3.0f, new Vector3(0f, -1.15f, 0f), true);
                 if (holder != null) holder.transform.localRotation = Quaternion.Euler(0f, 25f, 0f);
             }
         }
@@ -539,10 +564,10 @@ namespace Mush.Customization
         {
             MushCustomizationSave.Save(workingState);
             MushGameSave.EnterLobby();
-            if (Application.CanStreamedLevelBeLoaded("MushLobby"))
-                SceneManager.LoadScene("MushLobby");
+            if (Application.CanStreamedLevelBeLoaded("PM_Lobby"))
+                SceneManager.LoadScene("PM_Lobby");
             else
-                statusText.text = "MushLobby 씬을 찾을 수 없습니다";
+                statusText.text = "PM_Lobby 씬을 찾을 수 없습니다";
         }
 
         private string FirstItemId(MushItemCategory category)

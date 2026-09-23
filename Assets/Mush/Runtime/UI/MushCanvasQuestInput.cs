@@ -10,19 +10,57 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
 {
     [SerializeField] private Canvas canvas;
     [SerializeField] private GraphicRaycaster raycaster;
-    private static MushCanvasQuestInput active;
+    private static readonly List<MushCanvasQuestInput> ActiveCanvases = new();
     private bool titleRigInstalled;
     private readonly List<RaycastResult> hits = new();
     private readonly PointerEventData[] pointers = new PointerEventData[2];
     private readonly GameObject[] hovered = new GameObject[2];
 
-    private void OnEnable() => active = this;
-    private void OnDisable() { if (active == this) active = null; }
+    private void OnEnable()
+    {
+        canvas ??= GetComponent<Canvas>();
+        raycaster ??= GetComponent<GraphicRaycaster>();
+        if (!ActiveCanvases.Contains(this)) ActiveCanvases.Add(this);
+    }
+    private void OnDisable()
+    {
+        ReleasePointer(0);
+        ReleasePointer(1);
+        ActiveCanvases.Remove(this);
+    }
+
+    public static void Release(XRNode hand)
+    {
+        foreach (MushCanvasQuestInput input in ActiveCanvases)
+            if (input != null) input.ReleasePointer(hand == XRNode.LeftHand ? 0 : 1);
+    }
+
+    private void ReleasePointer(int hand)
+    {
+        PointerEventData pointer = pointers[hand];
+        if (pointer == null) return;
+        if (pointer.pointerPress != null) ExecuteEvents.Execute(pointer.pointerPress, pointer, ExecuteEvents.pointerUpHandler);
+        if (pointer.pointerDrag != null) ExecuteEvents.Execute(pointer.pointerDrag, pointer, ExecuteEvents.endDragHandler);
+        if (hovered[hand] != null) ExecuteEvents.ExecuteHierarchy(hovered[hand], pointer, ExecuteEvents.pointerExitHandler);
+        pointer.pointerPress = null;
+        pointer.pointerDrag = null;
+        hovered[hand] = null;
+    }
 
     private void Update()
     {
-        if (titleRigInstalled || gameObject.scene.name != "MushTitle" || canvas == null ||
-            canvas.worldCamera == null || !XRSettings.isDeviceActive) return;
+        if (titleRigInstalled || gameObject.scene.name is not ("MushTitle" or "Title") || canvas == null ||
+            !XRSettings.isDeviceActive) return;
+        if (canvas.worldCamera == null)
+        {
+            Camera titleCamera = Camera.main;
+            if (titleCamera == null)
+                return;
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = titleCamera;
+            canvas.planeDistance = 2f;
+            canvas.sortingOrder = 100;
+        }
         Camera camera = canvas.worldCamera;
         // Ride and lobby already own tracked rigs. Only the new title needs to install one.
         MushQuestTrackedInputRig rig = MushQuestTrackedInputRig.InstallForCamera(camera);
@@ -32,7 +70,21 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
 
     public static bool Handle(XRNode hand, Ray ray, bool pressed, bool held)
     {
-        return active != null && active.Process(hand == XRNode.LeftHand ? 0 : 1, ray, pressed, held);
+        int handIndex = hand == XRNode.LeftHand ? 0 : 1;
+        foreach (MushCanvasQuestInput input in ActiveCanvases)
+        {
+            if (input == null || !input.isActiveAndEnabled) continue;
+            PointerEventData pointer = input.pointers[handIndex];
+            if (pointer != null && (pointer.pointerPress != null || pointer.pointerDrag != null))
+                return input.Process(handIndex, ray, pressed, held);
+        }
+        for (int i = ActiveCanvases.Count - 1; i >= 0; i--)
+        {
+            MushCanvasQuestInput input = ActiveCanvases[i];
+            if (input != null && input.isActiveAndEnabled &&
+                input.Process(hand == XRNode.LeftHand ? 0 : 1, ray, pressed, held)) return true;
+        }
+        return false;
     }
 
     private bool Process(int hand, Ray ray, bool pressed, bool held)

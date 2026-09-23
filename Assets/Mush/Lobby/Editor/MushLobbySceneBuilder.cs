@@ -1251,10 +1251,13 @@ namespace Mush.Lobby.Editor
 
         private static void PutLobbyFirstInBuildSettings()
         {
+            const string activeLobbyScenePath = "Assets/Art/Scenes/PM_Lobby.unity";
             List<EditorBuildSettingsScene> scenes = EditorBuildSettings.scenes.ToList();
-            scenes.RemoveAll(scene => scene.path == ScenePath);
-            int titleIndex = scenes.FindIndex(scene => scene.path == "Assets/Mush/Scenes/MushTitle.unity");
-            scenes.Insert(titleIndex >= 0 ? titleIndex + 1 : 0, new EditorBuildSettingsScene(ScenePath, true));
+            scenes.RemoveAll(scene => scene.path == ScenePath || scene.path == activeLobbyScenePath);
+            int titleIndex = scenes.FindIndex(scene => scene.path == "Assets/Art/Scenes/Title.unity");
+            if (titleIndex < 0)
+                titleIndex = scenes.FindIndex(scene => scene.path == "Assets/Mush/Scenes/MushTitle.unity");
+            scenes.Insert(titleIndex >= 0 ? titleIndex + 1 : 0, new EditorBuildSettingsScene(activeLobbyScenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();
         }
     }

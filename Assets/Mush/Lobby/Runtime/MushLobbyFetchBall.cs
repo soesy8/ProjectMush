@@ -3,14 +3,13 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
-using UnityEngine.XR;
 
 namespace Mush.Lobby
 {
     /// <summary>
     /// Runtime fetch-ball prototype for the seated lobby. The ball is grabbed
-    /// directly with a nearby Quest grip and launches from pull distance when
-    /// that grip is released. Desktop uses a short hold-to-charge throw.
+    /// directly with a nearby Quest grip and launches with the tracked hand
+    /// velocity when that grip is released. Desktop uses a short hold-to-charge throw.
     /// </summary>
     [DefaultExecutionOrder(500)]
     [DisallowMultipleComponent]
@@ -27,8 +26,7 @@ namespace Mush.Lobby
 
         private const float BallRadius = 0.09f;
         private const float DirectGrabDistance = 0.25f;
-        private const float PullDeadZone = 0.05f;
-        private const float FullPullDistance = 0.35f;
+        private const float MinimumReleaseVelocity = 0.12f;
         private const float MinimumThrowSpeed = 3f;
         private const float MaximumThrowSpeed = 10f;
         private const float MaximumCollisionSpeed = 11f;
@@ -38,6 +36,7 @@ namespace Mush.Lobby
         private const float LooseResetDelay = 10f;
 
         private readonly List<Material> ownedMaterials = new();
+        private readonly List<Bounds> floorSurfaces = new();
         private Camera lobbyCamera;
         private MushDesktopSeatedLook desktopLook;
         private Transform seatedBasis;
@@ -52,13 +51,20 @@ namespace Mush.Lobby
         private Transform heldHand;
         private Transform carrySocket;
         private MushLobbyDogRoamer assignedDog;
-        private Vector3 grabOrigin;
+        private Vector3 previousHeldHandPosition;
+        private Vector3 smoothedHeldHandVelocity;
+        private Vector3 recentTrackedHandVelocity;
+        private float recentTrackedVelocityAge;
+        private InputAction leftGrabAction;
+        private InputAction rightGrabAction;
+        private InputAction leftVelocityAction;
+        private InputAction rightVelocityAction;
+        private InputAction stopAction;
         private Vector3 desktopAimDirection;
         private bool heldByLeftHand;
         private bool desktopHeld;
         private bool desktopAwaitingGrabRelease;
         private bool desktopCharging;
-        private bool vrStopButtonWasPressed;
         private bool waitForGripReleaseAfterStop;
         private bool touchedGround;
         private float stateElapsed;
@@ -218,6 +224,7 @@ namespace Mush.Lobby
             dogs = lobbyDogs;
             ballBody = body;
             ballCollider = GetComponent<Collider>();
+            EnsureSolidFloor(searchRoot);
             ConfigureStableCollisionMaterial();
             standPosition = newStandPosition;
             returnPosition = newReturnPosition;
@@ -225,6 +232,7 @@ namespace Mush.Lobby
             IgnoreDogCollisions();
             leftHand = FindNamedTransform(searchRoot, "Lobby Left Hand", "Left Controller", "Left Hand Model");
             rightHand = FindNamedTransform(searchRoot, "Lobby Right Hand", "Right Controller", "Right Hand Model");
+            ConfigureVrInput();
             ReturnToStand();
         }
 
@@ -293,12 +301,12 @@ namespace Mush.Lobby
             bool stopRequested = ReadStopRequest();
             if (stopRequested && state != BallState.OnStand)
             {
-                waitForGripReleaseAfterStop = XRSettings.isDeviceActive;
+                waitForGripReleaseAfterStop = HasVrController();
                 ReturnToStand();
                 return;
             }
 
-            if (XRSettings.isDeviceActive)
+            if (HasVrController())
                 UpdateVrGrab();
             else
                 UpdateDesktopGrab();
@@ -369,8 +377,8 @@ namespace Mush.Lobby
                 rightHand ??= FindNamedTransform(searchRoot, "Lobby Right Hand", "Right Controller", "Right Hand Model");
             }
 
-            bool leftGrip = ReadGrip(XRNode.LeftHand);
-            bool rightGrip = ReadGrip(XRNode.RightHand);
+            bool leftGrip = leftGrabAction?.IsPressed() == true;
+            bool rightGrip = rightGrabAction?.IsPressed() == true;
             if (waitForGripReleaseAfterStop)
             {
                 if (!leftGrip && !rightGrip)
@@ -384,7 +392,24 @@ namespace Mush.Lobby
                 if (!activeGrip)
                     ReleaseVrThrow();
                 else if (heldHand != null)
+                {
+                    float deltaTime = Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
+                    Vector3 rawVelocity = (heldHand.position - previousHeldHandPosition) / deltaTime;
+                    float velocityBlend = 1f - Mathf.Exp(-22f * deltaTime);
+                    smoothedHeldHandVelocity = Vector3.Lerp(smoothedHeldHandVelocity, rawVelocity, velocityBlend);
+                    Vector3 trackedVelocity = ReadTrackedVelocity(heldByLeftHand);
+                    if (trackedVelocity.sqrMagnitude > 0.0025f)
+                    {
+                        recentTrackedHandVelocity = trackedVelocity;
+                        recentTrackedVelocityAge = 0f;
+                    }
+                    else
+                    {
+                        recentTrackedVelocityAge += deltaTime;
+                    }
+                    previousHeldHandPosition = heldHand.position;
                     transform.position = heldHand.position + heldHand.forward * 0.075f;
+                }
                 return;
             }
 
@@ -407,15 +432,7 @@ namespace Mush.Lobby
                 return false;
             if (distance <= DirectGrabDistance)
                 return true;
-            if (state == BallState.Carried || distance > 1.30f)
-                return false;
-
-            // The waist-high stand is visible but can sit just beyond a
-            // comfortable seated arm reach. Pointing either hand at the ball
-            // and pressing Grip therefore also snaps it into that hand; UI
-            // panels still use Trigger and are unaffected.
-            Vector3 directionToBall = (transform.position - hand.position).normalized;
-            return Vector3.Dot(hand.forward, directionToBall) >= 0.96f;
+            return state != BallState.Carried && distance <= 1.30f;
         }
 
         private void BeginVrGrab(Transform hand, bool left)
@@ -429,7 +446,10 @@ namespace Mush.Lobby
             desktopHeld = false;
             desktopAwaitingGrabRelease = false;
             desktopCharging = false;
-            grabOrigin = hand.position;
+            previousHeldHandPosition = hand.position;
+            smoothedHeldHandVelocity = Vector3.zero;
+            recentTrackedHandVelocity = Vector3.zero;
+            recentTrackedVelocityAge = float.PositiveInfinity;
             SetHeldPhysics();
             transform.position = hand.position + hand.forward * 0.075f;
         }
@@ -442,18 +462,25 @@ namespace Mush.Lobby
                 return;
             }
 
-            Vector3 pullVector = grabOrigin - heldHand.position;
-            float pullDistance = pullVector.magnitude;
-            if (pullDistance < PullDeadZone)
+            Vector3 liveTrackedVelocity = ReadTrackedVelocity(heldByLeftHand);
+            Vector3 releaseVelocity = liveTrackedVelocity.sqrMagnitude > smoothedHeldHandVelocity.sqrMagnitude
+                ? liveTrackedVelocity
+                : smoothedHeldHandVelocity;
+            if (recentTrackedVelocityAge <= 0.16f && recentTrackedHandVelocity.sqrMagnitude > releaseVelocity.sqrMagnitude)
+                releaseVelocity = recentTrackedHandVelocity;
+            float releaseSpeed = releaseVelocity.magnitude;
+            if (releaseSpeed < MinimumReleaseVelocity)
             {
                 Vector3 dropForward = lobbyCamera != null ? lobbyCamera.transform.forward : heldHand.forward;
                 ReleaseLoose(heldHand.position + dropForward.normalized * 0.12f);
                 return;
             }
 
-            float strength = Mathf.InverseLerp(PullDeadZone, FullPullDistance, pullDistance);
-            float launchSpeed = Mathf.Lerp(MinimumThrowSpeed, MaximumThrowSpeed, strength);
-            Vector3 launchDirection = pullVector.normalized;
+            float launchSpeed = Mathf.Clamp(
+                Mathf.Max(MinimumThrowSpeed, releaseSpeed * 1.25f),
+                MinimumThrowSpeed,
+                MaximumThrowSpeed);
+            Vector3 launchDirection = releaseVelocity.normalized;
             Vector3 launchPosition = heldHand.position + launchDirection * 0.18f;
             ReleaseThrow(launchPosition, launchDirection * launchSpeed);
         }
@@ -572,7 +599,7 @@ namespace Mush.Lobby
             idleElapsed = 0f;
             stableContactElapsed = 0f;
             touchedGround = false;
-            collisionEnableDelay = Mathf.Max(0f, collisionDelay);
+            collisionEnableDelay = 0f;
             transform.position = position;
             EnableDynamicPhysics(velocity, collisionEnableDelay <= 0f);
             StartAllDogsFetchRace();
@@ -606,11 +633,51 @@ namespace Mush.Lobby
             ballBody.interpolation = RigidbodyInterpolation.None;
             ballBody.position = transform.position;
             ballBody.isKinematic = false;
+            ballBody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            ballBody.detectCollisions = true;
             ballBody.linearVelocity = Vector3.ClampMagnitude(velocity, MaximumCollisionSpeed);
             ballBody.angularVelocity = velocity.sqrMagnitude > 0.01f
                 ? Vector3.Cross(Vector3.up, velocity.normalized) * Mathf.Min(velocity.magnitude * 1.2f, MaximumSpinSpeed)
                 : Vector3.zero;
             ballBody.WakeUp();
+        }
+
+        private void EnsureSolidFloor(Transform searchRoot)
+        {
+            floorSurfaces.Clear();
+            if (searchRoot == null) return;
+            foreach (Renderer floor in searchRoot.root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (floor.name != "Floor" && floor.name != "Cabin Floor" && floor.name != "Lobby Floor") continue;
+                Bounds bounds = floor.bounds;
+                floorSurfaces.Add(bounds);
+                if (floor.transform.Find("Mush Fetch Floor Collision") != null) continue;
+                GameObject support = new("Mush Fetch Floor Collision");
+                support.transform.SetParent(floor.transform, true);
+                support.transform.position = new Vector3(bounds.center.x, bounds.max.y - 0.15f, bounds.center.z);
+                support.transform.rotation = Quaternion.identity;
+                BoxCollider collider = support.AddComponent<BoxCollider>();
+                collider.size = new Vector3(bounds.size.x, 0.30f, bounds.size.z);
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            if (ballBody == null || ballBody.isKinematic || (state != BallState.Thrown && state != BallState.Loose)) return;
+            Vector3 position = ballBody.position;
+            foreach (Bounds floor in floorSurfaces)
+            {
+                if (position.x < floor.min.x || position.x > floor.max.x ||
+                    position.z < floor.min.z || position.z > floor.max.z) continue;
+                float minimumY = floor.max.y + BallRadius + 0.002f;
+                if (position.y >= minimumY) continue;
+                position.y = minimumY;
+                ballBody.position = position;
+                Vector3 velocity = ballBody.linearVelocity;
+                velocity.y = Mathf.Max(0f, velocity.y);
+                ballBody.linearVelocity = velocity;
+                touchedGround = true;
+            }
         }
 
         private void StartAllDogsFetchRace()
@@ -881,6 +948,7 @@ namespace Mush.Lobby
 
         private void OnDestroy()
         {
+            DisposeVrInput();
             if (!Application.isPlaying)
                 return;
             foreach (Material material in ownedMaterials)
@@ -893,32 +961,68 @@ namespace Mush.Lobby
                 Destroy(ballPhysicsMaterial);
         }
 
-        private static bool ReadGrip(XRNode node)
+        private void ConfigureVrInput()
         {
-            UnityEngine.XR.InputDevice device = InputDevices.GetDeviceAtXRNode(node);
-            return device.isValid &&
-                   device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.gripButton, out bool pressed) &&
-                   pressed;
+            DisposeVrInput();
+            leftGrabAction = CreateGrabAction("Lobby Left Ball Grab", "LeftHand");
+            rightGrabAction = CreateGrabAction("Lobby Right Ball Grab", "RightHand");
+            leftVelocityAction = new InputAction(
+                "Lobby Left Hand Velocity", InputActionType.Value, "<XRController>{LeftHand}/deviceVelocity");
+            rightVelocityAction = new InputAction(
+                "Lobby Right Hand Velocity", InputActionType.Value, "<XRController>{RightHand}/deviceVelocity");
+            stopAction = new InputAction(
+                "Lobby Stop Ball", InputActionType.Button, "<XRController>{LeftHand}/secondaryButton");
+            leftGrabAction.Enable();
+            rightGrabAction.Enable();
+            leftVelocityAction.Enable();
+            rightVelocityAction.Enable();
+            stopAction.Enable();
+        }
+
+        private static InputAction CreateGrabAction(string actionName, string handUsage)
+        {
+            InputAction action = new(actionName, InputActionType.Button);
+            action.AddBinding($"<XRController>{{{handUsage}}}/gripPressed");
+            action.AddBinding($"<XRController>{{{handUsage}}}/triggerPressed");
+            return action;
+        }
+
+        private bool HasVrController()
+        {
+            return leftGrabAction?.controls.Count > 0 || rightGrabAction?.controls.Count > 0;
+        }
+
+        private Vector3 ReadTrackedVelocity(bool left)
+        {
+            InputAction velocityAction = left ? leftVelocityAction : rightVelocityAction;
+            if (velocityAction?.activeControl == null)
+                return Vector3.zero;
+            Vector3 trackingVelocity = velocityAction.ReadValue<Vector3>();
+            return seatedBasis != null ? seatedBasis.TransformDirection(trackingVelocity) : trackingVelocity;
         }
 
         private bool ReadStopRequest()
         {
-            if (!XRSettings.isDeviceActive)
+            if (!HasVrController())
             {
-                vrStopButtonWasPressed = false;
                 Mouse mouse = Mouse.current;
                 return mouse != null && mouse.rightButton.wasPressedThisFrame;
             }
+            return stopAction?.WasPressedThisFrame() == true;
+        }
 
-            UnityEngine.XR.InputDevice leftController = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
-            bool pressed = leftController.isValid &&
-                           leftController.TryGetFeatureValue(
-                               UnityEngine.XR.CommonUsages.secondaryButton,
-                               out bool secondaryPressed) &&
-                           secondaryPressed;
-            bool pressedThisFrame = pressed && !vrStopButtonWasPressed;
-            vrStopButtonWasPressed = pressed;
-            return pressedThisFrame;
+        private void DisposeVrInput()
+        {
+            leftGrabAction?.Dispose();
+            rightGrabAction?.Dispose();
+            leftVelocityAction?.Dispose();
+            rightVelocityAction?.Dispose();
+            stopAction?.Dispose();
+            leftGrabAction = null;
+            rightGrabAction = null;
+            leftVelocityAction = null;
+            rightVelocityAction = null;
+            stopAction = null;
         }
 
         private static Transform FindNamedTransform(Transform root, params string[] names)

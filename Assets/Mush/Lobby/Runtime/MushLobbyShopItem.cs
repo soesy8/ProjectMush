@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using Mush.Customization;
 
 namespace Mush.Lobby
 {
@@ -59,7 +60,12 @@ namespace Mush.Lobby
         private void RefreshState()
         {
             if (stateText != null)
-                stateText.text = controller != null && controller.HasShopItem(itemId) ? "보유 중" : "눌러서 받기";
+            {
+                MushCustomizationItemDefinition item = MushCustomizationDatabase.Find(itemId);
+                stateText.text = controller != null && controller.HasShopItem(itemId)
+                    ? "보유 중"
+                    : item != null ? $"{item.price} 골드" : "구매";
+            }
         }
 
         private void OnSelected(SelectEnterEventArgs args)

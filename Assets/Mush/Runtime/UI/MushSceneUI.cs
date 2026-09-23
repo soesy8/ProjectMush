@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -6,11 +7,16 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.XR;
 
 /// <summary>Only binds authored scene UI. All panels and controls are saved in the scene.</summary>
 [DefaultExecutionOrder(-1000)]
 public sealed class MushSceneUI : MonoBehaviour
 {
+    private const float VrCanvasDistance = 2.35f;
+    private const float VrCanvasScale = 0.00125f;
+    private static readonly List<XRDisplaySubsystem> XrDisplays = new();
+
     [SerializeField] private MushMapRideBootstrap ride;
     [SerializeField] private GameObject titlePanel;
     [SerializeField] private GameObject pausePanel;
@@ -28,6 +34,9 @@ public sealed class MushSceneUI : MonoBehaviour
     private float nextSave;
     private CursorLockMode previousCursorLock;
     private bool previousCursorVisible;
+    private Canvas rootCanvas;
+    private RectTransform rootCanvasRect;
+    private bool vrCanvasConfigured;
     public static MushSceneUI Active { get; private set; }
     public static bool ModalOpen => Active != null && Active.OptionsOpen;
     private bool OptionsOpen => optionPanel != null && optionPanel.activeSelf;
@@ -35,6 +44,9 @@ public sealed class MushSceneUI : MonoBehaviour
     private void Awake()
     {
         Active = this;
+        rootCanvas = GetComponent<Canvas>();
+        rootCanvasRect = rootCanvas != null ? rootCanvas.GetComponent<RectTransform>() : null;
+        ResolveAuthoredTitleReferences();
         if (pausePanel != null) pausePanel.SetActive(false);
         if (optionPanel != null) optionPanel.SetActive(false);
         Bind(titlePanel, "TitleUI_Start", StartGame);
@@ -61,12 +73,55 @@ public sealed class MushSceneUI : MonoBehaviour
         if (titlePanel != null) { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
     }
 
+    private void ResolveAuthoredTitleReferences()
+    {
+        if (titlePanel == null)
+            titlePanel = FindNamedChild("TitleMenuUI")?.gameObject;
+        if (optionPanel == null)
+            optionPanel = FindNamedChild("OptionUI")?.gameObject;
+        if (message == null)
+            message = FindNamedChild("Save Status")?.GetComponent<TMP_Text>();
+
+        master ??= FindOptionComponent<Slider>("01_MasterVolume");
+        music ??= FindOptionComponent<Slider>("02_BGM");
+        effects ??= FindOptionComponent<Slider>("03_SE");
+        masterCount ??= FindOptionText("01_MasterVolume", "Count");
+        musicCount ??= FindOptionText("02_BGM", "Count");
+        effectsCount ??= FindOptionText("03_SE", "Count");
+    }
+
+    private Transform FindNamedChild(string objectName)
+    {
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+            if (child.name == objectName)
+                return child;
+        return null;
+    }
+
+    private T FindOptionComponent<T>(string groupName) where T : Component
+    {
+        Transform group = FindNamedChild(groupName);
+        return group != null ? group.GetComponentInChildren<T>(true) : null;
+    }
+
+    private TMP_Text FindOptionText(string groupName, string textName)
+    {
+        Transform group = FindNamedChild(groupName);
+        if (group == null)
+            return null;
+        foreach (TMP_Text text in group.GetComponentsInChildren<TMP_Text>(true))
+            if (text.name == textName)
+                return text;
+        return null;
+    }
+
     private IEnumerator Start()
     {
         // Ride construction binds its authored sled in Start; restore only after that binding.
         yield return null;
+        TryConfigureVrRideCanvas();
         if (ride != null && MushGameSave.ConsumeRideRestore(gameObject.scene.name)) ride.RestoreSavedRide(MushGameSave.Current);
-        else if (gameObject.scene.name == "MushLobby") MushGameSave.EnterLobby();
+        else if (gameObject.scene.name is "PM_Lobby" or "MushLobby") MushGameSave.EnterLobby();
         foreach (GameObject root in gameObject.scene.GetRootGameObjects())
             foreach (AudioSource source in root.GetComponentsInChildren<AudioSource>(true))
                 if (!source.TryGetComponent<MushAudioChannel>(out _)) source.gameObject.AddComponent<MushAudioChannel>();
@@ -78,6 +133,7 @@ public sealed class MushSceneUI : MonoBehaviour
 
     private void Update()
     {
+        if (!vrCanvasConfigured) TryConfigureVrRideCanvas();
         if (Keyboard.current?.escapeKey.wasPressedThisFrame == true)
         {
             if (OptionsOpen) CloseOptions();
@@ -97,6 +153,7 @@ public sealed class MushSceneUI : MonoBehaviour
         if (pausePanel == null) return;
         if (paused)
         {
+            PositionVrCanvasAtCurrentView();
             previousCursorLock = Cursor.lockState;
             previousCursorVisible = Cursor.visible;
             Cursor.lockState = CursorLockMode.None;
@@ -106,6 +163,7 @@ public sealed class MushSceneUI : MonoBehaviour
         else
         {
             CloseOptions();
+            PositionVrCanvasAtNeutralView();
             Cursor.lockState = previousCursorLock;
             Cursor.visible = previousCursorVisible;
         }
@@ -113,7 +171,59 @@ public sealed class MushSceneUI : MonoBehaviour
         SelectFirst(paused ? pausePanel : null);
     }
 
-    private void StartGame() { MushGameSave.NewGame(); Load("MushLobby"); }
+    private void TryConfigureVrRideCanvas()
+    {
+        if (vrCanvasConfigured || ride == null || rootCanvas == null || rootCanvasRect == null ||
+            ride.RideCamera == null || ride.RideViewAnchor == null || !IsXrDisplayRunning())
+            return;
+
+        rootCanvas.renderMode = RenderMode.WorldSpace;
+        rootCanvas.worldCamera = ride.RideCamera;
+        rootCanvas.overrideSorting = true;
+        rootCanvas.sortingOrder = 200;
+        rootCanvasRect.sizeDelta = new Vector2(1920f, 1080f);
+        vrCanvasConfigured = true;
+        PositionVrCanvasAtNeutralView();
+    }
+
+    private void PositionVrCanvasAtNeutralView()
+    {
+        if (!vrCanvasConfigured || ride?.RideViewAnchor == null)
+            return;
+
+        rootCanvasRect.SetParent(ride.RideViewAnchor, false);
+        rootCanvasRect.localScale = Vector3.one * VrCanvasScale;
+        Quaternion viewRotation = ride.RideViewLocalRotation;
+        Vector3 viewPosition = ride.RideViewLocalPosition;
+        rootCanvasRect.SetLocalPositionAndRotation(
+            viewPosition + viewRotation * (Vector3.forward * VrCanvasDistance),
+            viewRotation);
+    }
+
+    private void PositionVrCanvasAtCurrentView()
+    {
+        if (!vrCanvasConfigured || ride?.RideCamera == null || ride.RideViewAnchor == null)
+            return;
+
+        Transform view = ride.RideCamera.transform;
+        rootCanvasRect.SetParent(ride.RideViewAnchor, true);
+        rootCanvasRect.localScale = Vector3.one * VrCanvasScale;
+        rootCanvasRect.SetPositionAndRotation(
+            view.position + view.forward * VrCanvasDistance,
+            view.rotation);
+    }
+
+    private static bool IsXrDisplayRunning()
+    {
+        XrDisplays.Clear();
+        SubsystemManager.GetSubsystems(XrDisplays);
+        foreach (XRDisplaySubsystem display in XrDisplays)
+            if (display != null && display.running)
+                return true;
+        return false;
+    }
+
+    private void StartGame() { MushGameSave.NewGame(); Load("PM_Lobby"); }
     private void ContinueGame()
     {
         string scene = MushGameSave.ContinueGame();
@@ -156,7 +266,7 @@ public sealed class MushSceneUI : MonoBehaviour
     private void ReturnToLobby()
     {
         if (ride != null) { leaving = true; ride.ReturnToLobby(); }
-        else { MushGameSave.EnterLobby(); Load("MushLobby"); }
+        else { MushGameSave.EnterLobby(); Load("PM_Lobby"); }
     }
     private void QuitGame()
     {

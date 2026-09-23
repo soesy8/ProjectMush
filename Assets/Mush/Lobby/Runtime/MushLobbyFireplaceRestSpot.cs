@@ -32,6 +32,7 @@ namespace Mush.Lobby
                 return null;
 
             Transform fireplaceTransform = FindDescendant(newLobbyRoot, FireplaceRootName);
+            fireplaceTransform ??= FindDescendant(newLobbyRoot, "Fireplace");
             if (fireplaceTransform == null)
                 return null;
 

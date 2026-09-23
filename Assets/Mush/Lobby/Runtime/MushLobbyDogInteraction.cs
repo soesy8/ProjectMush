@@ -1,11 +1,13 @@
 using UnityEngine;
 using UnityEngine.XR;
+using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using Mush.Quest;
 
 namespace Mush.Lobby
 {
     [DisallowMultipleComponent]
-    public sealed class MushLobbyDogInteraction : MonoBehaviour
+    public sealed class MushLobbyDogInteraction : MonoBehaviour, IMushQuestRayTarget
     {
         [SerializeField] private MushLobbyDogRoamer roamer;
         [SerializeField] private Transform head;
@@ -21,6 +23,7 @@ namespace Mush.Lobby
         private int petCount;
         private bool positionsReady;
         private bool handWasNear;
+        private XRSimpleInteractable rayInteractable;
 
         public void Configure(
             MushLobbyDogRoamer newRoamer,
@@ -48,14 +51,25 @@ namespace Mush.Lobby
 
         private void Awake()
         {
-            petRadius = Mathf.Clamp(petRadius, 0.18f, 0.24f); // 손바닥이 실제 머리 가까이에 들어와야 하도록 기존 42cm 원거리 판정을 줄인다.
+            petRadius = Mathf.Clamp(petRadius, 0.28f, 0.36f);
             minimumStrokeSpeed = Mathf.Clamp(minimumStrokeSpeed, 0.12f, 0.50f); // 추적 미세 떨림은 쓰다듬기로 세지 않고 의도적인 손 움직임만 받는다.
             if (expression == null)
                 expression = GetComponent<MushLobbyDogExpression>();
-            XRSimpleInteractable rayInteractable = GetComponent<XRSimpleInteractable>();
+            rayInteractable = GetComponent<XRSimpleInteractable>();
             if (rayInteractable != null)
-                rayInteractable.enabled = false; // 개만 VR 레이 선택 대상에서 제외한다. 지도·상점·하우징 레이는 그대로 유지된다.
+                rayInteractable.selectEntered.AddListener(OnRaySelected);
             CaptureHandPositions();
+        }
+
+        private void OnDestroy()
+        {
+            if (rayInteractable != null)
+                rayInteractable.selectEntered.RemoveListener(OnRaySelected);
+        }
+
+        private void OnRaySelected(SelectEnterEventArgs args)
+        {
+            Pet();
         }
 
         private void Update()
@@ -71,7 +85,7 @@ namespace Mush.Lobby
                 return;
             }
 
-            if (head == null || roamer == null || roamer.IsMoving || roamer.IsFetching || roamer.IsFeeding)
+            if (head == null || roamer == null || roamer.IsFetching || roamer.IsFeeding)
             {
                 CaptureHandPositions();
                 return;
@@ -114,6 +128,14 @@ namespace Mush.Lobby
                 expression?.ShowPetEnjoyment();
             }
         }
+
+        public void SetQuestRayHovered(bool hovered)
+        {
+            if (hovered)
+                roamer?.KeepStillForPetting();
+        }
+
+        public void SelectWithQuestRay() => Pet();
 
         private bool CheckHand(Transform hand, ref Vector3 previousPosition)
         {

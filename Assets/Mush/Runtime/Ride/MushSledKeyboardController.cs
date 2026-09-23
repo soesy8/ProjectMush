@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Rendering;
 using UnityEngine.XR;
 
 namespace Mush.Prototype
@@ -65,15 +64,6 @@ namespace Mush.Prototype
         private Vector3 leftHandRestPosition;
         private Vector3 rightHandRestPosition;
         private bool handRestPositionsStored;
-        private Camera desktopCamera;
-        private Transform leftControllerAnchor;
-        private Transform rightControllerAnchor;
-        private Transform leftDesktopMitten;
-        private Transform rightDesktopMitten;
-        private bool configuredHandsAreDesktop;
-        private Vector3 leftMouseTarget;
-        private Vector3 rightMouseTarget;
-        private bool mouseTargetsInitialized;
         private bool terrainSpeedLimited;
         private bool offCourseRecoveryActive;
         private float offCourseRecoveryAccelerationMultiplier = 1f;
@@ -148,17 +138,15 @@ namespace Mush.Prototype
             Transform newLeftHandVisual,
             Transform newRightHandVisual,
             Animator newLeftHandAnimator,
-            Animator newRightHandAnimator,
-            bool newHandsAreDesktop = false)
+            Animator newRightHandAnimator)
         {
             reinsVisual = newReinsVisual;
             leftHandVisual = newLeftHandVisual;
             rightHandVisual = newRightHandVisual;
             leftHandAnimator = newLeftHandAnimator;
             rightHandAnimator = newRightHandAnimator;
-            configuredHandsAreDesktop = newHandsAreDesktop;
             StoreHandRestPositions();
-            PrepareGuaranteedDesktopHands();
+            ShowBothHands();
             if (!rideStarted)
                 reinsVisual?.SetHeld(false);
         }
@@ -166,7 +154,7 @@ namespace Mush.Prototype
         private void Awake()
         {
             StoreHandRestPositions();
-            PrepareGuaranteedDesktopHands();
+            ShowBothHands();
             reinsVisual?.SetHeld(false);
             SetGripPose(0f);
         }
@@ -175,7 +163,6 @@ namespace Mush.Prototype
         {
             if (Time.timeScale <= 0f) return;
             UpdateDogConditionEffect();
-            UpdateDesktopMouseHands();
 
             Keyboard keyboard = Keyboard.current;
 
@@ -502,21 +489,17 @@ namespace Mush.Prototype
 
         private void UpdateSteeringVisuals(float leftPull01, float rightPull01)
         {
-            float leftPull = leftPull01 * maximumHandPull;
-            float rightPull = rightPull01 * maximumHandPull;
+            float leftPull = XRSettings.isDeviceActive ? 0f : leftPull01 * maximumHandPull;
+            float rightPull = XRSettings.isDeviceActive ? 0f : rightPull01 * maximumHandPull;
             reinsVisual?.SetPull(leftPull, rightPull);
 
             if (!handRestPositionsStored)
                 StoreHandRestPositions();
 
             if (leftHandVisual != null)
-                leftHandVisual.localPosition = leftHandRestPosition + Vector3.back * leftPull;
+                leftHandVisual.position = leftHandVisual.parent.TransformPoint(leftHandRestPosition) - transform.forward * leftPull;
             if (rightHandVisual != null)
-                rightHandVisual.localPosition = rightHandRestPosition + Vector3.back * rightPull;
-            if (leftDesktopMitten != null)
-                leftDesktopMitten.localPosition = Vector3.back * leftPull;
-            if (rightDesktopMitten != null)
-                rightDesktopMitten.localPosition = Vector3.back * rightPull;
+                rightHandVisual.position = rightHandVisual.parent.TransformPoint(rightHandRestPosition) - transform.forward * rightPull;
         }
 
         private void StoreHandRestPositions()
@@ -537,191 +520,19 @@ namespace Mush.Prototype
                 rightHandAnimator.SetFloat(GripParameter, value);
         }
 
-        private void PrepareGuaranteedDesktopHands()
+        private void ShowBothHands()
         {
-            if (desktopCamera == null && gameObject.scene.IsValid() && gameObject.scene.isLoaded)
-            {
-                foreach (GameObject root in gameObject.scene.GetRootGameObjects())
-                {
-                    desktopCamera = root.GetComponentInChildren<Camera>(true);
-                    if (desktopCamera != null)
-                        break;
-                }
-            }
-
-            leftControllerAnchor = leftHandVisual != null ? leftHandVisual.parent : FindChild("Left Controller");
-            rightControllerAnchor = rightHandVisual != null ? rightHandVisual.parent : FindChild("Right Controller");
-
-            if (leftControllerAnchor != null)
-                leftDesktopMitten = BuildWinterMitten("Desktop Left Winter Glove", leftControllerAnchor, -1);
-            if (rightControllerAnchor != null)
-                rightDesktopMitten = BuildWinterMitten("Desktop Right Winter Glove", rightControllerAnchor, 1);
-
-            UpdateHandRenderMode();
+            SetRenderersEnabled(leftHandVisual);
+            SetRenderersEnabled(rightHandVisual);
         }
 
-        private void UpdateDesktopMouseHands()
-        {
-            UpdateHandRenderMode();
-            if (XRSettings.isDeviceActive || desktopCamera == null)
-                return;
-
-            Mouse mouse = Mouse.current;
-            if (mouse == null || leftControllerAnchor == null || rightControllerAnchor == null)
-                return;
-
-            Vector2 pointer = mouse.position.ReadValue();
-            Vector2 normalized = new Vector2(
-                Mathf.Clamp01(pointer.x / Mathf.Max(1f, Screen.width)),
-                Mathf.Clamp01(pointer.y / Mathf.Max(1f, Screen.height)));
-
-            if (!mouseTargetsInitialized)
-            {
-                leftMouseTarget = ViewportHandPosition(new Vector2(0.31f, 0.27f));
-                rightMouseTarget = ViewportHandPosition(new Vector2(0.69f, 0.27f));
-                mouseTargetsInitialized = true;
-            }
-
-            bool leftOnly = mouse.leftButton.isPressed && !mouse.rightButton.isPressed;
-            bool rightOnly = mouse.rightButton.isPressed && !mouse.leftButton.isPressed;
-            if (leftOnly)
-            {
-                leftMouseTarget = ViewportHandPosition(new Vector2(
-                    Mathf.Lerp(0.12f, 0.56f, normalized.x),
-                    Mathf.Lerp(0.14f, 0.68f, normalized.y)));
-            }
-            else if (rightOnly)
-            {
-                rightMouseTarget = ViewportHandPosition(new Vector2(
-                    Mathf.Lerp(0.44f, 0.88f, normalized.x),
-                    Mathf.Lerp(0.14f, 0.68f, normalized.y)));
-            }
-            else
-            {
-                Vector2 offset = (normalized - new Vector2(0.5f, 0.5f)) * 2f;
-                leftMouseTarget = ViewportHandPosition(new Vector2(
-                    0.31f + offset.x * 0.11f,
-                    0.27f + offset.y * 0.15f));
-                rightMouseTarget = ViewportHandPosition(new Vector2(
-                    0.69f + offset.x * 0.11f,
-                    0.27f + offset.y * 0.15f));
-            }
-
-            float blend = 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime);
-            leftControllerAnchor.position = Vector3.Lerp(leftControllerAnchor.position, leftMouseTarget, blend);
-            rightControllerAnchor.position = Vector3.Lerp(rightControllerAnchor.position, rightMouseTarget, blend);
-        }
-
-        private Vector3 ViewportHandPosition(Vector2 viewport)
-        {
-            return desktopCamera.ViewportToWorldPoint(new Vector3(viewport.x, viewport.y, 0.82f));
-        }
-
-        private void UpdateHandRenderMode()
-        {
-            bool desktopMode = !XRSettings.isDeviceActive;
-            if (leftDesktopMitten != null)
-                leftDesktopMitten.gameObject.SetActive(desktopMode);
-            if (rightDesktopMitten != null)
-                rightDesktopMitten.gameObject.SetActive(desktopMode);
-
-            bool showConfiguredHands = configuredHandsAreDesktop ? desktopMode : !desktopMode;
-            SetRenderersEnabled(leftHandVisual, showConfiguredHands);
-            SetRenderersEnabled(rightHandVisual, showConfiguredHands);
-        }
-
-        private static void SetRenderersEnabled(Transform root, bool enabled)
+        private static void SetRenderersEnabled(Transform root)
         {
             if (root == null)
                 return;
+            root.gameObject.SetActive(true);
             foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
-                renderer.enabled = enabled;
-        }
-
-        private Transform BuildWinterMitten(string objectName, Transform parent, int side)
-        {
-            Transform existing = parent.Find(objectName);
-            if (existing != null)
-                return existing;
-
-            GameObject root = new GameObject(objectName);
-            root.transform.SetParent(parent, false);
-            root.transform.localPosition = Vector3.zero;
-            root.transform.localRotation = Quaternion.Euler(8f, side * 5f, side * 4f);
-
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            Material glove = new Material(shader) { name = "Runtime Brown Winter Glove" };
-            SetMaterialColor(glove, new Color(0.22f, 0.075f, 0.025f));
-            Material fur = new Material(shader) { name = "Runtime Cream Fur Cuff" };
-            SetMaterialColor(fur, new Color(0.78f, 0.66f, 0.48f));
-
-            CreateHandPrimitive("Palm", PrimitiveType.Sphere, root.transform,
-                new Vector3(0f, 0f, 0.02f), new Vector3(0.17f, 0.12f, 0.23f), Vector3.zero, glove);
-            CreateHandPrimitive("Curled Fingers", PrimitiveType.Sphere, root.transform,
-                new Vector3(0f, -0.005f, 0.13f), new Vector3(0.18f, 0.115f, 0.16f), Vector3.zero, glove);
-            CreateHandPrimitive("Thumb", PrimitiveType.Capsule, root.transform,
-                new Vector3(side * 0.105f, -0.018f, 0.045f), new Vector3(0.055f, 0.085f, 0.055f),
-                new Vector3(62f, 0f, side * -32f), glove);
-            CreateHandPrimitive("Wrist", PrimitiveType.Cylinder, root.transform,
-                new Vector3(0f, 0f, -0.13f), new Vector3(0.09f, 0.075f, 0.09f),
-                new Vector3(90f, 0f, 0f), glove);
-            CreateHandPrimitive("Fur Cuff", PrimitiveType.Cylinder, root.transform,
-                new Vector3(0f, 0f, -0.20f), new Vector3(0.125f, 0.055f, 0.125f),
-                new Vector3(90f, 0f, 0f), fur);
-
-            return root.transform;
-        }
-
-        private static void CreateHandPrimitive(
-            string objectName,
-            PrimitiveType type,
-            Transform parent,
-            Vector3 position,
-            Vector3 scale,
-            Vector3 euler,
-            Material material)
-        {
-            GameObject primitive = GameObject.CreatePrimitive(type);
-            primitive.name = objectName;
-            primitive.transform.SetParent(parent, false);
-            primitive.transform.localPosition = position;
-            primitive.transform.localRotation = Quaternion.Euler(euler);
-            primitive.transform.localScale = scale;
-            Renderer renderer = primitive.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.sharedMaterial = material;
-                renderer.shadowCastingMode = ShadowCastingMode.Off;
-                renderer.receiveShadows = false;
-            }
-            Collider collider = primitive.GetComponent<Collider>();
-            if (collider != null)
-            {
-                if (Application.isPlaying)
-                    Object.Destroy(collider);
-                else
-                    Object.DestroyImmediate(collider);
-            }
-        }
-
-        private static void SetMaterialColor(Material material, Color color)
-        {
-            if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", color);
-            if (material.HasProperty("_Color"))
-                material.SetColor("_Color", color);
-            if (material.HasProperty("_Smoothness"))
-                material.SetFloat("_Smoothness", 0.18f);
-        }
-
-        private Transform FindChild(string objectName)
-        {
-            foreach (Transform child in GetComponentsInChildren<Transform>(true))
-            {
-                if (child.name == objectName)
-                    return child;
-            }
-            return null;
+                renderer.enabled = true;
         }
     }
 }

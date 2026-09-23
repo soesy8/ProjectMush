@@ -28,7 +28,6 @@ namespace Mush.Customization
             ("집 꾸미기", Rect.MinMaxRect(-4.22f, -3.15f, -2.90f, -1.75f)),
             ("상점", Rect.MinMaxRect(2.95f, -3.10f, 4.22f, -1.80f)),
             ("먹이 공간", Rect.MinMaxRect(1.25f, -0.75f, 3.65f, 0.45f)),
-            ("공 거치대", Rect.MinMaxRect(2.85f, 0.60f, 3.45f, 1.20f)),
             ("입장 공간", Rect.MinMaxRect(-0.65f, 1.40f, 0.65f, 2.57f)),
         };
 
@@ -123,6 +122,7 @@ namespace Mush.Customization
                 candidatePosition.z = Mathf.Round(position.z / MushHousingLayout.GridSize) * MushHousingLayout.GridSize;
             }
             ghost.transform.SetLocalPositionAndRotation(candidatePosition, Quaternion.Euler(0f, candidateYaw, 0f));
+            MushCustomizationVisuals.AlignFurnitureToFloor(ghost, stage.position.y);
             Rect bounds = GetFootprint(ghost);
             bool valid = CanPlace(bounds, out string reason);
             footprint.transform.localPosition = new Vector3(bounds.center.x, 0.026f, bounds.center.y);
@@ -242,9 +242,15 @@ namespace Mush.Customization
 
         private GameObject CreateFurniture(string itemId, int index, Vector3 position, Quaternion rotation)
         {
-            GameObject model = MushCustomizationVisuals.CreateFittedModel(catalog.GetPrefab(itemId), furnitureRoot,
-                "Housing " + itemId, MushHousingLayout.PreviewSize(index), position, true);
+            GameObject model;
+            if (itemId == MushCustomizationIds.FurnitureDogPlay)
+                model = MushCustomizationVisuals.CreateDogPlaySet(
+                    furnitureRoot, "Housing " + itemId, MushHousingLayout.PreviewSize(index), position, rotation);
+            else
+                model = MushCustomizationVisuals.CreateFittedModel(catalog.GetPrefab(itemId), furnitureRoot,
+                    "Housing " + itemId, MushHousingLayout.PreviewSize(index), position, true);
             if (model != null) model.transform.localRotation = rotation;
+            MushCustomizationVisuals.AlignFurnitureToFloor(model, stage.position.y);
             return model;
         }
 
@@ -286,7 +292,8 @@ namespace Mush.Customization
         {
             if (index < 0 || index >= MushHousingLayout.PlacementCount || catalog == null) return;
             string itemId = ItemId(index);
-            if (!workingState.Owns(itemId) || catalog.GetPrefab(itemId) == null)
+            if (!workingState.Owns(itemId) ||
+                (itemId != MushCustomizationIds.FurnitureDogPlay && catalog.GetPrefab(itemId) == null))
             {
                 SetMessage("이 가구의 모델을 불러올 수 없습니다.");
                 return;
@@ -435,11 +442,15 @@ namespace Mush.Customization
         private RenderTexture GetThumbnail(string itemId)
         {
             if (thumbnails.TryGetValue(itemId, out RenderTexture cached)) return cached;
-            if (catalog == null || catalog.GetPrefab(itemId) == null) return null;
+            if (catalog == null ||
+                (itemId != MushCustomizationIds.FurnitureDogPlay && catalog.GetPrefab(itemId) == null)) return null;
             GameObject thumbnailStage = new("Housing Thumbnail " + itemId);
             thumbnailStage.transform.SetParent(transform, false);
             thumbnailStage.transform.position = stage.position + new Vector3(40f * (thumbnails.Count + 1), 0f, 0f);
-            MushCustomizationVisuals.CreateFittedModel(catalog.GetPrefab(itemId), thumbnailStage.transform, "Model", 1.55f, Vector3.zero, true);
+            if (itemId == MushCustomizationIds.FurnitureDogPlay)
+                MushCustomizationVisuals.CreateDogPlaySet(thumbnailStage.transform, "Model", 1.55f, Vector3.zero, Quaternion.identity);
+            else
+                MushCustomizationVisuals.CreateFittedModel(catalog.GetPrefab(itemId), thumbnailStage.transform, "Model", 1.55f, Vector3.zero, true);
             Vector3 anchor = thumbnailStage.transform.position;
             Vector3 cameraPosition = anchor + new Vector3(2.5f, 2.1f, 3f);
             RenderTexture texture = CreateTexture("Housing Thumbnail " + itemId, 256, 192);
@@ -574,7 +585,9 @@ namespace Mush.Customization
         {
             MushHousingLayout.ChairPlacement => MushCustomizationIds.FurnitureChair,
             MushHousingLayout.TablePlacement => MushCustomizationIds.FurnitureTable,
-            _ => MushCustomizationIds.FurnitureDogBed,
+            MushHousingLayout.DogRestPlacement => MushCustomizationIds.FurnitureDogBed,
+            MushHousingLayout.DogPlayPlacement => MushCustomizationIds.FurnitureDogPlay,
+            _ => string.Empty,
         };
 
         private void SetMessage(string message)
@@ -604,14 +617,14 @@ namespace Mush.Customization
             ClearSelection();
             MushCustomizationSave.Save(workingState);
             MushGameSave.EnterLobby();
-            if (!Application.CanStreamedLevelBeLoaded("MushLobby"))
+            if (!Application.CanStreamedLevelBeLoaded("PM_Lobby"))
             {
                 RefreshInventory();
-                SetMessage("저장했습니다. MushLobby 씬을 찾을 수 없습니다.");
+                SetMessage("저장했습니다. PM_Lobby 씬을 찾을 수 없습니다.");
                 return;
             }
             returning = true;
-            SceneManager.LoadScene("MushLobby");
+            SceneManager.LoadScene("PM_Lobby");
         }
 
         private static void RemoveObject(GameObject target)

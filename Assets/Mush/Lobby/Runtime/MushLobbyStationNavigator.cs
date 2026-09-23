@@ -3,6 +3,9 @@ using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.Locomotion;
+using UnityEngine.XR.Interaction.Toolkit.Samples.StarterAssets;
 using Keyboard = UnityEngine.InputSystem.Keyboard;
 
 namespace Mush.Lobby
@@ -12,7 +15,8 @@ namespace Mush.Lobby
     {
         private const float LocomotionDeadzone = 0.20f;
         private const float LobbyMoveSpeed = 1.20f;
-        private const float SnapTurnAngle = 30f;
+        private const float SmoothLookSpeed = 72f;
+        private const float SmoothLookDeadzone = 0.18f;
         private const float ChairUseDistance = 2.20f;
         private const float FireplaceYaw = 180f;
 
@@ -56,7 +60,6 @@ namespace Mush.Lobby
         private bool stickClickWasPressed;
         private bool triggerWasPressed;
         private bool seatedAtFireplace;
-        private bool rightStickSnapReady = true;
         private bool locomotionWasActive;
 
         public bool IsMenuOpen => menuRoot != null && menuRoot.gameObject.activeSelf;
@@ -80,6 +83,8 @@ namespace Mush.Lobby
             controller = owner;
             seatedRig = camera.GetComponentInParent<MushSeatedRigLock>();
             desktopLook = camera.GetComponentInParent<MushDesktopSeatedLook>();
+            if (Application.isPlaying)
+                DisableBuiltInLocomotionConflict();
             if (menuRoot == null)
                 menuRoot = FindDescendant(lobbyRoot != null ? lobbyRoot : owner.transform.root, "Lobby Station Travel Menu");
             if (menuRoot == null)
@@ -87,6 +92,22 @@ namespace Mush.Lobby
             else
                 CacheMenuReferences();
             EnsureChairSeatInteraction(lobbyRoot != null ? lobbyRoot : owner.transform.root);
+        }
+
+        private void DisableBuiltInLocomotionConflict()
+        {
+            if (seatedRig == null)
+                return;
+
+            foreach (ControllerInputActionManager inputManager in seatedRig.GetComponentsInChildren<ControllerInputActionManager>(true))
+                inputManager.enabled = false;
+            foreach (LocomotionProvider provider in seatedRig.GetComponentsInChildren<LocomotionProvider>(true))
+                provider.enabled = false;
+            foreach (XRRayInteractor rayInteractor in seatedRig.GetComponentsInChildren<XRRayInteractor>(true))
+                if (rayInteractor.name == "Teleport Interactor")
+                    rayInteractor.gameObject.SetActive(false);
+            foreach (NearFarInteractor interactor in seatedRig.GetComponentsInChildren<NearFarInteractor>(true))
+                interactor.gameObject.SetActive(true);
         }
 
         private void CacheMenuReferences()
@@ -106,11 +127,12 @@ namespace Mush.Lobby
 
         private void Update()
         {
+            if (MushLobbyMapPanel.IsOpen ||
+                (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen)) return;
             if (!XRSettings.isDeviceActive)
             {
                 stickClickWasPressed = false;
                 triggerWasPressed = false;
-                rightStickSnapReady = true;
                 HandleDesktopLocomotion();
                 return;
             }
@@ -138,7 +160,6 @@ namespace Mush.Lobby
             }
 
             locomotionWasActive = false;
-            rightStickSnapReady = true;
             if (leftController.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 axis) && axis.sqrMagnitude >= 0.20f)
             {
                 float angle = Mathf.Atan2(axis.y, axis.x) * Mathf.Rad2Deg;
@@ -182,16 +203,17 @@ namespace Mush.Lobby
             ApplyLocomotion(moveInput);
 
             InputDevice rightController = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
-            Vector2 turnInput = Vector2.zero;
+            Vector2 lookInput = Vector2.zero;
             if (rightController.isValid)
-                rightController.TryGetFeatureValue(CommonUsages.primary2DAxis, out turnInput);
-            if (Mathf.Abs(turnInput.x) <= 0.35f)
-                rightStickSnapReady = true;
-            if (!rightStickSnapReady || Mathf.Abs(turnInput.x) < 0.75f || seatedRig == null)
+                rightController.TryGetFeatureValue(CommonUsages.primary2DAxis, out lookInput);
+            if (seatedRig == null || lookInput.sqrMagnitude < SmoothLookDeadzone * SmoothLookDeadzone)
                 return;
 
-            seatedRig.SnapTurnAroundCamera(lobbyCamera != null ? lobbyCamera.transform : null, Mathf.Sign(turnInput.x) * SnapTurnAngle);
-            rightStickSnapReady = false;
+            lookInput = Vector2.ClampMagnitude(lookInput, 1f);
+            seatedRig.RotateViewAroundCamera(
+                lobbyCamera != null ? lobbyCamera.transform : null,
+                lookInput,
+                SmoothLookSpeed * Time.deltaTime);
             LeaveFixedStationState();
         }
 

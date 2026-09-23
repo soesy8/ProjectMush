@@ -22,12 +22,15 @@ namespace Mush.Lobby
                 return null;
 
             Transform fireplace = FindDescendant(lobbyRoot, FireplaceRootName);
+            bool legacyFireplace = fireplace != null;
+            fireplace ??= FindDescendant(lobbyRoot, "Fireplace");
             if (fireplace == null)
                 return null;
 
             // 이 FBX는 벽난로의 높이가 로컬 Z축으로 저장되어 있다. 루트의
             // -90도 X 회전으로 Z축을 월드 위쪽으로 바꿔 기둥과 상단을 세운다.
-            fireplace.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+            if (legacyFireplace)
+                fireplace.localRotation = Quaternion.Euler(-90f, 0f, 0f);
 
             MushLobbyFireplaceVfx existing = fireplace.GetComponent<MushLobbyFireplaceVfx>();
             if (existing == null)
@@ -38,6 +41,8 @@ namespace Mush.Lobby
 
         private void Initialize(Transform lobbyRoot)
         {
+            if (transform.Find("Bonfire Sound") == null)
+                MushSoundLoop.Create(transform, true);
             if (transform.Find(FlameObjectName) == null)
                 CreateFlameParticles();
 

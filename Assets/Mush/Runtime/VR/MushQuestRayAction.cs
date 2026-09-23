@@ -28,6 +28,7 @@ namespace Mush.Quest
 
         public void SelectWithQuestRay()
         {
+            MushSounds.PlayClick();
             action?.Invoke();
         }
     }

@@ -10,24 +10,33 @@ namespace Mush.Lobby
     public sealed class MushSeatedRigLock : MonoBehaviour
     {
         private const float PlayerRadius = 0.25f;
-        private static readonly Vector2 LobbyXBounds = new(-3.48f, 3.48f);
-        private static readonly Vector2 LobbyZBounds = new(-5.52f, 2.28f);
+        private const float ArtificialPitchLimit = 55f;
+        private static readonly Vector2 FallbackLobbyXBounds = new(-3.48f, 3.48f);
+        private static readonly Vector2 FallbackLobbyZBounds = new(-5.52f, 2.28f);
         private readonly Collider[] collisionBuffer = new Collider[32];
         private readonly Collider[] currentCollisionBuffer = new Collider[32];
 
         private Vector3 lockedPosition;
         private Quaternion lockedRotation;
+        private float lockedFloorHeight;
+        private float artificialPitch;
+        private Vector2 lobbyXBounds = FallbackLobbyXBounds;
+        private Vector2 lobbyZBounds = FallbackLobbyZBounds;
 
         private void Awake()
         {
             lockedPosition = transform.position;
             lockedRotation = transform.rotation;
+            lockedFloorHeight = transform.position.y;
+            ResolveLobbyMovementBounds();
         }
 
         public void MoveSeat(Vector3 worldPosition, Quaternion worldRotation)
         {
             lockedPosition = worldPosition;
             lockedRotation = worldRotation;
+            lockedFloorHeight = worldPosition.y;
+            artificialPitch = 0f;
             transform.SetPositionAndRotation(lockedPosition, lockedRotation);
         }
 
@@ -41,8 +50,8 @@ namespace Mush.Lobby
                 ? cameraTransform.position
                 : lockedPosition + Vector3.up * 1.55f;
             Vector3 requestedCameraPosition = cameraPosition + worldDisplacement;
-            requestedCameraPosition.x = Mathf.Clamp(requestedCameraPosition.x, LobbyXBounds.x, LobbyXBounds.y);
-            requestedCameraPosition.z = Mathf.Clamp(requestedCameraPosition.z, LobbyZBounds.x, LobbyZBounds.y);
+            requestedCameraPosition.x = Mathf.Clamp(requestedCameraPosition.x, lobbyXBounds.x, lobbyXBounds.y);
+            requestedCameraPosition.z = Mathf.Clamp(requestedCameraPosition.z, lobbyZBounds.x, lobbyZBounds.y);
             Vector3 clampedDisplacement = Vector3.ProjectOnPlane(requestedCameraPosition - cameraPosition, Vector3.up);
 
             // 한 축이 가구에 막혀도 다른 축은 이동시켜 벽을 따라 자연스럽게 미끄러지게 한다.
@@ -64,23 +73,27 @@ namespace Mush.Lobby
             return moved;
         }
 
-        public void SnapTurnAroundCamera(Transform cameraTransform, float degrees)
+        public void RotateViewAroundCamera(Transform cameraTransform, Vector2 lookInput, float degreesThisFrame)
         {
-            Quaternion turn = Quaternion.AngleAxis(degrees, Vector3.up);
-            if (cameraTransform == null)
-            {
-                lockedRotation = turn * lockedRotation;
-                transform.SetPositionAndRotation(lockedPosition, lockedRotation);
+            float yawDelta = lookInput.x * degreesThisFrame;
+            float targetPitch = Mathf.Clamp(
+                artificialPitch - lookInput.y * degreesThisFrame,
+                -ArtificialPitchLimit,
+                ArtificialPitchLimit);
+            float pitchDelta = targetPitch - artificialPitch;
+            if (Mathf.Abs(yawDelta) < 0.0001f && Mathf.Abs(pitchDelta) < 0.0001f)
                 return;
-            }
 
-            // 헤드셋의 현재 월드 위치를 회전 중심으로 삼아 스냅 회전 때 좌석이 원을 그리며 밀리지 않게 한다.
-            Vector3 pivot = cameraTransform.position;
-            Vector3 fromPivot = lockedPosition - pivot;
-            Vector3 rotatedPosition = pivot + turn * fromPivot;
-            rotatedPosition.y = lockedPosition.y;
-            lockedPosition = rotatedPosition;
-            lockedRotation = turn * lockedRotation;
+            Vector3 pivot = cameraTransform != null ? cameraTransform.position : lockedPosition;
+            Vector3 viewRight = cameraTransform != null ? cameraTransform.right : lockedRotation * Vector3.right;
+            Quaternion yawRotation = Quaternion.AngleAxis(yawDelta, Vector3.up);
+            Vector3 pitchedAxis = yawRotation * viewRight;
+            Quaternion pitchRotation = Quaternion.AngleAxis(pitchDelta, pitchedAxis);
+            Quaternion viewRotation = pitchRotation * yawRotation;
+
+            lockedPosition = pivot + viewRotation * (lockedPosition - pivot);
+            lockedRotation = viewRotation * lockedRotation;
+            artificialPitch = targetPitch;
             transform.SetPositionAndRotation(lockedPosition, lockedRotation);
         }
 
@@ -116,7 +129,8 @@ namespace Mush.Lobby
             {
                 Collider candidate = collisionBuffer[index];
                 if (candidate == null || candidate.transform.IsChildOf(transform) ||
-                    ContainsCollider(currentCollisionBuffer, currentCount, candidate))
+                    ContainsCollider(currentCollisionBuffer, currentCount, candidate) ||
+                    IsWalkableFloorCollider(candidate))
                     continue; // 고정 좌석과 이미 겹친 상태라면 빠져나오는 이동까지 막지 않는다.
                 return false;
             }
@@ -125,8 +139,8 @@ namespace Mush.Lobby
 
         private int OverlapPlayerCapsule(Vector3 cameraWorldPosition, Collider[] results)
         {
-            Vector3 lower = new(cameraWorldPosition.x, lockedPosition.y + 0.31f, cameraWorldPosition.z);
-            Vector3 upper = new(cameraWorldPosition.x, lockedPosition.y + 1.55f, cameraWorldPosition.z);
+            Vector3 lower = new(cameraWorldPosition.x, lockedFloorHeight + 0.31f, cameraWorldPosition.z);
+            Vector3 upper = new(cameraWorldPosition.x, lockedFloorHeight + 1.55f, cameraWorldPosition.z);
             return Physics.OverlapCapsuleNonAlloc(
                 lower,
                 upper,
@@ -144,6 +158,43 @@ namespace Mush.Lobby
                     return true;
             }
             return false;
+        }
+
+        private static bool IsWalkableFloorCollider(Collider collider)
+        {
+            Transform current = collider.transform;
+            while (current != null)
+            {
+                string objectName = current.name;
+                if (objectName == "Floor" || objectName == "Ground" ||
+                    objectName.StartsWith("Carpet_") || objectName == "PROP_CenterRug" ||
+                    objectName == "ENV_FloorBase" || objectName.StartsWith("ENV_FloorPlank_") ||
+                    objectName == "Cabin Floor Base" || objectName.StartsWith("Cabin Floor Plank "))
+                    return true;
+                current = current.parent;
+            }
+            return false;
+        }
+
+        private void ResolveLobbyMovementBounds()
+        {
+            Renderer[] renderers = Object.FindObjectsByType<Renderer>(
+                FindObjectsInactive.Exclude,
+                FindObjectsSortMode.None);
+            foreach (Renderer renderer in renderers)
+            {
+                if (renderer == null || renderer.gameObject.name != "Floor")
+                    continue;
+
+                Bounds floorBounds = renderer.bounds;
+                float padding = PlayerRadius + 0.05f;
+                if (floorBounds.size.x <= padding * 2f || floorBounds.size.z <= padding * 2f)
+                    continue;
+
+                lobbyXBounds = new Vector2(floorBounds.min.x + padding, floorBounds.max.x - padding);
+                lobbyZBounds = new Vector2(floorBounds.min.z + padding, floorBounds.max.z - padding);
+                return;
+            }
         }
 
         private void LateUpdate()

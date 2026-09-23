@@ -33,7 +33,10 @@ namespace Mush.Customization
             if (image != null)
                 image.color = hovered || questHovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
             if (hovered && mouse != null && mouse.leftButton.wasPressedThisFrame)
+            {
+                MushSounds.PlayClick();
                 callback?.Invoke();
+            }
         }
 
         public void SetQuestRayHovered(bool hovered)
@@ -43,6 +46,7 @@ namespace Mush.Customization
 
         public void SelectWithQuestRay()
         {
+            MushSounds.PlayClick();
             callback?.Invoke();
         }
     }

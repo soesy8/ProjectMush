@@ -43,6 +43,8 @@ namespace Mush.Lobby
 
         private const string RightControllerSecondaryButtonBinding = "<XRController>{RightHand}/secondaryButton"; // OpenXR의 오른손 XR 컨트롤러 보조 버튼을 지정한다. Quest Touch 계열에서는 이 경로가 B 버튼에 대응한다.
         private InputAction callDogsVrAction; // 로비에서 오른손 B 버튼을 눌렀을 때 개들을 부르기 위한 New Input System 액션을 런타임에 보관한다.
+        private bool callDogsVrArmed;
+        private bool callDogsKeyboardArmed;
         private readonly List<MeshRenderer> suppressedLobbyTextRenderers = new();
         private readonly List<UnityEngine.UI.Graphic> suppressedLobbyGraphics = new();
         private MushLobbyStationNavigator stationNavigator;
@@ -54,7 +56,9 @@ namespace Mush.Lobby
         private Material mapEmptyStarMaterial;
         private readonly MeshRenderer[,] mapStars = new MeshRenderer[3, 3];
         private readonly TextMesh[] mapRecordLabels = new TextMesh[3];
+        private readonly TextMesh[] mapButtonLabels = new TextMesh[3];
         private static readonly string[] MapSceneNames = { "snow", "Tree", "SharpCurve" };
+        private static readonly string[] MapDisplayNames = { "기본 설원", "나무 숲", "급커브맵" };
 
         private static readonly Dictionary<string, string> KoreanLabels = new Dictionary<string, string>
         {
@@ -137,11 +141,13 @@ namespace Mush.Lobby
 
         private void Start()
         {
+            AssignDogTeamIndices();
             customization = MushCustomizationSave.Load();
             ApplySavedCustomization();
             MushLobbyFireplaceVfx.Install(transform.parent); // 누워 있던 FBX 벽난로를 세우고 가벼운 불꽃 파티클과 광원 흔들림을 설치한다.
             MushLobbyFireplaceRestSpot.Install(transform.parent); // 벽난로 앞 좌우에 개별 예약 가능한 휴식 자리를 만들어 개들이 겹치지 않고 눕게 한다.
-            MushLobbyFetchBall.Install(lobbyCamera, dogs, transform.parent); // 오른쪽 개 놀이 구역의 거치대와 공 물어오기 놀이를 로비에 한 번만 설치한다.
+            if (customization.GetHousingPlacement(MushHousingLayout.DogPlayPlacement) == MushCustomizationIds.FurnitureDogPlay)
+                MushLobbyFetchBall.Install(lobbyCamera, dogs, transform.parent); // 상점에서 구매해 하우징에 배치한 경우에만 공놀이가 로비에 설치된다.
             MushLobbyFeedingStation.Install(lobbyCamera, dogs, transform.parent); // 별도 먹이주기 지점에 직접 옮기고 기울여 채우는 사료통·밥그릇과 먹기 행동을 설치한다.
             stationNavigator = MushLobbyStationNavigator.Install(lobbyCamera, this, transform.parent); // Q/왼쪽 스틱 클릭으로 여는 좌식 고정 지점 이동 메뉴다.
             MushShadowPerformance.DisableForLoadedScenes(); // 로비에서 런타임 생성한 벽난로·공·먹이주기 오브젝트까지 그림자 패스에서 제외한다.
@@ -155,11 +161,15 @@ namespace Mush.Lobby
                 type: InputActionType.Button, // B 버튼의 눌림 상태만 필요하므로 축이 아닌 Button 타입으로 만든다.
                 binding: RightControllerSecondaryButtonBinding); // 오른손 XR 컨트롤러의 secondaryButton만 바인딩해서 왼손 Y 버튼과 섞이지 않게 한다.
             callDogsVrAction.Enable(); // 활성화된 액션만 입력 이벤트를 읽을 수 있으므로 로비가 켜질 때 입력 감지를 시작한다.
+            callDogsVrArmed = !callDogsVrAction.IsPressed();
+            callDogsKeyboardArmed = false;
         }
 
         private void OnDisable() // 로비 컨트롤러가 비활성화되면 호출 입력도 같이 멈춰 다른 화면에서 불필요한 입력을 받지 않게 한다.
         {
             callDogsVrAction?.Disable(); // 액션이 아직 만들어지지 않은 경우도 안전하도록 null 조건 연산자로 비활성화한다.
+            callDogsVrArmed = false;
+            callDogsKeyboardArmed = false;
         }
 
         private void OnDestroy() // 로비 씬을 떠나면서 이 컴포넌트가 파괴될 때 런타임 생성 액션의 네이티브 자원도 정리한다.
@@ -181,13 +191,19 @@ namespace Mush.Lobby
             }
 
             Keyboard keyboard = Keyboard.current;
+            if (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen)
+            {
+                if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+                    MushLobbyPauseMenu.Active.Toggle();
+                return;
+            }
             if (keyboard != null && keyboard.qKey.wasPressedThisFrame)
                 stationNavigator?.ToggleMenu();
 
             Mouse mouse = Mouse.current;
             bool overUi = UnityEngine.EventSystems.EventSystem.current != null &&
                 UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame && lobbyCamera != null && !overUi)
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame && lobbyCamera != null && !overUi && !MushLobbyMapPanel.IsOpen)
             {
                 Ray ray = lobbyCamera.ScreenPointToRay(mouse.position.ReadValue());
                 if (stationNavigator != null && stationNavigator.IsMenuOpen)
@@ -213,7 +229,7 @@ namespace Mush.Lobby
                         hit.collider.GetComponentInParent<MushLobbyDogInteraction>()?.Pet();
                 }
             }
-            if (!overUi) HandleDesktopPointerPetting(mouse);
+            if (!overUi && !MushLobbyMapPanel.IsOpen) HandleDesktopPointerPetting(mouse);
 
             if (keyboard != null)
             {
@@ -221,17 +237,34 @@ namespace Mush.Lobby
                 {
                     if (stationNavigator != null && stationNavigator.IsMenuOpen)
                         stationNavigator.CloseMenu();
-                    else
+                    else if ((mapPanel != null && mapPanel.activeSelf) ||
+                             (shopPanel != null && shopPanel.activeSelf) ||
+                             (housingPanel != null && housingPanel.activeSelf))
                         ClosePanels();
+                    else
+                        MushLobbyPauseMenu.Active?.Toggle();
                 }
-                if (keyboard.spaceKey.wasPressedThisFrame)
+                if (!keyboard.spaceKey.isPressed)
+                    callDogsKeyboardArmed = true;
+                if (callDogsKeyboardArmed && keyboard.spaceKey.wasPressedThisFrame)
+                {
+                    callDogsKeyboardArmed = false;
                     CallDogs();
+                }
                 if (keyboard.enterKey.wasPressedThisFrame)
                     LoadSelectedMap();
             }
 
-            if (callDogsVrAction != null && callDogsVrAction.WasPressedThisFrame()) // Quest 오른손 B 버튼이 이번 프레임에 새로 눌렸을 때만 한 번 호출한다.
-                CallDogs(); // 기존 스페이스 호출과 완전히 같은 함수를 사용하므로 개의 이동·도착·쓰다듬기 흐름은 바꾸지 않는다.
+            if (callDogsVrAction != null)
+            {
+                if (!callDogsVrAction.IsPressed())
+                    callDogsVrArmed = true;
+                if (callDogsVrArmed && callDogsVrAction.WasPressedThisFrame())
+                {
+                    callDogsVrArmed = false;
+                    CallDogs();
+                }
+            }
         }
 
         private void HandleDesktopPointerPetting(Mouse mouse)
@@ -287,6 +320,12 @@ namespace Mush.Lobby
         {
             selectedSceneName = sceneName;
             selectedMap = displayName;
+            if (!MushGameSave.IsStageUnlocked(sceneName))
+            {
+                transientMessage = $"{displayName}은(는) 잠겨 있습니다. 이전 스테이지를 먼저 완료하세요";
+                RefreshAllText();
+                return;
+            }
             if (!Application.CanStreamedLevelBeLoaded(sceneName))
             {
                 transientMessage = $"{displayName} 씬을 찾을 수 없습니다";
@@ -323,6 +362,15 @@ namespace Mush.Lobby
         public void SetDogs(MushLobbyDogRoamer[] newDogs)
         {
             dogs = newDogs;
+            AssignDogTeamIndices();
+        }
+
+        private void AssignDogTeamIndices()
+        {
+            if (dogs == null)
+                return;
+            for (int index = 0; index < dogs.Length; index++)
+                dogs[index]?.SetTeamIndex(index);
         }
 
         public void SetShopPanel(GameObject newShopPanel, TextMesh newShopStatusText)
@@ -339,15 +387,28 @@ namespace Mush.Lobby
                 return false;
 
             customization ??= MushCustomizationSave.Load();
-            if (!customization.Acquire(itemId))
+            if (customization.Owns(itemId))
             {
                 transientMessage = TranslateLobbyText(displayName) + "은(는) 이미 보유 중입니다";
                 RefreshAllText();
                 return false;
             }
 
+            MushCustomizationItemDefinition definition = MushCustomizationDatabase.Find(itemId);
+            int price = definition != null ? definition.price : 0;
+            if (!MushGameSave.TrySpendGold(price))
+            {
+                gold = MushGameSave.Current.gold;
+                transientMessage = $"골드가 부족합니다. 필요 {price} / 보유 {gold}";
+                RefreshAllText();
+                return false;
+            }
+
+            customization.Acquire(itemId);
             MushCustomizationSave.Save(customization);
-            transientMessage = TranslateLobbyText(displayName) + "을(를) 받았습니다";
+            MushGameSave.Save();
+            gold = MushGameSave.Current.gold;
+            transientMessage = $"{TranslateLobbyText(displayName)} 구매 완료 · {price} 골드 사용";
             RefreshAllText();
             return true;
         }
@@ -360,6 +421,10 @@ namespace Mush.Lobby
 
         public void HandleAction(MushLobbyAction action)
         {
+            if (MushLobbyMapPanel.IsOpen && (action is MushLobbyAction.OpenMapBoard or
+                MushLobbyAction.OpenShop or MushLobbyAction.OpenHousing or MushLobbyAction.OpenCustomization))
+                return;
+            MushSounds.PlayClick();
             switch (action)
             {
                 case MushLobbyAction.OpenMapBoard:
@@ -372,6 +437,9 @@ namespace Mush.Lobby
                     return;
                 case MushLobbyAction.OpenHousing:
                     OpenHousingScene();
+                    return;
+                case MushLobbyAction.OpenCustomization:
+                    OpenCustomizationScene();
                     return;
                 case MushLobbyAction.SelectSnowfield:
                     LoadMap("snow", "기본 설원");
@@ -437,6 +505,21 @@ namespace Mush.Lobby
                 return;
             }
 
+            MushSceneUI.Active?.SaveCurrent();
+            SceneManager.LoadScene("MushStore");
+        }
+
+        private void OpenCustomizationScene()
+        {
+            SetAllPanels(false);
+            if (!Application.CanStreamedLevelBeLoaded("MushStore"))
+            {
+                transientMessage = "커스터마이징 씬을 찾을 수 없습니다";
+                RefreshAllText();
+                return;
+            }
+
+            MushStoreController.RequestCustomizationPage();
             MushSceneUI.Active?.SaveCurrent();
             SceneManager.LoadScene("MushStore");
         }
@@ -569,7 +652,13 @@ namespace Mush.Lobby
             SetAllPanels(false);
             if (panel != null)
             {
-                PositionPanelForCurrentView(panel);
+                if (panel == mapPanel && lobbyCamera != null)
+                {
+                    MushLobbyMapPanel menu = panel.GetComponent<MushLobbyMapPanel>() ?? panel.AddComponent<MushLobbyMapPanel>();
+                    menu.Configure(this, lobbyCamera, koreanFont != null ? koreanFont : MushUiPanelSkin.ThemeFont);
+                }
+                else
+                    PositionPanelForCurrentView(panel);
                 panel.SetActive(true);
                 SetBackgroundLobbyTextVisible(false);
             }
@@ -602,8 +691,8 @@ namespace Mush.Lobby
             Vector3 snowPosition = new(-0.84f, 0.08f, -0.075f);
             Vector3 forestPosition = new(0f, 0.08f, -0.075f);
             Vector3 sharpPosition = new(0.84f, 0.08f, -0.075f);
-            ArrangeMapButton(snowButton, "기본 설원", snowPosition);
-            ArrangeMapButton(forestButton, "나무 숲", forestPosition);
+            mapButtonLabels[0] = ArrangeMapButton(snowButton, MapDisplayNames[0], snowPosition);
+            mapButtonLabels[1] = ArrangeMapButton(forestButton, MapDisplayNames[1], forestPosition);
 
             Transform sharpButton = mapPanel.transform.Find("SHARP CURVE Button") ??
                                     mapPanel.transform.Find("급커브맵 Button");
@@ -646,7 +735,7 @@ namespace Mush.Lobby
                 }
             }
 
-            ArrangeMapButton(sharpButton, "급커브맵", sharpPosition);
+            mapButtonLabels[2] = ArrangeMapButton(sharpButton, MapDisplayNames[2], sharpPosition);
             NormalizeMapPanelLayout();
             BuildMapRecords();
         }
@@ -711,19 +800,26 @@ namespace Mush.Lobby
         {
             for (int map = 0; map < MapSceneNames.Length; map++)
             {
-                int earned = MushMapRecords.GetBestStars(MapSceneNames[map]);
+                bool unlocked = MushGameSave.IsStageUnlocked(MapSceneNames[map]);
+                int earned = unlocked ? MushMapRecords.GetBestStars(MapSceneNames[map]) : 0;
                 for (int star = 0; star < 3; star++)
                     if (mapStars[map, star] != null)
                         mapStars[map, star].sharedMaterial = star < earned ? mapEarnedStarMaterial : mapEmptyStarMaterial;
                 if (mapRecordLabels[map] != null)
-                    mapRecordLabels[map].text = MushMapRecords.BestTimeLabel(MapSceneNames[map]);
+                    mapRecordLabels[map].text = unlocked
+                        ? MushMapRecords.BestTimeLabel(MapSceneNames[map])
+                        : "잠김\n이전 스테이지 완료";
+                if (mapButtonLabels[map] != null)
+                    mapButtonLabels[map].text = unlocked
+                        ? MapDisplayNames[map]
+                        : MapDisplayNames[map] + "\n잠김";
             }
         }
 
-        private void ArrangeMapButton(Transform button, string label, Vector3 position)
+        private TextMesh ArrangeMapButton(Transform button, string label, Vector3 position)
         {
             if (button == null)
-                return;
+                return null;
 
             button.localPosition = position;
             button.localRotation = Quaternion.identity;
@@ -734,7 +830,7 @@ namespace Mush.Lobby
             {
                 foreach (TextMesh candidate in mapPanel.GetComponentsInChildren<TextMesh>(true))
                 {
-                    if (candidate.text != label)
+                    if (!candidate.text.StartsWith(label, StringComparison.Ordinal))
                         continue;
                     buttonLabel = candidate;
                     break;
@@ -742,7 +838,7 @@ namespace Mush.Lobby
             }
 
             if (buttonLabel == null)
-                return;
+                return null;
 
             // Old map labels were children of non-uniformly scaled cubes,
             // while the runtime sharp-curve label was a direct panel child.
@@ -753,6 +849,7 @@ namespace Mush.Lobby
             buttonLabel.transform.localRotation = Quaternion.identity;
             buttonLabel.transform.localScale = Vector3.one;
             ConfigurePanelText(buttonLabel, 0.016f, 0.90f);
+            return buttonLabel;
         }
 
         private void NormalizeMapPanelLayout()
@@ -886,7 +983,9 @@ namespace Mush.Lobby
                 lobbyStatusText.gameObject.SetActive(false);
 
             if (mapStatusText != null)
-                mapStatusText.text = $"선택: {selectedMap}\n버튼을 누르면 바로 출발합니다";
+                mapStatusText.text = MushGameSave.IsStageUnlocked(selectedSceneName)
+                    ? $"선택: {selectedMap}\n버튼을 누르면 바로 출발합니다"
+                    : $"선택: {selectedMap}\n잠김 · 이전 스테이지를 완료하세요";
 
             if (shopStatusText != null)
                 shopStatusText.text = "별도 상점 화면에서 물품을 획득하고 장착할 수 있습니다";
@@ -909,6 +1008,15 @@ namespace Mush.Lobby
                 return;
 
             MushCustomizationCatalog catalog = MushCustomizationCatalog.Load();
+            float housingFloorY = transform.root.position.y;
+            foreach (Renderer floorRenderer in transform.root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (floorRenderer.name != "Floor")
+                    continue;
+                housingFloorY = floorRenderer.bounds.max.y;
+                break;
+            }
+
             string[] housingItems =
             {
                 MushCustomizationIds.FurnitureChair,
@@ -945,10 +1053,12 @@ namespace Mush.Lobby
                 if (!occupiedHousingSlots[index] || catalog == null)
                     continue; // 장착되지 않은 슬롯은 모델/장애물 갱신을 하지 않는다.
 
-                MushCustomizationVisuals.PrepareHousingSlot(
+                GameObject housingModel = MushCustomizationVisuals.PrepareHousingSlot(
                     holder.transform,
                     catalog.GetPrefab(placedItem),
                     MushHousingLayout.PreviewSize(index)); // 해당 슬롯에 선택된 실제 FBX 모델을 고정 위치에 교체 장착한다.
+                if (MushCustomizationVisuals.TryCalculateWorldBounds(housingModel, out Bounds housingBounds))
+                    holder.transform.position += Vector3.up * (housingFloorY + 0.005f - housingBounds.min.y);
                 MushLobbyFurnitureObstacle obstacle = holder.GetComponent<MushLobbyFurnitureObstacle>(); // 장착된 가구가 내비메시에서 실제 장애물로 등록되어 있는지 확인한다.
                 if (obstacle == null)
                     obstacle = holder.AddComponent<MushLobbyFurnitureObstacle>(); // 없으면 NavMeshObstacle carving까지 관리하는 가구 장애물 컴포넌트를 추가한다.

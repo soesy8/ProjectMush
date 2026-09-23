@@ -2404,14 +2404,14 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _AtmosphereThickness: 0.7638
-    - _Exposure: 1.226
+    - _AtmosphereThickness: 0.7784
+    - _Exposure: 1.208
     - _SunDisk: 2
     - _SunSize: 0.045
     - _SunSizeConvergence: 5
     m_Colors:
-    - _GroundColor: {r: 0.27839997, g: 0.36479998, b: 0.45119998, a: 0.48}
-    - _SkyTint: {r: 0.58, g: 0.76, b: 0.94, a: 1}
+    - _GroundColor: {r: 0.2688, g: 0.3552, b: 0.4416, a: 0.48}
+    - _SkyTint: {r: 0.56, g: 0.74, b: 0.92, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!21 &3434636235384153238

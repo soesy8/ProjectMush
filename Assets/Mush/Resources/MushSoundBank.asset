@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 24823d82769f4596830fd3ba8a08c32b, type: 3}
+  m_Name: MushSoundBank
+  m_EditorClassIdentifier: Assembly-CSharp::MushSoundBank
+  click: {fileID: 8300000, guid: 9e882618303d6cc40b4c272c8930bae8, type: 3}
+  starFirst: {fileID: 8300000, guid: e533faba26f494e46b0ac8afce2f4663, type: 3}
+  starThird: {fileID: 8300000, guid: 20f069932c14784448c3219909650ff8, type: 3}
+  bonfire:
+  - {fileID: 8300000, guid: c5ef59da767f283468f475ddaf3d5c21, type: 3}
+  - {fileID: 8300000, guid: e79c8555182b41a4f982224868240098, type: 3}
+  - {fileID: 8300000, guid: e247b235984500e43a4312ccccb329ff, type: 3}
+  wind:
+  - {fileID: 8300000, guid: f6fc326f38ab8d749b4da6bd17e3731b, type: 3}
+  - {fileID: 8300000, guid: fa69cb9e26b513b458287c1c60a54adc, type: 3}
+  overlayMaterial: {fileID: 2100000, guid: a69aca8636c64c4ba0ba91d0a29ef32b, type: 2}

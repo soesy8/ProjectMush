@@ -29,7 +29,7 @@ public static class MushLobbyFlowValidator
         waitFrames = 0;
         mapPanelOpened = false;
         Subscribe();
-        EditorSceneManager.OpenScene("Assets/Mush/Scenes/MushLobby.unity", OpenSceneMode.Single);
+        EditorSceneManager.OpenScene("Assets/Art/Scenes/PM_Lobby.unity", OpenSceneMode.Single);
         EditorApplication.isPlaying = true;
     }
 
@@ -98,7 +98,7 @@ public static class MushLobbyFlowValidator
 
     private static void ValidateLobbyAndOpenSnow()
     {
-        if (SceneManager.GetActiveScene().name != "MushLobby")
+        if (SceneManager.GetActiveScene().name != "PM_Lobby")
             return;
         MushLobbyController controller = UnityEngine.Object.FindFirstObjectByType<MushLobbyController>();
         Camera camera = Camera.main;
@@ -144,7 +144,7 @@ public static class MushLobbyFlowValidator
 
     private static void OpenTreeFromReturnedLobby()
     {
-        if (SceneManager.GetActiveScene().name != "MushLobby")
+        if (SceneManager.GetActiveScene().name != "PM_Lobby")
             return;
         MushLobbyController controller = UnityEngine.Object.FindFirstObjectByType<MushLobbyController>();
         if (controller == null || waitFrames < 20)
@@ -163,12 +163,12 @@ public static class MushLobbyFlowValidator
             return;
 
         SetStage(5);
-        SceneManager.LoadScene("MushLobby");
+        SceneManager.LoadScene("PM_Lobby");
     }
 
     private static void FinishInLobby()
     {
-        if (SceneManager.GetActiveScene().name != "MushLobby" ||
+        if (SceneManager.GetActiveScene().name != "PM_Lobby" ||
             UnityEngine.Object.FindFirstObjectByType<MushLobbyController>() == null || waitFrames < 20)
             return;
 

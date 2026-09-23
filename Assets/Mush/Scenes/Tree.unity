@@ -110477,7 +110477,7 @@ MonoBehaviour:
   cameraLookTarget: {x: 0, y: 1.36, z: 8}
   normalFieldOfView: 82
   boostFieldOfView: 90
-  lobbySceneName: MushLobby
+  lobbySceneName: PM_Lobby
   finishDistanceTolerance: 11
   deliveryTimeLimitSeconds: 120
   threeStarTimeRatio: 0.8

@@ -228,6 +228,60 @@ namespace Mush.Customization
             return CreateFittedModel(prefab, slotRoot, HousingModelName, targetLargestSize, Vector3.zero, true); // 깨끗해진 고정 슬롯에 선택한 실제 FBX 모델 하나만 바닥 정렬해 장착한다.
         }
 
+        public static GameObject CreateDogPlaySet(
+            Transform parent,
+            string name,
+            float targetLargestSize,
+            Vector3 localPosition,
+            Quaternion localRotation)
+        {
+            if (parent == null)
+                return null;
+
+            GameObject root = new(name);
+            root.transform.SetParent(parent, false);
+            root.transform.SetLocalPositionAndRotation(localPosition, localRotation);
+            float scale = Mathf.Max(0.2f, targetLargestSize);
+
+            CreatePlayPart(PrimitiveType.Cylinder, "공 거치대", root.transform,
+                new Vector3(0f, 0.10f, 0f), new Vector3(0.62f, 0.10f, 0.62f) * scale,
+                new Color(0.28f, 0.13f, 0.055f));
+            CreatePlayPart(PrimitiveType.Sphere, "놀이 공", root.transform,
+                new Vector3(0f, 0.42f * scale, 0f), Vector3.one * (0.34f * scale),
+                new Color(0.92f, 0.28f, 0.08f));
+            return root;
+        }
+
+        private static void CreatePlayPart(
+            PrimitiveType primitive,
+            string name,
+            Transform parent,
+            Vector3 localPosition,
+            Vector3 localScale,
+            Color color)
+        {
+            GameObject part = GameObject.CreatePrimitive(primitive);
+            part.name = name;
+            part.transform.SetParent(parent, false);
+            part.transform.localPosition = localPosition;
+            part.transform.localScale = localScale;
+            Collider collider = part.GetComponent<Collider>();
+            if (collider != null)
+                UnityEngine.Object.Destroy(collider);
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+                return;
+            Material material = new(shader) { color = color };
+            part.GetComponent<Renderer>().material = material;
+        }
+
+        public static void AlignFurnitureToFloor(GameObject model, float floorWorldY)
+        {
+            if (model == null || !TryCalculateWorldBounds(model, out Bounds bounds))
+                return;
+            model.transform.position += Vector3.up * (floorWorldY + 0.005f - bounds.min.y);
+        }
+
         public static bool TryCalculateWorldBounds(GameObject root, out Bounds result)
         {
             result = new Bounds(root != null ? root.transform.position : Vector3.zero, Vector3.zero);

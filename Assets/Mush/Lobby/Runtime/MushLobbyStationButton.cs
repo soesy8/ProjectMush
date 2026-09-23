@@ -34,6 +34,7 @@ namespace Mush.Lobby
 
         public void Trigger()
         {
+            MushSounds.PlayClick();
             navigator?.TravelTo(stationIndex);
         }
 

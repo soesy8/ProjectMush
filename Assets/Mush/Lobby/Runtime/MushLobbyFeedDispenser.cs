@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
@@ -9,7 +8,7 @@ namespace Mush.Lobby
     [DisallowMultipleComponent]
     public sealed class MushLobbyFeedDispenser : MonoBehaviour
     {
-        private const float PourAngle = 48f;
+        private const float PourAngle = 35f;
         private static MushLobbyFeedDispenser activeDesktopDispenser;
         private MushLobbyFeedingStation station;
         private XRGrabInteractable interactable;
@@ -49,9 +48,9 @@ namespace Mush.Lobby
 
         private void Update()
         {
-            if (XRSettings.isDeviceActive)
+            if (heldInVr)
             {
-                if (heldInVr && CurrentTiltDegrees() >= PourAngle)
+                if (CurrentTiltDegrees() >= PourAngle)
                     station?.PourFrom(GetPourWorldPosition(), Time.deltaTime);
                 return;
             }
@@ -86,7 +85,7 @@ namespace Mush.Lobby
 
         public void Trigger()
         {
-            if (!isActiveAndEnabled || station == null || XRSettings.isDeviceActive || heldOnDesktop)
+            if (!isActiveAndEnabled || station == null || heldOnDesktop)
                 return;
 
             heldOnDesktop = true;
@@ -109,7 +108,7 @@ namespace Mush.Lobby
 
         private void OnSelected(SelectEnterEventArgs args)
         {
-            heldInVr = XRSettings.isDeviceActive;
+            heldInVr = true;
             heldOnDesktop = false;
             if (activeDesktopDispenser == this)
                 activeDesktopDispenser = null;

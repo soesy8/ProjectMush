@@ -37,7 +37,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, Range(70f, 100f)] private float normalFieldOfView = 82f;
     [SerializeField, Range(75f, 110f)] private float boostFieldOfView = 90f;
 
-    [SerializeField] private string lobbySceneName = "MushLobby";
+    [SerializeField] private string lobbySceneName = "PM_Lobby";
     [SerializeField, Min(1f)] private float finishDistanceTolerance = 11f;
 
     [Header("배달")]
@@ -116,9 +116,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private bool offCourse;
     private float sharpOffCoursePenaltyFeedbackUntil;
     private bool ridePaused;
+    private MushSoundLoop rideWindSound;
     private bool questReinsCalibrated;
-    private float questLeftNeutralZ;
-    private float questRightNeutralZ;
+    private Vector3 questLeftNPos;
+    private Vector3 questRightNPos;
     private float questRecalibrationHoldTime;
     private float questRecalibrationFeedbackUntil;
     private bool questRecalibrationArmed;
@@ -140,10 +141,14 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     public bool HasFinished => resultVisible;
     public bool IsPaused => ridePaused;
     public bool IsBoosting => rideController != null && rideController.IsBoosting;
+    public Camera RideCamera => rideCamera;
+    public Transform RideViewAnchor => rideSeatAnchor;
+    public Vector3 RideViewLocalPosition => cameraBaseLocalPosition;
+    public Quaternion RideViewLocalRotation => cameraRestLocalRotation;
     public float RemainingSeconds => Mathf.Max(0f, deliveryTimeLimitSeconds - missionElapsedSeconds);
     public bool ShowingOffCourseTimePenalty => Time.unscaledTime < sharpOffCoursePenaltyFeedbackUntil;
     public float OffCourseTimePenalty => sharpCurveOffCourseTimePenalty;
-    public float Stamina01 => MushGameSave.Current.stamina / 100f;
+    public float Stamina01 => MushGameSave.TeamStamina / 100f;
     [Header("Stamina")]
     [Tooltip("Fixed stamina drain per second while running, independent of map length and movement speed.")]
     [SerializeField, Min(0f)] private float baseStaminaDrain = 0.33f;
@@ -155,6 +160,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     public bool IsMoving => !ridePaused && !resultVisible && rideController != null && rideController.RideStarted && rideController.CurrentSpeed > 0.1f;
     public float RouteProgress => resultVisible ? 1f : curvedWorld != null && rideTeam != null && curvedWorld.TryGetRouteProgress(rideTeam.position, out float value) ? value : 0f;
     private int earnedStars;
+    private int resultGoldReward;
+    private string resultUnlockMessage = string.Empty;
     private float resultSequenceElapsed;
     private bool resultButtonsShown;
 
@@ -175,6 +182,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
     private void Start()
     {
+        if (lobbySceneName == "MushLobby")
+            lobbySceneName = "PM_Lobby"; // 기존 맵 씬에 직렬화된 옛 로비 이름도 새 로비로 자동 이관한다.
         BuildRideTeam();
     }
 
@@ -301,7 +310,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         reinsVisual.SetHeld(false);
 
         rideController = teamObject.AddComponent<MushSledKeyboardController>();
-        rideController.Configure(reinsVisual, leftMitten, rightMitten, null, null, false);
+        rideController.Configure(reinsVisual, leftMitten, rightMitten, null, null);
         rideController.SetCourseSurface(curvedWorld);
         InitializeCourseRecoveryCheckpoint();
 
@@ -404,8 +413,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         leftGrip ??= FindDeepChild(savedSeat, "Left Rein Grip");
         rightGrip ??= FindDeepChild(savedSeat, "Right Rein Grip");
         // Hand reins have explicit anchors and are independent of the team size.
-        leftMitten ??= FindDeepChild(leftGrip, "Left Winter Mitten");
-        rightMitten ??= FindDeepChild(rightGrip, "Right Winter Mitten");
+        leftMitten = BuildMitten("Left Winter Mitten", leftGrip, -1);
+        rightMitten = BuildMitten("Right Winter Mitten", rightGrip, 1);
         leftRein ??= FindDeepChild(savedTeam, "Left Rein")?.GetComponent<LineRenderer>();
         rightRein ??= FindDeepChild(savedTeam, "Right Rein")?.GetComponent<LineRenderer>();
         reinsVisual = savedSeat.GetComponent<MushReinsVisual>();
@@ -417,7 +426,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         rideController = savedTeam.GetComponent<MushSledKeyboardController>();
         if (rideController == null)
             rideController = savedTeam.gameObject.AddComponent<MushSledKeyboardController>();
-        rideController.Configure(reinsVisual, leftMitten, rightMitten, null, null, false);
+        rideController.Configure(reinsVisual, leftMitten, rightMitten, null, null);
         rideController.SetCourseSurface(curvedWorld);
         InitializeCourseRecoveryCheckpoint();
 
@@ -936,7 +945,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         if (!rideController.RideStarted && questRig.LeftGripHeld && questRig.RightGripHeld)
         {
-            CaptureQuestNeutralPosition();
+            CaptureQuestNPos();
             rideController.StartRide();
             PulseQuestBothHands(0.34f, 0.12f);
         }
@@ -950,10 +959,12 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         questBoostHapticHeld = boostHeld;
         rideController.SetBoost(boostHeld);
         if (!questReinsCalibrated)
-            CaptureQuestNeutralPosition();
+            CaptureQuestNPos();
 
-        float leftPull = Mathf.Max(0f, questLeftNeutralZ - questRig.LeftController.localPosition.z - questReinDeadZone);
-        float rightPull = Mathf.Max(0f, questRightNeutralZ - questRig.RightController.localPosition.z - questReinDeadZone);
+        Vector3 leftOffset = questRig.LeftController.localPosition - questLeftNPos;
+        Vector3 rightOffset = questRig.RightController.localPosition - questRightNPos;
+        float leftPull = Mathf.Max(0f, -leftOffset.z - questReinDeadZone);
+        float rightPull = Mathf.Max(0f, -rightOffset.z - questReinDeadZone);
         float steering = Mathf.Clamp(
             (rightPull - leftPull) / Mathf.Max(0.05f, questReinPullForFullTurn),
             -1f,
@@ -985,7 +996,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             questRecalibrationHoldTime += Time.unscaledDeltaTime;
             if (questRecalibrationHoldTime >= questRecalibrationHoldSeconds)
             {
-                CaptureQuestNeutralPosition();
+                CaptureQuestNPos();
                 questRecalibrationHoldTime = 0f;
                 questRecalibrationInProgress = false;
                 questRecalibrationArmed = false; // 완료 뒤 양손을 놓기 전까지 중복 재보정을 막는다.
@@ -1059,13 +1070,13 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             right.StopHaptics();
     }
 
-    private void CaptureQuestNeutralPosition()
+    private void CaptureQuestNPos()
     {
         if (questRig?.LeftController == null || questRig.RightController == null)
             return;
 
-        questLeftNeutralZ = questRig.LeftController.localPosition.z;
-        questRightNeutralZ = questRig.RightController.localPosition.z;
+        questLeftNPos = questRig.LeftController.localPosition;
+        questRightNPos = questRig.RightController.localPosition;
         questReinsCalibrated = true;
     }
 
@@ -1363,6 +1374,11 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         typography.Find("Limit")?.gameObject.SetActive(false);
         SetResultLabel(typography, "BestRecord", $"최고기록  {FormatElapsed(bestCompletionSeconds)}",
             new Vector2(128f, 36f), new Vector2(252f, 54f), 30f, Color.white, font);
+        string rewardText = $"보상  +{resultGoldReward} 골드 · 보유 {MushGameSave.Current.gold} 골드";
+        if (!string.IsNullOrEmpty(resultUnlockMessage))
+            rewardText += " · " + resultUnlockMessage;
+        SetResultLabel(typography, "Reward", rewardText, new Vector2(0f, -48f),
+            new Vector2(530f, 54f), 25f, new Color(1f, 0.80f, 0.30f), font);
 
         // Button labels follow the same delayed reveal as their colliders and backgrounds.
         Transform labels = resultButtonsRoot.transform.Find("Result Button Labels");
@@ -1567,6 +1583,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             if (!resultStarLanded[index])
             {
                 resultStarLanded[index] = true;
+                MushSounds.PlayStar(index);
                 resultStarBursts[index]?.Emit(30);
                 PulseQuestBothHands(0.38f, 0.09f);
             }
@@ -1777,6 +1794,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         }
 
         snowController?.SetRideSpeedStrength(running ? smoothedBoost : 0f);
+        if (rideWindSound == null) rideWindSound = MushSoundLoop.Create(transform, false);
+        rideWindSound?.SetVolume(running ? Mathf.Lerp(0.22f, 0.75f, smoothedBoost) : 0f);
     }
 
     private void EnsureDogTeamVisible()
@@ -2260,6 +2279,13 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         resultVisible = true;
         earnedStars = MushMapRecords.CalculateStars(missionElapsedSeconds, deliveryTimeLimitSeconds, threeStarTimeRatio);
+        resultGoldReward = MushGameSave.AwardStageCompletion(gameObject.scene.name, out bool unlockedNextStage);
+        resultUnlockMessage = unlockedNextStage ? gameObject.scene.name switch
+        {
+            "snow" => "나무 숲 해금!",
+            "Tree" => "급커브맵 해금!",
+            _ => string.Empty,
+        } : string.Empty;
         bestCompletionSeconds = MushMapRecords.SaveCompletion(gameObject.scene.name, missionElapsedSeconds, earnedStars);
         CaptureSavedRide(MushGameSave.Current);
         MushGameSave.Save();
@@ -2295,11 +2321,12 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         }
         questRig?.SetRayEnabled(true);
 
-        Debug.Log($"[Mush] 배달 완료: {FormatElapsed(missionElapsedSeconds)}, 별 {earnedStars}개", this);
+        Debug.Log($"[Mush] 배달 완료: {FormatElapsed(missionElapsedSeconds)}, 별 {earnedStars}개, +{resultGoldReward} 골드", this);
     }
 
     private void StopRideEffectsForResult()
     {
+        rideWindSound?.SetVolume(0f);
         if (speedParticles != null)
         {
             ParticleSystem.EmissionModule emission = speedParticles.emission;
@@ -2535,25 +2562,31 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
     private Transform BuildMitten(string mittenName, Transform parent, int side)
     {
-        GameObject mitten = new(mittenName);
-        mitten.transform.SetParent(parent, false);
-        mitten.transform.localPosition = Vector3.zero;
-        mitten.transform.localRotation = Quaternion.Euler(8f, side * 5f, side * 4f);
+        if (parent == null)
+            return null;
 
-        Material glove = GetRuntimeMaterial("WinterMitten", new Color(0.24f, 0.08f, 0.025f), 0.16f);
-        Material fur = GetRuntimeMaterial("WinterFur", new Color(0.80f, 0.69f, 0.51f), 0.12f);
-        CreateGlovePart("Palm", PrimitiveType.Sphere, mitten.transform,
-            new Vector3(0f, 0f, 0.02f), new Vector3(0.22f, 0.15f, 0.29f), Vector3.zero, glove);
-        CreateGlovePart("Curled Fingers", PrimitiveType.Sphere, mitten.transform,
-            new Vector3(0f, -0.005f, 0.17f), new Vector3(0.23f, 0.145f, 0.20f), Vector3.zero, glove);
-        CreateGlovePart("Thumb", PrimitiveType.Capsule, mitten.transform,
-            new Vector3(side * 0.13f, -0.02f, 0.055f), new Vector3(0.065f, 0.105f, 0.065f),
-            new Vector3(62f, 0f, side * -32f), glove);
-        CreateGlovePart("Wrist", PrimitiveType.Cylinder, mitten.transform,
-            new Vector3(0f, 0f, -0.17f), new Vector3(0.11f, 0.09f, 0.11f), new Vector3(90f, 0f, 0f), glove);
-        CreateGlovePart("Fur Cuff", PrimitiveType.Cylinder, mitten.transform,
-            new Vector3(0f, 0f, -0.25f), new Vector3(0.16f, 0.075f, 0.16f), new Vector3(90f, 0f, 0f), fur);
-        return mitten.transform;
+        Transform artHand = Mush.Quest.MushPlayerHands.Create(parent, side < 0, mittenName);
+        if (artHand == null)
+        {
+            Debug.LogError($"[Mush] Missing supplied hand prefab for {mittenName}.", this);
+            return null;
+        }
+
+        // Baked scenes can still contain the old procedural mittens.
+        for (int i = parent.childCount - 1; i >= 0; i--)
+        {
+            Transform oldHand = parent.GetChild(i);
+            if (oldHand == artHand || (oldHand.name != mittenName
+                && oldHand.name != "Desktop Left Winter Glove"
+                && oldHand.name != "Desktop Right Winter Glove"))
+                continue;
+            oldHand.gameObject.SetActive(false);
+            if (Application.isPlaying)
+                Destroy(oldHand.gameObject);
+            else
+                DestroyImmediate(oldHand.gameObject);
+        }
+        return artHand;
     }
 
     private void BuildSledCockpit(Transform parent)

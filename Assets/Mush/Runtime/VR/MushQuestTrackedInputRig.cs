@@ -21,7 +21,6 @@ namespace Mush.Quest
     public sealed class MushQuestTrackedInputRig : MonoBehaviour
     {
         private const float RayLength = 4.5f; // 좌식 UI에서 필요한 범위만 남겨 레이가 방 전체를 가로지르지 않게 한다.
-
         private Camera trackedCamera;
         private Transform coordinateRoot;
         private Transform leftController;
@@ -89,6 +88,10 @@ namespace Mush.Quest
             rightController = existingRightController ?? CreateControllerAnchor("Quest Right Controller");
             leftController.SetParent(coordinateRoot, true);
             rightController.SetParent(coordinateRoot, true);
+            if (existingLeftController == null)
+                MushPlayerHands.Create(leftController, true, "Quest Left Hand");
+            if (existingRightController == null)
+                MushPlayerHands.Create(rightController, false, "Quest Right Hand");
 
             leftRay = BuildRay("Quest Left Ray", leftController);
             rightRay = BuildRay("Quest Right Ray", rightController);
@@ -186,17 +189,20 @@ namespace Mush.Quest
                 return;
 
             if (!calibrated)
-            {
-                calibrationRotation = desiredCameraLocalRotation * Quaternion.Inverse(headRotation);
-                calibrationPosition = desiredCameraLocalPosition - calibrationRotation * headPosition;
-                calibrated = true;
-            }
+                CalibrateFromHeadPose(headPosition, headRotation);
 
             ApplyPose(trackedCamera != null ? trackedCamera.transform : null, headPosition, headRotation);
             if (TryGetPose(XRNode.LeftHand, out Vector3 leftPosition, out Quaternion leftRotation))
                 ApplyPose(leftController, leftPosition, leftRotation);
             if (TryGetPose(XRNode.RightHand, out Vector3 rightPosition, out Quaternion rightRotation))
                 ApplyPose(rightController, rightPosition, rightRotation);
+        }
+
+        private void CalibrateFromHeadPose(Vector3 headPosition, Quaternion headRotation)
+        {
+            calibrationRotation = desiredCameraLocalRotation * Quaternion.Inverse(headRotation);
+            calibrationPosition = desiredCameraLocalPosition - calibrationRotation * headPosition;
+            calibrated = true;
         }
 
         private void UpdateButtons()
@@ -396,8 +402,19 @@ namespace Mush.Quest
             UnityEngine.XR.InputDevice device = InputDevices.GetDeviceAtXRNode(node);
             position = Vector3.zero;
             rotation = Quaternion.identity;
-            bool hasPosition = device.isValid && device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out position);
-            bool hasRotation = device.isValid && device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out rotation);
+            bool activelyTracked = device.isValid &&
+                                   device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked, out bool isTracked) &&
+                                   isTracked;
+            if (!activelyTracked)
+                return false;
+
+            if (node == XRNode.Head &&
+                device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.userPresence, out bool userPresent) &&
+                !userPresent)
+                return false; // 벗어 둔 헤드셋의 책상 위 위치를 좌석 기준으로 저장하지 않는다.
+
+            bool hasPosition = device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out position);
+            bool hasRotation = device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out rotation);
             return hasPosition && hasRotation;
         }
 

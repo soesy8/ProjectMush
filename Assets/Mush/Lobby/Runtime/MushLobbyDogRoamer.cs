@@ -7,8 +7,20 @@ namespace Mush.Lobby
     [DisallowMultipleComponent]
     public sealed class MushLobbyDogRoamer : MonoBehaviour
     {
+        private static readonly Dictionary<string, Pose> SavedLobbyPositions = new();
+        public static void ClearSavedLobbyPositions() => SavedLobbyPositions.Clear();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetSavedLobbyPositions() => SavedLobbyPositions.Clear();
+
+        private void OnDisable()
+        {
+            if (gameObject.scene.IsValid())
+                SavedLobbyPositions[gameObject.scene.name + "/" + name] = new Pose(transform.position, transform.rotation);
+        }
         [SerializeField] private Transform visualRoot;
         [SerializeField] private Transform tail;
+        [SerializeField, HideInInspector] private int teamIndex = -1;
         [SerializeField, HideInInspector] private bool sceneAuthoredVisual;
         [SerializeField] private Vector2 areaMin = new Vector2(-1.25f, -0.15f);
         [SerializeField] private Vector2 areaMax = new Vector2(1.15f, 1.55f);
@@ -131,6 +143,14 @@ namespace Mush.Lobby
         public bool IsInLapRoutine => lapTarget != null;
         public Transform VisualRoot => visualRoot != null ? visualRoot : transform;
         public bool HasSceneAuthoredVisual => sceneAuthoredVisual && visualRoot != null;
+        public int TeamIndex => teamIndex >= 0 && teamIndex < MushGameSave.TeamDogCount
+            ? teamIndex
+            : (name.Contains("Right") || name.Contains("Malamute") ? 1 : 0);
+
+        public void SetTeamIndex(int index)
+        {
+            teamIndex = index >= 0 && index < MushGameSave.TeamDogCount ? index : -1;
+        }
 
         /// <summary>
         /// Creates and prepares this dog's visible model in edit mode. Once
@@ -206,7 +226,7 @@ namespace Mush.Lobby
             EnsureAnimatorForAmbientLife(); // 현재 FBX에 이미 사용 가능한 Animator가 있으면 활용하고, 없으면 절차식 생활 동작을 사용한다.
             EnsureNavMeshAgent(); // 로비 전용 내비메시가 준비되어 있으면 이 개를 Agent에 올려 가구와 다른 개를 실제 경로로 피하게 한다.
             PickTarget();
-            pauseTimer = 0f; // 시작 직후 이유 없이 멀뚱히 서 있지 않고 첫 안전 지점으로 바로 이동한다.
+            pauseTimer = Random.Range(2.5f, 4f);
             nextIdleActionTime = Time.time + Random.Range(3.5f, 7f);
         }
 
@@ -429,6 +449,17 @@ namespace Mush.Lobby
 
         private void Start()
         {
+            if (SavedLobbyPositions.TryGetValue(gameObject.scene.name + "/" + name, out Pose saved))
+            {
+                if (navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
+                {
+                    navAgent.ResetPath();
+                    navAgent.Warp(saved.position);
+                }
+                transform.SetPositionAndRotation(saved.position, saved.rotation);
+                PickTarget();
+                pauseTimer = 2f;
+            }
             if (callTarget == null && Camera.main != null)
                 callTarget = Camera.main.transform;
 
@@ -1528,7 +1559,7 @@ namespace Mush.Lobby
 
         public void MarkPetted()
         {
-            MushGameSave.PetDog();
+            MushGameSave.PetDog(TeamIndex);
             KeepStillForPetting();
             // Petting is activity, so keep the dog nearby for another five
             // seconds. It must still resume roaming when interaction stops.
@@ -1609,6 +1640,14 @@ namespace Mush.Lobby
                 Vector3 worldCandidate = transform.parent != null
                     ? transform.parent.TransformPoint(candidate)
                     : candidate; // NavMesh와 가구 Bounds 검사는 월드 좌표를 사용하므로 후보를 월드로 변환한다.
+
+                if (callTarget != null)
+                {
+                    Vector3 playerOffset = Vector3.ProjectOnPlane(worldCandidate - callTarget.position, Vector3.up);
+                    const float playerKeepAwayDistance = 2.15f;
+                    if (playerOffset.sqrMagnitude < playerKeepAwayDistance * playerKeepAwayDistance)
+                        continue;
+                }
 
                 if (MushLobbyFurnitureObstacle.IsBlocked(worldCandidate, furnitureClearance + 0.12f))
                     continue; // 의자·탁자·상점·집꾸미기·침대 같은 실제 가구 영역 안을 목적지로 고르지 않는다.
@@ -1815,8 +1854,9 @@ namespace Mush.Lobby
 
                 string surfaceName = renderer.gameObject.name; // FBX 파츠 이름으로 바닥, 판재, 러그를 구분한다.
                 bool isFloor = surfaceName == "ENV_FloorBase" || surfaceName.StartsWith("ENV_FloorPlank_") ||
-                               surfaceName == "Cabin Floor Base" || surfaceName.StartsWith("Cabin Floor Plank "); // 구형 FBX 바닥뿐 아니라 새 절차 산장의 바닥/판재도 실제 접지 표면으로 인정한다.
-                bool isRug = surfaceName == "PROP_CenterRug"; // 러그는 바닥보다 조금 높으므로 별도 표면으로 반드시 포함한다.
+                               surfaceName == "Cabin Floor Base" || surfaceName.StartsWith("Cabin Floor Plank ") ||
+                               surfaceName == "Floor" || surfaceName == "Ground";
+                bool isRug = surfaceName == "PROP_CenterRug" || surfaceName.StartsWith("Carpet_");
                 if (isFloor || isRug)
                     surfaces.Add(renderer); // 현재 개가 올라설 수 있는 표면만 캐시에 추가한다.
             }

@@ -14,6 +14,7 @@ namespace Mush.Lobby
         private const int FullBowlPelletCount = 42;
         private const int BowlCount = 2;
         private readonly List<Material> ownedMaterials = new();
+        private readonly HashSet<MushLobbyDogRoamer> dogsFedThisRound = new();
 
         private MushLobbyDogRoamer[] dogs;
         private ParticleSystem fallingFoodParticles;
@@ -51,6 +52,7 @@ namespace Mush.Lobby
             station.dogs = lobbyDogs;
             station.desktopCamera = lobbyCamera != null ? lobbyCamera : Camera.main;
             station.HideLegacyDogBowl(lobbyRoot);
+            station.PrepareArtBowls(lobbyRoot);
             station.CacheExistingFeedingPlace();
             if (station.fallingFoodParticles == null)
                 station.BuildFeedingPlace();
@@ -109,7 +111,10 @@ namespace Mush.Lobby
             }
 
             int bowlIndex = FindBowlBelow(pourWorldPosition);
-            if (bowlIndex < 0 || bowlReady[bowlIndex] || assignedDogs[bowlIndex] != null)
+            if (bowlIndex < 0)
+                return;
+            BeginFeedingRoundIfNeeded();
+            if (bowlReady[bowlIndex] || assignedDogs[bowlIndex] != null)
                 return; // 그릇 밖에서 기울이면 사료는 보이지만 채움 수치에는 들어가지 않는다.
 
             bowlFill[bowlIndex] = Mathf.Clamp01(bowlFill[bowlIndex] + deltaTime / SecondsToFill);
@@ -132,7 +137,8 @@ namespace Mush.Lobby
             if (bowlIndex < 0 || bowlIndex >= BowlCount || assignedDogs[bowlIndex] != dog)
                 return;
 
-            MushGameSave.RestoreStamina(100);
+            MushGameSave.RestoreDogStamina(dog.TeamIndex, 100);
+            dogsFedThisRound.Add(dog);
             assignedDogs[bowlIndex] = null;
             bowlReady[bowlIndex] = false;
             bowlFill[bowlIndex] = 0f;
@@ -151,7 +157,7 @@ namespace Mush.Lobby
             float nearestDistance = float.PositiveInfinity;
             foreach (MushLobbyDogRoamer dog in dogs)
             {
-                if (dog == null || dog.IsFetching || dog.IsFeeding || dog.IsInLapRoutine)
+                if (dog == null || dogsFedThisRound.Contains(dog) || dog.IsFetching || dog.IsFeeding || dog.IsInLapRoutine)
                     continue;
                 float distance = (dog.transform.position - eatingWorld[bowlIndex]).sqrMagnitude;
                 if (distance >= nearestDistance)
@@ -168,6 +174,27 @@ namespace Mush.Lobby
                 assignedDogs[bowlIndex] = nearestDog;
         }
 
+        private void BeginFeedingRoundIfNeeded()
+        {
+            for (int bowlIndex = 0; bowlIndex < BowlCount; bowlIndex++)
+            {
+                if (bowlFill[bowlIndex] > 0f || bowlReady[bowlIndex] || assignedDogs[bowlIndex] != null)
+                    return;
+            }
+
+            int availableDogCount = 0;
+            if (dogs != null)
+            {
+                foreach (MushLobbyDogRoamer dog in dogs)
+                {
+                    if (dog != null)
+                        availableDogCount++;
+                }
+            }
+            if (availableDogCount == 0 || dogsFedThisRound.Count >= availableDogCount)
+                dogsFedThisRound.Clear();
+        }
+
         private void BuildFeedingPlace()
         {
             Material bowlMaterial = CreateMaterial("Round Feeding Bowl", new Color(0.30f, 0.13f, 0.055f));
@@ -180,15 +207,20 @@ namespace Mush.Lobby
             for (int bowlIndex = 0; bowlIndex < BowlCount; bowlIndex++)
             {
                 float side = bowlIndex == 0 ? -1f : 1f;
-                Transform bowl = new GameObject(bowlIndex == 0 ? "Left Dog Food Bowl" : "Right Dog Food Bowl").transform;
-                bowl.SetParent(transform, false);
-                bowl.localPosition = new Vector3(side * 0.44f, 0f, 0f);
-                BuildRoundBowl(bowl, bowlMaterial, rimMaterial);
+                string bowlName = bowlIndex == 0 ? "Left Dog Food Bowl" : "Right Dog Food Bowl";
+                Transform bowl = FindDescendant(transform, bowlName);
+                if (bowl == null)
+                {
+                    bowl = new GameObject(bowlName).transform;
+                    bowl.SetParent(transform, false);
+                    bowl.localPosition = new Vector3(side * 0.44f, 0f, 0f);
+                    BuildRoundBowl(bowl, bowlMaterial, rimMaterial);
+                }
                 bowlWorld[bowlIndex] = bowl.position + Vector3.up * 0.13f;
                 // 개는 그릇의 방 안쪽에 서고, 그릇과 플레이어가 있는 방향을 함께 바라본다.
                 // 이전처럼 플레이어 앞에 등을 보인 채 먹지 않도록 접근 위치와 회전을 반대로 둔다.
-                eatingWorld[bowlIndex] = bowl.position - transform.forward * 0.62f;
-                eatingRotation[bowlIndex] = Quaternion.LookRotation(transform.forward, Vector3.up);
+                eatingWorld[bowlIndex] = bowl.position + transform.forward * 0.62f;
+                eatingRotation[bowlIndex] = Quaternion.LookRotation(-transform.forward, Vector3.up);
                 bowlFoodParticles[bowlIndex] = CreateParticleSystem(
                     bowlIndex == 0 ? "Food Stored In Left Bowl" : "Food Stored In Right Bowl",
                     foodMaterial,
@@ -266,6 +298,47 @@ namespace Mush.Lobby
             dispenser.Configure(this, canisterRenderer);
         }
 
+        private void PrepareArtBowls(Transform lobbyRoot)
+        {
+            if (FindDescendant(transform, "Left Dog Food Bowl") != null)
+                return;
+
+            Transform original = FindDescendant(lobbyRoot, "DogFoodBowl_Unity_MaterialSeparated");
+            if (original == null || original.IsChildOf(transform))
+                return;
+
+            Transform duplicate = Instantiate(original.gameObject, original.parent).transform;
+            duplicate.name = "Right Dog Food Bowl";
+            float spacing = 0.72f;
+            Renderer originalRenderer = original.GetComponentInChildren<Renderer>(true);
+            if (originalRenderer != null)
+                spacing = Mathf.Max(spacing, originalRenderer.bounds.size.x * 1.25f);
+            duplicate.position = original.position + original.right * spacing;
+            TintBowl(duplicate, new Color(0.30f, 0.55f, 0.92f));
+
+            original.name = "Left Dog Food Bowl";
+            Vector3 midpoint = (original.position + duplicate.position) * 0.5f;
+            transform.position = new Vector3(midpoint.x, Mathf.Min(original.position.y, duplicate.position.y), midpoint.z);
+            original.SetParent(transform, true);
+            duplicate.SetParent(transform, true);
+        }
+
+        private void TintBowl(Transform bowl, Color tint)
+        {
+            foreach (Renderer renderer in bowl.GetComponentsInChildren<Renderer>(true))
+            {
+                Material[] materials = renderer.sharedMaterials;
+                if (materials.Length == 0 || materials[0] == null)
+                    continue;
+                Material copy = new(materials[0]);
+                copy.name = materials[0].name + " - Blue Bowl";
+                copy.color = Color.Lerp(copy.color, tint, 0.62f);
+                ownedMaterials.Add(copy);
+                materials[0] = copy;
+                renderer.sharedMaterials = materials;
+            }
+        }
+
         private void CacheExistingFeedingPlace()
         {
             // Saved scene objects need their runtime station reference restored too.
@@ -286,8 +359,8 @@ namespace Mush.Lobby
                     continue;
 
                 bowlWorld[bowlIndex] = bowl.position + Vector3.up * 0.13f;
-                eatingWorld[bowlIndex] = bowl.position - transform.forward * 0.62f;
-                eatingRotation[bowlIndex] = Quaternion.LookRotation(transform.forward, Vector3.up);
+                eatingWorld[bowlIndex] = bowl.position + transform.forward * 0.62f;
+                eatingRotation[bowlIndex] = Quaternion.LookRotation(-transform.forward, Vector3.up);
                 string foodName = bowlIndex == 0 ? "Food Stored In Left Bowl" : "Food Stored In Right Bowl";
                 bowlFoodParticles[bowlIndex] = FindDescendant(transform, foodName)?.GetComponent<ParticleSystem>();
             }
@@ -328,8 +401,8 @@ namespace Mush.Lobby
             for (int bowlIndex = 0; bowlIndex < BowlCount; bowlIndex++)
             {
                 Vector3 difference = source - bowlWorld[bowlIndex];
-                if (difference.y < 0.10f || difference.y > 1.35f ||
-                    Mathf.Abs(difference.x) > 0.28f || Mathf.Abs(difference.z) > 0.29f)
+                if (difference.y < 0.05f || difference.y > 1.55f ||
+                    Mathf.Abs(difference.x) > 0.46f || Mathf.Abs(difference.z) > 0.46f)
                     continue;
 
                 float horizontalDistance = difference.x * difference.x + difference.z * difference.z;

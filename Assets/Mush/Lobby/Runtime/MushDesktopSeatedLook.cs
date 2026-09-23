@@ -5,7 +5,7 @@ using UnityEngine.XR;
 namespace Mush.Lobby
 {
     /// <summary>
-    /// Desktop-only seated look driven by the arrow keys. WASD is reserved for
+    /// Desktop-only seated look driven by mouse movement. WASD is reserved for
     /// lobby locomotion. When a headset is active, normal headset tracking
     /// remains in full control of the camera.
     /// </summary>
@@ -14,7 +14,7 @@ namespace Mush.Lobby
     public sealed class MushDesktopSeatedLook : MonoBehaviour
     {
         [SerializeField] private Transform cameraTransform;
-        [SerializeField] private float lookSpeed = 72f;
+        [SerializeField, Range(0.01f, 1f)] private float mouseSensitivity = 0.12f;
         [SerializeField] private float minimumPitch = -50f;
         [SerializeField] private float maximumPitch = 55f;
 
@@ -25,6 +25,7 @@ namespace Mush.Lobby
 
         private float yaw;
         private float pitch;
+        private MushLobbyStationNavigator stationNavigator;
         private Quaternion cameraRestRotation = Quaternion.identity;
         private Transform leftHandAnchor;
         private Transform rightHandAnchor;
@@ -78,28 +79,23 @@ namespace Mush.Lobby
 
         private void LateUpdate()
         {
-            if (MushSceneUI.ModalOpen) return;
-            if (cameraTransform == null || XRSettings.isDeviceActive)
+            if (stationNavigator == null)
+                stationNavigator = FindAnyObjectByType<MushLobbyStationNavigator>();
+            if (MushSceneUI.ModalOpen || MushLobbyMapPanel.IsOpen ||
+                (stationNavigator != null && stationNavigator.IsMenuOpen) ||
+                (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen)) return;
+            if (cameraTransform == null || XRSettings.isDeviceActive || !Application.isFocused)
                 return;
 
+            Mouse mouse = Mouse.current;
+            if (mouse == null)
+                return;
             Keyboard keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
+            Vector2 movement = mouse.delta.ReadValue();
+            yaw = Mathf.Repeat(yaw + movement.x * mouseSensitivity + 180f, 360f) - 180f;
+            pitch = Mathf.Clamp(pitch - movement.y * mouseSensitivity, minimumPitch, maximumPitch);
 
-            float horizontal = 0f;
-            float vertical = 0f;
-            if (!MushLobbyFeedDispenser.IsDesktopCanisterHeld)
-            {
-                if (keyboard.leftArrowKey.isPressed) horizontal -= 1f;
-                if (keyboard.rightArrowKey.isPressed) horizontal += 1f;
-            }
-            if (keyboard.upArrowKey.isPressed) vertical += 1f;
-            if (keyboard.downArrowKey.isPressed) vertical -= 1f;
-
-            yaw += horizontal * lookSpeed * Time.deltaTime;
-            pitch = Mathf.Clamp(pitch - vertical * lookSpeed * Time.deltaTime, minimumPitch, maximumPitch);
-
-            if (keyboard.homeKey.wasPressedThisFrame)
+            if (keyboard != null && keyboard.homeKey.wasPressedThisFrame)
             {
                 yaw = 0f;
                 pitch = 0f;
@@ -142,40 +138,25 @@ namespace Mush.Lobby
                 return;
 
             Vector2 pointer = mouse.position.ReadValue();
-            Vector2 normalized = new Vector2(
-                Mathf.Clamp01(pointer.x / Mathf.Max(1f, Screen.width)),
-                Mathf.Clamp01(pointer.y / Mathf.Max(1f, Screen.height)));
-
-            if (mouse.leftButton.isPressed && !mouse.rightButton.isPressed)
-            {
-                leftHandViewport = new Vector2(
-                    Mathf.Lerp(0.08f, 0.56f, normalized.x),
-                    Mathf.Lerp(0.10f, 0.72f, normalized.y));
-            }
-            else if (mouse.rightButton.isPressed && !mouse.leftButton.isPressed)
-            {
-                rightHandViewport = new Vector2(
-                    Mathf.Lerp(0.44f, 0.92f, normalized.x),
-                    Mathf.Lerp(0.10f, 0.72f, normalized.y));
-            }
-            else
-            {
-                Vector2 offset = (normalized - new Vector2(0.5f, 0.5f)) * 2f;
-                leftHandViewport = new Vector2(0.32f + offset.x * 0.08f, 0.25f + offset.y * 0.10f);
-                rightHandViewport = new Vector2(0.68f + offset.x * 0.08f, 0.25f + offset.y * 0.10f);
-            }
+            rightHandViewport = new Vector2(pointer.x / Mathf.Max(1f, Screen.width),
+                pointer.y / Mathf.Max(1f, Screen.height));
         }
 
         private void ApplyDesktopHandPose()
         {
-            if (XRSettings.isDeviceActive || cameraTransform == null)
-                return;
-
             if (leftHandAnchor == null || rightHandAnchor == null)
                 FindDesktopHands();
-
-            ApplyHandPose(leftHandAnchor, leftHand, leftHandViewport, -1f);
+            SetHandVisible(leftHand, XRSettings.isDeviceActive);
+            SetHandVisible(rightHand, true);
+            if (XRSettings.isDeviceActive || cameraTransform == null) return;
+            UpdateDesktopHandTargets();
             ApplyHandPose(rightHandAnchor, rightHand, rightHandViewport, 1f);
+        }
+
+        private static void SetHandVisible(Transform hand, bool visible)
+        {
+            if (hand == null) return;
+            foreach (Renderer renderer in hand.GetComponentsInChildren<Renderer>(true)) renderer.enabled = visible;
         }
 
         private void ApplyHandPose(
@@ -191,9 +172,6 @@ namespace Mush.Lobby
                 anchor.gameObject.SetActive(true);
             if (!hand.gameObject.activeSelf)
                 hand.gameObject.SetActive(true);
-
-            foreach (Renderer renderer in hand.GetComponentsInChildren<Renderer>(true))
-                renderer.enabled = true;
 
             Camera camera = cameraTransform.GetComponent<Camera>();
             if (camera == null)
