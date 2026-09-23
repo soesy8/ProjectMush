@@ -2521,11 +2521,13 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         reinObject.transform.SetParent(parent, false);
         LineRenderer line = reinObject.AddComponent<LineRenderer>();
         line.useWorldSpace = true;
-        line.positionCount = 3;
+        line.positionCount = 7;
         line.startWidth = 0.04f;
         line.endWidth = 0.026f;
+        line.widthMultiplier = 2f;
         line.startColor = new Color(0.24f, 0.075f, 0.018f, 1f);
         line.endColor = new Color(0.12f, 0.035f, 0.01f, 1f);
+        line.numCornerVertices = 5;
         line.numCapVertices = 4;
         line.shadowCastingMode = ShadowCastingMode.Off;
         line.receiveShadows = false;

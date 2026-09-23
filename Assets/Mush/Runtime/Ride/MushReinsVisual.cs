@@ -9,6 +9,9 @@ namespace Mush.Prototype
     [DisallowMultipleComponent]
     public sealed class MushReinsVisual : MonoBehaviour
     {
+        private const int InteriorCornerCount = 5;
+        private const int PositionCount = InteriorCornerCount + 2;
+
         [SerializeField] private Transform leftGrip;
         [SerializeField] private Transform rightGrip;
         [SerializeField] private Transform leftHarness;
@@ -75,13 +78,17 @@ namespace Mush.Prototype
             if (rein == null || grip == null || harness == null)
                 return;
 
-            rein.positionCount = 3;
             Vector3 start = grip.position - sledForward * pullDistance;
             Vector3 end = harness.position;
-            Vector3 midpoint = Vector3.Lerp(start, end, 0.5f) + Vector3.down * slack;
-            rein.SetPosition(0, start);
-            rein.SetPosition(1, midpoint);
-            rein.SetPosition(2, end);
+            rein.positionCount = PositionCount;
+
+            for (int pointIndex = 0; pointIndex < PositionCount; pointIndex++)
+            {
+                float t = pointIndex / (PositionCount - 1f);
+                float sagWeight = 4f * t * (1f - t);
+                Vector3 point = Vector3.Lerp(start, end, t) + Vector3.down * (slack * sagWeight);
+                rein.SetPosition(pointIndex, point);
+            }
         }
     }
 }

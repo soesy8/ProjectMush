@@ -7,11 +7,12 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Project Mush_AI Review_Test_HLSL_Mush
+  m_Name: M_KAI
   m_Shader: {fileID: 4800000, guid: 20093febacf14e8dbac1c1d203d1ac52, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
+  m_ValidKeywords:
+  - _NORMAL_MAP
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -24,11 +25,11 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _AOMap:
-        m_Texture: {fileID: 2800000, guid: ca9df587b0e004d4dbee4687d732207c, type: 3}
+        m_Texture: {fileID: 2800000, guid: 17f31a8ae6db407ab8f0b4483410444f, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 83e5a89ca8b91bf45947e44934f66585, type: 3}
+        m_Texture: {fileID: 2800000, guid: 2d914f72608a4d72815e4ddc4059936f, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _CurvatureMap:
@@ -44,11 +45,11 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _NormalMap:
-        m_Texture: {fileID: 2800000, guid: 77604d9daf7bb4b46a2fe41b3000509f, type: 3}
+        m_Texture: {fileID: 2800000, guid: 5562d4c965a74da282e4dd04c671099e, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _SmoothnessMap:
-        m_Texture: {fileID: 2800000, guid: 82b661b6e11d49842a3005b4ebfe89ed, type: 3}
+        m_Texture: {fileID: 2800000, guid: fe0dbf6e10cc4599a0c512cb0831da14, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
@@ -76,7 +77,7 @@ Material:
     - _UseCurvatureMap: 0
     - _UseEmissionMap: 0
     - _UseMetallicMap: 0
-    - _UseNormalMap: 0
+    - _UseNormalMap: 1
     - _UseSmoothnessMap: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
