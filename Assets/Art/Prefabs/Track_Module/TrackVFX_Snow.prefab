@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 173841513969716071}
   - component: {fileID: 2681029908436239192}
   - component: {fileID: 8246673409397986911}
+  - component: {fileID: 3778962244567125610}
   m_Layer: 0
   m_Name: P_SpeedSnow
   m_TagString: Untagged
@@ -4836,6 +4837,27 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!114 &3778962244567125610
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1685666106268939919}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d630875d74e49d7a107a5a70c117b64, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MushSpeedSnowRuntimeController
+  rideController: {fileID: 0}
+  rideState: {fileID: 0}
+  minimumWindSpeed: 0.5
+  maximumWindSpeed: 4.5
+  minimumEmissionRate: 8
+  maximumEmissionRate: 95
+  speedResponse: 7
+  directionResponse: 8
+  movementThreshold: 0.1
 --- !u!1 &3498697914190695140
 GameObject:
   m_ObjectHideFlags: 0
@@ -9682,7 +9704,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3783579772655545500}
   m_Layer: 0
-  m_Name: VFX_Snow_Test
+  m_Name: TrackVFX_Snow
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
