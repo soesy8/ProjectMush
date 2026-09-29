@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 9d36917767cd68e4d8b2722ee335b153
+guid: 74916756e3f760c4c81bddc082b23fa4
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -108,12 +108,34 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites: []
+    sprites:
+    - serializedVersion: 2
+      name: T_UI_Leaf
+      rect:
+        serializedVersion: 2
+        x: 108
+        y: 144
+        width: 1112
+        height: 1029
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3c82db1e77b567a45a1e40bb36fa9a34
+      internalID: -104801774
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: d1c0b5307f55d9e4895798b705aa3cc1
     internalID: 0
     vertices: []
     indices: 
@@ -122,7 +144,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      T_UI_Leaf: -104801774
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

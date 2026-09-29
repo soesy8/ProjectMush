@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 9a84fff0a95a5b64d83d90d3cc7d970f
+guid: 99cf710b358f73f4a9fc9f7a1405a83a
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -108,12 +108,34 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites: []
+    sprites:
+    - serializedVersion: 2
+      name: T_UI_FastRide
+      rect:
+        serializedVersion: 2
+        x: 78
+        y: 400
+        width: 1134
+        height: 451
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 87c7da1905f5bad448dedeeec5481be5
+      internalID: 1867386208
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 67678029ecc1e5f4c80abb5b27a2fbf7
     internalID: 0
     vertices: []
     indices: 
@@ -122,7 +144,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      T_UI_FastRide: 1867386208
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "com.breadpack.unity-mcp": "https://github.com/breadpack/UnityMcp.git?path=UnityMcpEditor#00640f746dd4dadbcf481fd53f71c4305b9ed1cc",
+    "com.unity.2d.sprite": "1.0.0",
     "com.unity.feature.development": "1.0.2",
     "com.unity.ide.rider": "3.0.40",
     "com.unity.inputsystem": "1.19.0",

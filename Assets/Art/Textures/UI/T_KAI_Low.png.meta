@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 8a1458d7078776b49933e9edb11e6708
+guid: b4853ce6a35d4c24187fe23f03a7ec49
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -108,12 +108,34 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites: []
+    sprites:
+    - serializedVersion: 2
+      name: T_KAI_Low
+      rect:
+        serializedVersion: 2
+        x: 172
+        y: 32
+        width: 910
+        height: 1194
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: d28a2bdb3e1a01b4ba287ad5d930d4d8
+      internalID: -232160024
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: dd56b12b1a146aa4c96cb1a899ec4d8e
     internalID: 0
     vertices: []
     indices: 
@@ -122,7 +144,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      T_KAI_Low: -232160024
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

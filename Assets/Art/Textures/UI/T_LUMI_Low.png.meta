@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: b2a8fd7fe1ece084abf9e83d081d645f
+guid: 8ba8d70bb003fca4182176945f44c695
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -108,12 +108,34 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites: []
+    sprites:
+    - serializedVersion: 2
+      name: T_LUMI_Low
+      rect:
+        serializedVersion: 2
+        x: 80
+        y: 42
+        width: 1093
+        height: 1149
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 165955be5a4bdce418fbb883ce218540
+      internalID: -2146901255
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: b88ebb798a55ec7408a26418c71778a2
     internalID: 0
     vertices: []
     indices: 
@@ -122,7 +144,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      T_LUMI_Low: -2146901255
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

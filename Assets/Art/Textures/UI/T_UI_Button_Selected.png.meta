@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 120c3a511cfd94e4d8c35b72a114f3d3
+guid: e100e06493be040458967f8b908022de
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -108,12 +108,34 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites: []
+    sprites:
+    - serializedVersion: 2
+      name: T_UI_Button_Selected
+      rect:
+        serializedVersion: 2
+        x: 84
+        y: 104
+        width: 1880
+        height: 474
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 130, y: 125, z: 130, w: 125}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: faeb911fd42a92d4493525293dab9f30
+      internalID: 1098998537
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: ae4be2cda6ad0b4458cb0b9dcbc16b6e
     internalID: 0
     vertices: []
     indices: 
@@ -122,7 +144,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      T_UI_Button_Selected: 1098998537
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

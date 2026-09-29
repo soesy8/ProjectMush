@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: edb866acd029f63438a2cd3d99646352
+guid: 7c6fea1fb0df8af48840392e58313439
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -108,12 +108,34 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites: []
+    sprites:
+    - serializedVersion: 2
+      name: T_UI_Snow
+      rect:
+        serializedVersion: 2
+        x: 59
+        y: 253
+        width: 2054
+        height: 201
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 744912d4794e6fe488b9c3ac36d83d33
+      internalID: 863628519
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 1cc0ec4ccd5bfa646bac703fa2abd781
     internalID: 0
     vertices: []
     indices: 
@@ -122,7 +144,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      T_UI_Snow: 863628519
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

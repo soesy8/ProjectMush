@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: dadde2ae45eca5947a6c434ec5369c05
+guid: 5e9e3ee7b49c8784fb35e08801c84018
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -108,12 +108,34 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites: []
+    sprites:
+    - serializedVersion: 2
+      name: T_UI_StatePanel
+      rect:
+        serializedVersion: 2
+        x: 83
+        y: 120
+        width: 2006
+        height: 491
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 190, y: 170, z: 190, w: 170}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 821b54799c4cc984f9d375e7e770a16c
+      internalID: -1654158380
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 9aa937e99537f2f438f2ff70c10d0671
     internalID: 0
     vertices: []
     indices: 
@@ -122,7 +144,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      T_UI_StatePanel: -1654158380
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

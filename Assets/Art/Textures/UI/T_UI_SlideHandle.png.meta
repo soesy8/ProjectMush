@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 554c4a495111ab642b7ced0a42bedf44
+guid: 47403ec197b1d8a42aa1440ebd268b22
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -108,12 +108,34 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites: []
+    sprites:
+    - serializedVersion: 2
+      name: T_UI_SlideHandle
+      rect:
+        serializedVersion: 2
+        x: 189
+        y: 190
+        width: 875
+        height: 877
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 477395167734b384a88d2a9fe7f2532f
+      internalID: -1818379609
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: b5aab062d44352c4aa2d5092e9f8c191
     internalID: 0
     vertices: []
     indices: 
@@ -122,7 +144,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      T_UI_SlideHandle: -1818379609
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
