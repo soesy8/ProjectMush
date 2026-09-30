@@ -120,7 +120,7 @@ public static class MushLobbyFlowValidator
 
     private static void ValidateSnowAndFinish()
     {
-        if (SceneManager.GetActiveScene().name != "snow")
+        if (SceneManager.GetActiveScene().name != "Track_v2")
             return;
         MushMapRideBootstrap bootstrap = UnityEngine.Object.FindFirstObjectByType<MushMapRideBootstrap>();
         if (bootstrap == null || GameObject.Find("Mush Ride Team") == null || waitFrames < 20)

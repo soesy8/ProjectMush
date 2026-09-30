@@ -8,12 +8,14 @@ public static class MushMapRecords
 
     public static bool TryGetBestTime(string sceneName, out float seconds)
     {
+        sceneName = sceneName == "Track_v2" ? "snow" : sceneName;
         seconds = PlayerPrefs.GetFloat(TimePrefix + sceneName, -1f);
         return seconds >= 0f && seconds < float.MaxValue && !float.IsInfinity(seconds);
     }
 
     public static int GetBestStars(string sceneName)
     {
+        sceneName = sceneName == "Track_v2" ? "snow" : sceneName;
         if (!TryGetBestTime(sceneName, out float bestSeconds))
             return 0;
         if (PlayerPrefs.HasKey(StarsPrefix + sceneName))
@@ -30,6 +32,7 @@ public static class MushMapRecords
 
     public static float SaveCompletion(string sceneName, float seconds, int stars)
     {
+        sceneName = sceneName == "Track_v2" ? "snow" : sceneName;
         if (string.IsNullOrEmpty(sceneName) || seconds < 0f || float.IsNaN(seconds) || float.IsInfinity(seconds))
             return TryGetBestTime(sceneName, out float saved) ? saved : 0f;
 

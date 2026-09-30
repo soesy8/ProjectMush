@@ -86,9 +86,10 @@ public static class MushSceneAuthoringMigration
 
     public static void RunBatch()
     {
-        foreach (string name in new[] { "snow", "Tree", "SharpCurve" })
+        foreach (string name in new[] { "Track_v2", "Tree", "SharpCurve" })
         {
-            Scene scene = EditorSceneManager.OpenScene($"Assets/Mush/Scenes/{name}.unity", OpenSceneMode.Single);
+            string path = name == "Track_v2" ? "Assets/Art/Scenes/Track_v2.unity" : $"Assets/Scenes/{name}.unity";
+            Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
             Migrate(scene);
             if (!EditorSceneManager.SaveScene(scene)) throw new IOException("Could not save " + scene.path);
             Debug.Log($"[Mush Authoring] Migrated and saved {scene.path}");

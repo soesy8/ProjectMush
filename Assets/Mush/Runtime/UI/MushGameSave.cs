@@ -112,7 +112,7 @@ public static class MushGameSave
     }
 
     private static bool Finite(Vector3 value) => float.IsFinite(value.x) && float.IsFinite(value.y) && float.IsFinite(value.z);
-    private static bool KnownScene(string scene) => scene is "PM_Lobby" or "MushLobby" or "MushStore" or "MushHousing" or "snow" or "Tree" or "SharpCurve";
+    private static bool KnownScene(string scene) => scene is "PM_Lobby" or "MushLobby" or "MushStore" or "MushHousing" or "snow" or "Track_v2" or "Tree" or "SharpCurve";
 
     public static string DogId(int dogIndex) => $"dog_{dogIndex + 1}";
 
@@ -228,12 +228,14 @@ public static class MushGameSave
 
     public static bool IsStageUnlocked(string sceneName)
     {
+        sceneName = sceneName == "Track_v2" ? "snow" : sceneName;
         int stageIndex = Array.IndexOf(Maps, sceneName);
         return stageIndex < 0 || stageIndex < ResolveUnlockedStageCount(Current);
     }
 
     public static int StageReward(string sceneName)
     {
+        sceneName = sceneName == "Track_v2" ? "snow" : sceneName;
         return Array.IndexOf(Maps, sceneName) switch
         {
             0 => 100,
@@ -245,6 +247,7 @@ public static class MushGameSave
 
     public static int AwardStageCompletion(string sceneName, out bool unlockedNextStage)
     {
+        sceneName = sceneName == "Track_v2" ? "snow" : sceneName;
         Data data = Current;
         int stageIndex = Array.IndexOf(Maps, sceneName);
         int previousUnlockedCount = ResolveUnlockedStageCount(data);
@@ -308,6 +311,7 @@ public static class MushGameSave
         }
         PlayerPrefs.Save();
         restoringRide = saved.riding;
+        if (saved.scene == "snow") saved.scene = "Track_v2";
         return saved.scene;
     }
 

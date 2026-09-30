@@ -12,9 +12,9 @@ public static class MushRideSceneContentBaker
 {
     private static readonly string[] GameplayScenePaths =
     {
-        "Assets/Mush/Scenes/snow.unity",
-        "Assets/Mush/Scenes/Tree.unity",
-        "Assets/Mush/Scenes/SharpCurve.unity",
+        "Assets/Art/Scenes/Track_v2.unity",
+        "Assets/Scenes/Tree.unity",
+        "Assets/Scenes/SharpCurve.unity",
     };
 
     public static void BakeFromCommandLine()

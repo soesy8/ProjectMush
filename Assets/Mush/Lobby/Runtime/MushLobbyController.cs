@@ -326,7 +326,8 @@ namespace Mush.Lobby
                 RefreshAllText();
                 return;
             }
-            if (!Application.CanStreamedLevelBeLoaded(sceneName))
+            string sceneToLoad = sceneName == "snow" ? "Track_v2" : sceneName;
+            if (!Application.CanStreamedLevelBeLoaded(sceneToLoad))
             {
                 transientMessage = $"{displayName} 씬을 찾을 수 없습니다";
                 RefreshAllText();
@@ -336,7 +337,7 @@ namespace Mush.Lobby
             transientMessage = displayName + " 출발 중";
             RefreshAllText();
             MushSceneUI.Active?.SaveCurrent();
-            SceneManager.LoadScene(sceneName);
+            SceneManager.LoadScene(sceneToLoad);
         }
 
         public void SetKoreanFont(Font font)

@@ -16,7 +16,7 @@ public static class MushAuthoringValidator
     private const string Key = "Mush.AuthoringValidation.";
     private static int frames;
     private static readonly BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
-    private static readonly string[] Maps = { "snow", "Tree", "SharpCurve" };
+    private static readonly string[] Maps = { "Track_v2", "Tree", "SharpCurve" };
 
     static MushAuthoringValidator()
     {
@@ -61,7 +61,8 @@ public static class MushAuthoringValidator
     {
         int map = SessionState.GetInt(Key + "map", 0);
         SessionState.SetString(Key + "error", "");
-        EditorSceneManager.OpenScene($"Assets/Mush/Scenes/{Maps[map]}.unity", OpenSceneMode.Single);
+        string path = map == 0 ? "Assets/Art/Scenes/Track_v2.unity" : $"Assets/Scenes/{Maps[map]}.unity";
+        EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
         MushCurvedMapRuntime runtime = Find<MushCurvedMapRuntime>();
         Require(new SerializedObject(runtime).FindProperty("bakedRoute").arraySize >= 2, "Baked route is missing");
         MushRideDog dog = Find<MushRideDog>();
