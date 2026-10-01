@@ -1,0 +1,32 @@
+{
+  "english": {
+    "name": "Mush_Gold_English",
+    "path": "Assets/Art/Scenes/Test/FontStyle/Fonts/Mush_Gold_English.asset",
+    "mode": "Static",
+    "characters": 106,
+    "ascii": 95,
+    "hangul": 0,
+    "jamo": 0,
+    "samplingPointSize": 80.0,
+    "padding": 15,
+    "atlasCount": 1,
+    "atlasWidth": 1024,
+    "atlasHeight": 1024,
+    "atlasMemoryBytes": 2098048
+  },
+  "korean": {
+    "name": "Mush_Gold_Korean_2350",
+    "path": "Assets/Art/Scenes/Test/FontStyle/Fonts/Mush_Gold_Korean_2350.asset",
+    "mode": "Static",
+    "characters": 2550,
+    "ascii": 95,
+    "hangul": 2350,
+    "jamo": 94,
+    "samplingPointSize": 50.0,
+    "padding": 9,
+    "atlasCount": 1,
+    "atlasWidth": 4096,
+    "atlasHeight": 4096,
+    "atlasMemoryBytes": 33555328
+  }
+}

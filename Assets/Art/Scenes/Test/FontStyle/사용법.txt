@@ -1,0 +1,46 @@
+금색 입체 한영 폰트
+
+파일 위치: Assets/Art/Scenes/Test/FontStyle
+
+빠른 사용
+1. Prefabs/GoldText_English.prefab 또는 GoldText_Korean_2350.prefab을 Canvas 아래로 드래그합니다.
+2. TextMeshPro의 Text 항목에 원하는 문장을 입력합니다.
+3. 크기와 정렬을 조정합니다. 금색 앞면, 모서리 반짝임, 갈색 측면, 그림자는 한 TMP 컴포넌트에서 표시됩니다.
+
+기존 TMP 텍스트에 적용
+- 영어: Font Asset = Fonts/Mush_Gold_English.asset
+  Material Preset = Materials/Mush_Gold_English_GoldDepth.mat
+- 한국어: Font Asset = Fonts/Mush_Gold_Korean_2350.asset
+  Material Preset = Materials/Mush_Gold_Korean_2350_GoldDepth.mat
+- Vertex Color는 흰색, Color Gradient는 끄는 것을 기준으로 제작했습니다.
+- 영어 폰트는 한국어 폰트를 자체 폴백으로 연결했습니다. 한영 혼합 문장에도 별도 폰트 전환이 필요 없습니다.
+- 한국어 폰트 자체에도 영어, 숫자, 문장부호가 포함되어 있습니다.
+- Mask와 RectMask2D를 지원합니다. 효과를 표시할 공간을 텍스트 가장자리에 확보하십시오.
+- UI용 TextMeshProUGUI 기준으로 검증했습니다.
+
+문자 범위
+- 영어: ASCII 32~126의 95자와 원본에서 지원하는 일부 문장부호·기호.
+- 한국어: HS두꺼비체 원본에 존재하는 한글 완성형 2,350자 전체.
+- 한국어 에셋에는 호환 자모 94자, 영어와 숫자도 포함됩니다.
+- 원본에 없는 나머지 완성형 음절이나 모든 유니코드 기호를 추가하지 않았습니다.
+- 이 결과물은 TTF 하나가 아니라 Unity TMP 폰트 에셋, 금색 머티리얼, 전용 SDF 셰이더입니다.
+- Source/HSDuggobi.ttf는 프로젝트에 이미 있던 원본의 복사본입니다. 폰트 사용 권한은 원본과 같습니다.
+
+품질·메모리
+- 영어: 정적 1024 x 1024 Alpha8 아틀라스 1장. 픽셀 데이터 약 1 MiB.
+- 한국어: 정적 4096 x 4096 Alpha8 아틀라스 1장. 픽셀 데이터 약 16 MiB.
+- Editor에서는 CPU와 GPU 복사본을 포함해 약 2 MiB / 32 MiB로 측정됐습니다. 실제 대상 기기의 메모리·프레임 성능은 별도 측정 대상입니다.
+- 한영 혼합 문장은 하나의 TMP 텍스트를 쓰지만 내부 머티리얼/드로우콜이 둘일 수 있습니다.
+- 24, 32, 48, 64, 80pt 표기를 비교했습니다. 기존 2개 텍스트 방식과 시각적으로 가깝게 재현하며 픽셀 단위 동일성을 보장하지는 않습니다.
+
+비교 및 검증
+- FontStyle_Comparison.unity: 기존 두 겹 텍스트와 새 단일 텍스트, 한글 및 한영 혼합, 크기별 예시, 마스크 예시.
+- Validation/FontStyle_Preview.png: 비교 화면 캡처.
+- Validation/Verification.json: 글자 누락, 아틀라스 좌표와 셰이더 검사.
+- Validation/GlyphRasterVerification.json: 한글 2,350자 모두 실제 래스터화된 픽셀을 갖는지 검사.
+- Validation/OutsideTest_Verification.json: Test 밖의 파일 검사.
+- Editor/FontStyleBuilder.cs: 제작에 사용한 Editor 전용 생성·검증 코드. 런타임 컴포넌트는 없습니다.
+
+작성 범위
+모든 직접 생성·수정 파일은 Assets/Art/Scenes/Test/ 하위입니다.
+원본 Prop_ShowRoom 씬과 공용 폰트 에셋에는 적용하지 않았으며, 비교 씬에서 확인할 수 있습니다.

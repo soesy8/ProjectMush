@@ -1,0 +1,39 @@
+{
+  "allHangulHaveRasterizedInk": true,
+  "checkedHangul": 2350,
+  "blankGlyphs": [],
+  "textureFormats": [
+    "Alpha8"
+  ],
+  "materials": [
+    {
+      "name": "Mush_FontComparison_Label",
+      "textureNull": false,
+      "shader": "TextMeshPro/Distance Field"
+    },
+    {
+      "name": "Mush_Gold_English_GoldDepth",
+      "textureNull": false,
+      "shader": "Mush/Test/Gold Depth SDF"
+    },
+    {
+      "name": "Mush_Gold_Korean_2350_GoldDepth",
+      "textureNull": false,
+      "shader": "Mush/Test/Gold Depth SDF"
+    }
+  ],
+  "prefabs": [
+    {
+      "name": "GoldText_English",
+      "tmpCount": 1,
+      "defaultFont": "Mush_Gold_English",
+      "defaultMaterial": "Mush_Gold_English_GoldDepth"
+    },
+    {
+      "name": "GoldText_Korean_2350",
+      "tmpCount": 1,
+      "defaultFont": "Mush_Gold_Korean_2350",
+      "defaultMaterial": "Mush_Gold_Korean_2350_GoldDepth"
+    }
+  ]
+}
