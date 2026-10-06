@@ -1,4 +1,5 @@
 using TMPro;
+using Mush.UI;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.XR;
@@ -16,10 +17,15 @@ namespace Mush.Lobby
         [SerializeField] private MushMapStarGraphic[] stars = new MushMapStarGraphic[9];
         [SerializeField] private Button[] courseButtons = new Button[3];
         [SerializeField] private Button closeButton;
+        [SerializeField] private Button startButton;
+        [SerializeField] private Image[] dogStaminaFills = new Image[2];
+        [SerializeField] private TMP_Text[] dogStaminaLabels = new TMP_Text[2];
         [SerializeField] private MushLobbyController controller;
         [SerializeField] private TMP_Text message;
         [SerializeField] private Canvas canvas;
         private bool buttonsBound;
+        private int selectedCourse;
+        private readonly int[] displayedStamina = { -1, -1 };
 
         public void Configure(MushLobbyController owner, Camera camera, Font koreanFont)
         {
@@ -54,6 +60,8 @@ namespace Mush.Lobby
 
         private void OnDisable() => IsOpen = false;
 
+        private void LateUpdate() => RefreshDogStamina();
+
         private void BindButtons()
         {
             if (buttonsBound) return;
@@ -64,12 +72,22 @@ namespace Mush.Lobby
                 courseButtons[i].onClick.AddListener(() =>
                 {
                     MushSounds.PlayClick();
-                    controller?.HandleAction(index == 0 ? MushLobbyAction.SelectSnowfield :
-                        index == 1 ? MushLobbyAction.SelectForest : MushLobbyAction.SelectSharpCurve);
-                    if (!MushGameSave.IsStageUnlocked(Scenes[index]) && message != null)
-                        message.text = "이전 스테이지를 완료하면 열립니다";
+                    if (!MushGameSave.IsStageUnlocked(Scenes[index]))
+                    {
+                        if (message != null) message.text = "이전 스테이지를 완료하면 열립니다";
+                        return;
+                    }
+                    // Older authored panels retain their direct-departure behavior.
+                    if (startButton == null) Depart(index);
+                    else { selectedCourse = index; RefreshRecords(); }
                 });
             }
+            if (startButton != null)
+                startButton.onClick.AddListener(() =>
+                {
+                    MushSounds.PlayClick();
+                    Depart(selectedCourse);
+                });
             if (closeButton != null)
                 closeButton.onClick.AddListener(() =>
                 {
@@ -81,14 +99,41 @@ namespace Mush.Lobby
 
         public void RefreshRecords()
         {
-            if (message != null) message.text = "지도를 선택하면 바로 출발합니다";
+            if (!MushGameSave.IsStageUnlocked(Scenes[selectedCourse])) selectedCourse = 0;
+            if (message != null) message.text = startButton != null ? "맵 선택" : "지도를 선택하면 바로 출발합니다";
             for (int i = 0; i < Scenes.Length; i++)
             {
                 bool unlocked = MushGameSave.IsStageUnlocked(Scenes[i]);
-                if (labels[i] != null) labels[i].text = Names[i] + (unlocked ? string.Empty : "\n잠김");
+                if (labels[i] != null) labels[i].text = Names[i] + (unlocked ? string.Empty : " (잠김)");
 
                 if (records[i] != null)
-                    records[i].text = unlocked ? MushMapRecords.BestTimeLabel(Scenes[i]) : "이전 스테이지 완료 후 입장";
+                    records[i].text = unlocked ? MushMapRecords.BestTimeLabel(Scenes[i]).Replace('\n', ' ') : "이전 맵 완료 후 입장";
+                if (startButton != null && courseButtons[i] != null)
+                {
+                    courseButtons[i].GetComponent<MushUiButtonFeedback>()?.SetChosen(i == selectedCourse);
+                }
+            }
+            RefreshDogStamina();
+        }
+
+        private void Depart(int index)
+        {
+            if (!MushGameSave.IsStageUnlocked(Scenes[index])) return;
+            controller?.HandleAction(index == 0 ? MushLobbyAction.SelectSnowfield :
+                index == 1 ? MushLobbyAction.SelectForest : MushLobbyAction.SelectSharpCurve);
+        }
+
+        private void RefreshDogStamina()
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                float value = Mathf.Clamp(MushGameSave.GetDogStamina(i), 0f, 100f);
+                if (i < dogStaminaFills.Length && dogStaminaFills[i] != null)
+                    dogStaminaFills[i].fillAmount = value / 100f;
+                int number = Mathf.FloorToInt(value);
+                if (i < dogStaminaLabels.Length && dogStaminaLabels[i] != null && number != displayedStamina[i])
+                    dogStaminaLabels[i].text = $"{(i == 0 ? "KAI" : "LUMI")}  {number}";
+                displayedStamina[i] = number;
             }
         }
     }

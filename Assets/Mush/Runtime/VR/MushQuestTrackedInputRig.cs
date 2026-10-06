@@ -247,19 +247,24 @@ namespace Mush.Quest
             GetPointerWorldRay(node, origin, out Vector3 start, out Vector3 direction); // Quest의 포인터 시작 위치와 조준 회전을 함께 사용해 상점/하우징에서 위로 솟는 그립축 문제를 없앤다.
             Vector3 end = start + direction * RayLength; // 시각 레이는 충돌 여부와 관계없이 항상 같은 길이를 유지한다.
             IMushQuestRayTarget target = null;
+            Vector3 clickPosition = start + direction * 2f;
             bool canvasHit = MushCanvasQuestInput.Handle(node, new Ray(start, direction), selectPressed,
                 node == XRNode.LeftHand ? LeftTriggerHeld : RightTriggerHeld);
             if (!canvasHit && Physics.Raycast(start, direction, out RaycastHit hit, RayLength, Physics.DefaultRaycastLayers,
                     QueryTriggerInteraction.Collide))
             {
                 target = FindRayTarget(hit.collider); // 클릭 판정만 충돌 지점을 사용하고 LineRenderer의 끝점은 줄이지 않는다.
+                clickPosition = hit.point;
             }
 
             line.SetPosition(0, start);
             line.SetPosition(1, end);
             SetHoveredTarget(ref hoveredTarget, target);
             if (selectPressed)
+            {
+                if (!canvasHit) Mush.Art.Test.ScreenClickVfx.PlayWorld(clickPosition, trackedCamera);
                 target?.SelectWithQuestRay();
+            }
         }
 
 

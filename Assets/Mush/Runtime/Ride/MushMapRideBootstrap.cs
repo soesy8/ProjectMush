@@ -316,7 +316,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         reinsVisual.Configure(leftMitten != null ? leftMitten.Find("Rein Grip Point") ?? leftGrip : leftGrip,
             rightMitten != null ? rightMitten.Find("Rein Grip Point") ?? rightGrip : rightGrip,
             leftHarness, rightHarness, leftRein, rightRein);
-        reinsVisual.ConfigureRouting(sledHolder, leftDog.holder, rightDog.holder);
         reinsVisual.SetHeld(false);
 
         rideController = teamObject.AddComponent<MushSledKeyboardController>();
@@ -424,8 +423,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (Application.isPlaying) ApplySavedSledCustomization();
         dogs.Clear();
         Transform membersRoot = dogTeamRoot != null ? dogTeamRoot : savedTeam;
-        Transform leftDog = null;
-        Transform rightDog = null;
         foreach (MushRideDog member in membersRoot.GetComponentsInChildren<MushRideDog>(false))
         {
             if (!member.isActiveAndEnabled || member.Visual == null)
@@ -441,8 +438,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
                 member.Configure(member.Visual, collar, member.CustomizationIndex,
                     member.UseMalamuteAccessories, member.GaitPhase);
             }
-            if (member.CustomizationIndex == 0) { leftHarness = member.Harness; leftDog = member.transform; }
-            if (member.CustomizationIndex == 1) { rightHarness = member.Harness; rightDog = member.transform; }
+            if (member.CustomizationIndex == 0) leftHarness = member.Harness;
+            if (member.CustomizationIndex == 1) rightHarness = member.Harness;
             dogs.Add(dog);
         }
 
@@ -461,7 +458,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         reinsVisual.Configure(leftMitten != null ? leftMitten.Find("Rein Grip Point") ?? leftGrip : leftGrip,
             rightMitten != null ? rightMitten.Find("Rein Grip Point") ?? rightGrip : rightGrip,
             leftHarness, rightHarness, leftRein, rightRein);
-        reinsVisual.ConfigureRouting(equippedSledVisual != null ? equippedSledVisual : savedSled, leftDog, rightDog);
         reinsVisual.SetHeld(false);
 
         rideController = savedTeam.GetComponent<MushSledKeyboardController>();
@@ -1281,7 +1277,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             {
                 Renderer renderer = savedButton.GetComponent<Renderer>();
                 Action callback = savedButton.name.Contains("로비") ? ReturnToLobby : RetryCurrentMap;
-                savedButton.Configure(callback, renderer, Color.white);
+                savedButton.Configure(callback, renderer, new Color(1.4f, 1.15f, 0.45f));
             }
             resultButtonsRoot?.SetActive(false);
             LayoutResultPanel();

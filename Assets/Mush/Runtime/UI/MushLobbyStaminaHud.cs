@@ -109,16 +109,20 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         if (firstStamina != displayedFirstStamina)
         {
             displayedFirstStamina = firstStamina;
+            if (staminaFill != null)
+                staminaFill.fillAmount = firstStamina / 100f;
             if (staminaText != null)
-                staminaText.SetText("허스키  {0} / 100", firstStamina);
+                staminaText.SetText("카이  {0} / 100", firstStamina);
         }
 
         int secondStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(1)), 0, 100);
         if (secondStamina != displayedSecondStamina)
         {
             displayedSecondStamina = secondStamina;
+            if (secondStaminaFill != null)
+                secondStaminaFill.fillAmount = secondStamina / 100f;
             if (secondStaminaText != null)
-                secondStaminaText.SetText("말라뮤트  {0} / 100", secondStamina);
+                secondStaminaText.SetText("루미  {0} / 100", secondStamina);
         }
     }
 

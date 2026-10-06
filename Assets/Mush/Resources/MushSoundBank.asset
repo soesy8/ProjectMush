@@ -12,7 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 24823d82769f4596830fd3ba8a08c32b, type: 3}
   m_Name: MushSoundBank
   m_EditorClassIdentifier: Assembly-CSharp::MushSoundBank
-  click: {fileID: 8300000, guid: 9e882618303d6cc40b4c272c8930bae8, type: 3}
+  titleMusic: {fileID: 8300000, guid: d0d00ccae8e419447bb229c2ce87b9dd, type: 3}
+  lobbyMusic: {fileID: 8300000, guid: c3d49f998df370f4390199ac7905a1a0, type: 3}
+  drivingMusic: {fileID: 8300000, guid: 0b4ef1aa74ab81747b8ea4ea0ea55e5d, type: 3}
+  hover: {fileID: 8300000, guid: 248a0825fbfa18943b90fd8ce6728eb0, type: 3}
+  fireplaceAmbience: {fileID: 8300000, guid: 7a81cbbdf516d064fa77f9f036a0b174, type: 3}
+  fireplaceAmbienceVolume: 0.15
+  click: {fileID: 8300000, guid: 6685c17a655ee22409c84ac5e71abdf5, type: 3}
   starFirst: {fileID: 8300000, guid: e533faba26f494e46b0ac8afce2f4663, type: 3}
   starThird: {fileID: 8300000, guid: 20f069932c14784448c3219909650ff8, type: 3}
   bonfire:

@@ -119,7 +119,7 @@ namespace Mush.Lobby
             }
             if (sceneButtons.Length > 0)
                 buttonMaterial = sceneButtons[0].GetComponent<Renderer>()?.sharedMaterial;
-            selectedMaterial = buttonMaterial;
+            RefreshSelectionVisuals();
         }
 
         private void Update()
@@ -462,7 +462,8 @@ namespace Mush.Lobby
 
         private void RefreshSelectionVisuals()
         {
-            // Selection still controls travel; the authored button artwork stays unchanged.
+            for (int i = 0; i < buttons.Count; i++)
+                buttons[i].SetSelected(i == selectedIndex);
         }
 
 

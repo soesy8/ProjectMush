@@ -1851,8 +1851,8 @@ Material:
     - _SunSize: 0.045
     - _SunSizeConvergence: 5
     m_Colors:
-    - _GroundColor: {r: 0.21830012, g: 0.09236166, b: 0.12595911, a: 0.42}
-    - _SkyTint: {r: 0.5197622, g: 0.21990871, b: 0.29990265, a: 1}
+    - _GroundColor: {r: 0.21, g: 0.2856, b: 0.378, a: 0.42}
+    - _SkyTint: {r: 0.5, g: 0.68, b: 0.9, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!21 &2749421371883531929

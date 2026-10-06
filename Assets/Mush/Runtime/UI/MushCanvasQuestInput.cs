@@ -114,6 +114,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         }
         if (pressed && target != null)
         {
+            Mush.Art.Test.ScreenClickVfx.PlayWorld(ray.GetPoint(distance), canvas.worldCamera);
             pointer.pressPosition = pointer.position;
             pointer.pointerPressRaycast = pointer.pointerCurrentRaycast;
             pointer.pointerPress = ExecuteEvents.ExecuteHierarchy(target, pointer, ExecuteEvents.pointerDownHandler)

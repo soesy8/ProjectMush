@@ -150,12 +150,15 @@ public static class ArtOptUiValidation
             MushLobbyController owner = Components<MushLobbyController>(scene).Single();
             RequireReferences(owner, "lobbyCamera", "mapPanel", "shopPanel", "housingPanel");
             MushLobbyStaminaHud hud = Components<MushLobbyStaminaHud>(scene).Single();
-            RequireReferences(hud, "staminaText", "conditionText", "secondStaminaText", "secondConditionText");
-            RequireArtworkUnchanged(hud.transform.root.gameObject, () => Invoke(hud, "Refresh"));
+            RequireReferences(hud, "staminaFill", "staminaText", "conditionText", "secondStaminaFill", "secondStaminaText", "secondConditionText");
+            ValidateLobbyStamina(hud);
             MushLobbyMapPanel menu = Components<MushLobbyMapPanel>(scene).Single();
-            RequireReferences(menu, "controller", "canvas", "message", "closeButton");
-            RequireArtworkUnchanged(menu.gameObject, menu.RefreshRecords);
+            RequireReferences(menu, "controller", "canvas", "message", "closeButton", "startButton");
             SerializedObject map = new(menu);
+            UnityEngine.UI.Image[] mapFills = Enumerable.Range(0, 2).Select(i =>
+                (UnityEngine.UI.Image)map.FindProperty("dogStaminaFills").GetArrayElementAtIndex(i).objectReferenceValue).ToArray();
+            Require(mapFills.All(fill => fill != null), "Map menu dog stamina gauges must be bound.");
+            RequireArtworkUnchanged(menu.gameObject, menu.RefreshRecords, mapFills);
             foreach (string property in new[] { "records", "labels", "courseButtons" })
             {
                 SerializedProperty array = map.FindProperty(property);
@@ -174,8 +177,9 @@ public static class ArtOptUiValidation
             MushMapRideBootstrap ride = Components<MushMapRideBootstrap>(scene).Single();
             RequireReferences(ride, "resultPanel");
             MushRideHud hud = Components<MushRideHud>(scene).Single(h => h.enabled);
-            RequireReferences(hud, "ride", "timer", "trackRoot", "progressRoot");
-            RequireArtworkUnchanged(hud.gameObject, () => Invoke(hud, "LateUpdate"));
+            RequireReferences(hud, "ride", "timer", "trackRoot", "progressRoot", "progress", "progressIcon",
+                "staminaFill", "secondStaminaFill", "staminaText", "secondStaminaText");
+            ValidateRideHud(hud);
             TMP_Text timer = (TMP_Text)new SerializedObject(hud).FindProperty("timer").objectReferenceValue;
             Require(!string.IsNullOrWhiteSpace(timer.text), scene.name + ": timer value was not updated.");
             MushSceneUI ui = Components<MushSceneUI>(scene).Single();
@@ -189,16 +193,123 @@ public static class ArtOptUiValidation
     private static void Invoke(object owner, string method) =>
         owner.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(owner, null);
 
-    private static void RequireArtworkUnchanged(GameObject root, Action updateValues)
+    private static void ValidateRideHud(MushRideHud hud)
     {
-        UnityEngine.UI.Image[] images = root.GetComponentsInChildren<UnityEngine.UI.Image>(true);
-        string[] before = images.Select(ImageAppearance).ToArray();
-        updateValues();
-        Require(before.SequenceEqual(images.Select(ImageAppearance)), root.name + ": updating values changed the authored UI artwork.");
+        SerializedObject data = new(hud);
+        UnityEngine.UI.Image first = (UnityEngine.UI.Image)data.FindProperty("staminaFill").objectReferenceValue;
+        UnityEngine.UI.Image second = (UnityEngine.UI.Image)data.FindProperty("secondStaminaFill").objectReferenceValue;
+        UnityEngine.UI.Image progress = (UnityEngine.UI.Image)data.FindProperty("progress").objectReferenceValue;
+        RectTransform marker = (RectTransform)data.FindProperty("progressIcon").objectReferenceValue;
+        TMP_Text firstText = (TMP_Text)data.FindProperty("staminaText").objectReferenceValue;
+        TMP_Text secondText = (TMP_Text)data.FindProperty("secondStaminaText").objectReferenceValue;
+        GameObject track = (GameObject)data.FindProperty("trackRoot").objectReferenceValue;
+        Vector2 panelSize = track.transform.Find("TrackUI_Panel").GetComponent<RectTransform>().sizeDelta;
+        Require(Vector2.Distance(panelSize, new Vector2(300f * 1.18f, 180f * 1.28f)) < 0.001f,
+            "Track HUD must be 18% wider and 28% taller.");
+        foreach (UnityEngine.UI.Image fill in new[] { first, second, progress })
+            Require(fill.type == UnityEngine.UI.Image.Type.Filled &&
+                    fill.fillMethod == UnityEngine.UI.Image.FillMethod.Horizontal && fill.fillOrigin == 0,
+                "Track HUD gauges must fill horizontally from the left.");
+
+        FieldInfo current = typeof(MushGameSave).GetField("current", BindingFlags.NonPublic | BindingFlags.Static);
+        object original = current.GetValue(null);
+        try
+        {
+            MushGameSave.Data sample = new();
+            current.SetValue(null, sample);
+            Invoke(hud, "OnEnable");
+            RequireArtworkUnchanged(track, () =>
+            {
+                foreach (int value in new[] { 0, 25, 50, 75, 100 })
+                {
+                    sample.dogs[0].stamina = value;
+                    sample.dogs[1].stamina = 100 - value;
+                    Invoke(hud, "LateUpdate");
+                    Require(Mathf.Approximately(first.fillAmount, value / 100f) &&
+                            Mathf.Approximately(second.fillAmount, (100 - value) / 100f),
+                        "Track stamina bars must show each dog's actual stamina.");
+                    Require(firstText.text == $"카이  {value} / 100" && secondText.text == $"루미  {100 - value} / 100",
+                        "Track dog stamina labels are incorrect.");
+                }
+                sample.dogs[0].stamina = 33.75f;
+                Invoke(hud, "LateUpdate");
+                Require(Mathf.Approximately(first.fillAmount, 0.3375f), "Track health fill must update between whole numbers.");
+            }, first, second);
+
+            MethodInfo updateProgress = typeof(MushRideHud).GetMethod("RefreshProgress", BindingFlags.Instance | BindingFlags.NonPublic);
+            foreach (float value in new[] { -1f, 0f, 0.25f, 0.5f, 0.75f, 1f, 2f })
+            {
+                updateProgress.Invoke(hud, new object[] { value });
+                float expected = Mathf.Clamp01(value);
+                Rect rect = progress.rectTransform.rect;
+                Vector3 worldEdge = progress.rectTransform.TransformPoint(new Vector3(Mathf.Lerp(rect.xMin, rect.xMax, expected), rect.center.y, 0f));
+                float markerX = marker.parent.InverseTransformPoint(worldEdge).x;
+                Require(Mathf.Approximately(progress.fillAmount, expected) && Mathf.Abs(marker.localPosition.x - markerX) < 0.001f,
+                    "Route fill and marker must follow progress from start through finish.");
+            }
+        }
+        finally
+        {
+            current.SetValue(null, original);
+            Invoke(hud, "OnEnable");
+            Invoke(hud, "LateUpdate");
+        }
     }
 
-    private static string ImageAppearance(UnityEngine.UI.Image image) =>
-        image.sprite?.GetInstanceID() + "|" + image.color + "|" + image.type + "|" + image.fillAmount + "|" +
+    private static void ValidateLobbyStamina(MushLobbyStaminaHud hud)
+    {
+        SerializedObject data = new(hud);
+        UnityEngine.UI.Image firstFill = (UnityEngine.UI.Image)data.FindProperty("staminaFill").objectReferenceValue;
+        UnityEngine.UI.Image secondFill = (UnityEngine.UI.Image)data.FindProperty("secondStaminaFill").objectReferenceValue;
+        TMP_Text firstText = (TMP_Text)data.FindProperty("staminaText").objectReferenceValue;
+        TMP_Text secondText = (TMP_Text)data.FindProperty("secondStaminaText").objectReferenceValue;
+        foreach (UnityEngine.UI.Image fill in new[] { firstFill, secondFill })
+            Require(fill.type == UnityEngine.UI.Image.Type.Filled &&
+                    fill.fillMethod == UnityEngine.UI.Image.FillMethod.Horizontal && fill.fillOrigin == 0,
+                "Lobby stamina bars must fill horizontally from the left.");
+        Require(hud.GetComponentsInChildren<TMP_Text>(true).Any(t => t.text == "스테미너"),
+            "Lobby stamina heading is missing.");
+
+        FieldInfo current = typeof(MushGameSave).GetField("current", BindingFlags.NonPublic | BindingFlags.Static);
+        object original = current.GetValue(null);
+        try
+        {
+            MushGameSave.Data sample = new();
+            current.SetValue(null, sample);
+            RequireArtworkUnchanged(hud.transform.root.gameObject, () =>
+            {
+                foreach (int value in new[] { 0, 25, 50, 75, 100 })
+                {
+                    sample.dogs[0].stamina = value;
+                    sample.dogs[1].stamina = 100 - value;
+                    Invoke(hud, "Refresh");
+                    Require(Mathf.Approximately(firstFill.fillAmount, value / 100f) &&
+                            Mathf.Approximately(secondFill.fillAmount, (100 - value) / 100f),
+                        "Lobby stamina bars do not match the individual dog values.");
+                    Require(firstText.text == $"카이  {value} / 100" &&
+                            secondText.text == $"루미  {100 - value} / 100",
+                        "Lobby dog names or stamina values are incorrect.");
+                }
+            }, firstFill, secondFill);
+        }
+        finally
+        {
+            current.SetValue(null, original);
+            Invoke(hud, "OnEnable");
+        }
+    }
+
+    private static void RequireArtworkUnchanged(GameObject root, Action updateValues, params UnityEngine.UI.Image[] changingFills)
+    {
+        UnityEngine.UI.Image[] images = root.GetComponentsInChildren<UnityEngine.UI.Image>(true);
+        string[] before = images.Select(image => ImageAppearance(image, changingFills.Contains(image))).ToArray();
+        updateValues();
+        Require(before.SequenceEqual(images.Select(image => ImageAppearance(image, changingFills.Contains(image)))),
+            root.name + ": updating values changed the authored UI artwork.");
+    }
+
+    private static string ImageAppearance(UnityEngine.UI.Image image, bool changingFill) =>
+        image.sprite?.GetInstanceID() + "|" + image.color + "|" + image.type + "|" + (changingFill ? "stamina" : image.fillAmount.ToString()) + "|" +
         image.rectTransform.anchoredPosition + "|" + image.rectTransform.sizeDelta + "|" + image.rectTransform.localScale;
 
     private static void RequireReferences(UnityEngine.Object owner, params string[] names)

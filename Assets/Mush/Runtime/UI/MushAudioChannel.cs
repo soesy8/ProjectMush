@@ -12,6 +12,7 @@ public sealed class MushAudioChannel : MonoBehaviour
     private void Awake() { source = GetComponent<AudioSource>(); sourceVolume = source.volume; }
     private void OnEnable() { MushAudioSettings.Changed += Apply; Apply(); }
     private void OnDisable() { MushAudioSettings.Changed -= Apply; if (source != null) source.volume = sourceVolume; }
+    public void SetBus(Bus value) { bus = value; Apply(); }
     public void SetVolume(float volume) { sourceVolume = Mathf.Clamp01(volume); Apply(); }
     private void Apply()
     {

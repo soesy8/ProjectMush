@@ -40,6 +40,8 @@ namespace Mush.Customization
         private string transientStatus = string.Empty;
         private MushQuestTrackedInputRig questRig;
         private bool questUiConfigured;
+        private MushStoreUiButton storePageButton;
+        private MushStoreUiButton customizationPageButton;
 
         private static readonly Color PanelColor = new(0.055f, 0.075f, 0.105f, 0.93f);
         private static readonly Color ButtonColor = new(0.16f, 0.23f, 0.31f, 0.96f);
@@ -147,9 +149,9 @@ namespace Mush.Customization
             CreateText(canvas.transform, "Title", new Vector2(0f, 205f), new Vector2(1000f, 64f),
                 38, Color.white, "머쉬 상점 · 커스터마이징");
 
-            CreateButton(canvas.transform, "상점", new Vector2(-490f, 124f), new Vector2(250f, 66f),
+            storePageButton = CreateButton(canvas.transform, "상점", new Vector2(-490f, 124f), new Vector2(250f, 66f),
                 () => { mainPage = MainPage.Store; RefreshPage(); }, ButtonColor);
-            CreateButton(canvas.transform, "커스텀", new Vector2(-210f, 124f), new Vector2(250f, 66f),
+            customizationPageButton = CreateButton(canvas.transform, "커스텀", new Vector2(-210f, 124f), new Vector2(250f, 66f),
                 () => { mainPage = MainPage.Customize; RefreshPage(); }, ButtonColor);
             CreateButton(canvas.transform, "저장하고 로비로", new Vector2(580f, 124f), new Vector2(320f, 66f),
                 SaveAndReturnToLobby, SelectedColor);
@@ -177,6 +179,8 @@ namespace Mush.Customization
 
         private void RefreshPage()
         {
+            storePageButton?.GetComponent<MushUiButtonFeedback>()?.SetChosen(mainPage == MainPage.Store);
+            customizationPageButton?.GetComponent<MushUiButtonFeedback>()?.SetChosen(mainPage == MainPage.Customize);
             if (dynamicUi != null)
             {
                 dynamicUi.gameObject.SetActive(false);
