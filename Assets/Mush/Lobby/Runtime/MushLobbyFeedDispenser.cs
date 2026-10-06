@@ -14,6 +14,7 @@ namespace Mush.Lobby
         private XRGrabInteractable interactable;
         private Renderer highlightRenderer;
         private Color restingColor;
+        [SerializeField] private Transform pourOrigin;
         private Transform originalParent;
         private Vector3 originalLocalPosition;
         private Quaternion originalLocalRotation;
@@ -100,6 +101,8 @@ namespace Mush.Lobby
 
         private Vector3 GetPourWorldPosition()
         {
+            if (pourOrigin != null)
+                return pourOrigin.position;
             Vector3 lowerSide = Vector3.Dot(transform.right, Vector3.up) < 0f
                 ? transform.right
                 : -transform.right;
