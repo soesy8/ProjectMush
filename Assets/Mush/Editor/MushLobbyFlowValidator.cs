@@ -29,7 +29,7 @@ public static class MushLobbyFlowValidator
         waitFrames = 0;
         mapPanelOpened = false;
         Subscribe();
-        EditorSceneManager.OpenScene("Assets/Art/Scenes/PM_Lobby.unity", OpenSceneMode.Single);
+        EditorSceneManager.OpenScene("Assets/Scenes/PM_Lobby.unity", OpenSceneMode.Single);
         EditorApplication.isPlaying = true;
     }
 

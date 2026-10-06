@@ -6,8 +6,11 @@ namespace Mush.Customization
 {
     public static class MushCustomizationVisuals
     {
+        public const string SuppliedSledName = "Mush_Sledge";
         private const string GeneratedPrefix = "Mush Equipped - ";
         private const string HousingModelName = "Mush Housing Model";
+        private static readonly int BaseColorProperty = Shader.PropertyToID("_BaseColor");
+        private static readonly int ColorProperty = Shader.PropertyToID("_Color");
         private static readonly Dictionary<string, Material> Materials = new(StringComparer.Ordinal);
 
         public static GameObject CreateFittedModel(
@@ -33,12 +36,15 @@ namespace Mush.Customization
             // preview. Keep the imported basis, then verify it from semantic
             // model parts so old/reimported assets are handled the same way.
             model.transform.localPosition = Vector3.zero;
-            if (IsDogBody(prefab.name))
+            bool suppliedSled = prefab.name == SuppliedSledName;
+            if (suppliedSled)
+                model.transform.localRotation = Quaternion.identity;
+            else if (IsDogBody(prefab.name))
                 AlignDogModel(holder.transform, model.transform);
             else if (IsSledBody(prefab.name))
                 AlignSledModel(holder.transform, model.transform);
             DisableRuntimeComponents(model);
-            ApplyReadableMaterials(model, prefab.name);
+            if (!suppliedSled) ApplyReadableMaterials(model, prefab.name);
 
             if (!TryCalculateLocalBounds(holder.transform, model, out Bounds bounds))
                 return holder;
@@ -171,6 +177,72 @@ namespace Mush.Customization
                 else
                     PositionDogAccessory(neckAccessory, neck != null ? neck : head, neckWorld, anatomicalForward, anatomicalUp, accessoryAxisFix); // 해부학 프레임이 없는 경우에도 축 보정과 추적은 유지한다.
             }
+        }
+
+        public static void ApplySledBodyColor(Transform body, string itemId)
+        {
+            if (body == null || itemId == MushCustomizationIds.SledSanta) return;
+            Color tint = itemId switch
+            {
+                MushCustomizationIds.SledRed => new Color(0.90f, 0.12f, 0.09f),
+                MushCustomizationIds.SledBlue => new Color(0.12f, 0.45f, 1f),
+                MushCustomizationIds.SledBlack => new Color(0.15f, 0.16f, 0.18f),
+                _ => Color.white,
+            };
+            var properties = new MaterialPropertyBlock();
+            foreach (Renderer renderer in body.GetComponentsInChildren<Renderer>(true))
+            {
+                if (HasGeneratedParent(renderer.transform, body)) continue;
+                Material[] materials = renderer.sharedMaterials;
+                for (int index = 0; index < materials.Length; index++)
+                {
+                    Material material = materials[index];
+                    if (material == null) continue;
+                    properties.Clear();
+                    renderer.GetPropertyBlock(properties, index);
+                    if (material.HasProperty(BaseColorProperty))
+                        properties.SetColor(BaseColorProperty, material.GetColor(BaseColorProperty) * tint);
+                    if (material.HasProperty(ColorProperty))
+                        properties.SetColor(ColorProperty, material.GetColor(ColorProperty) * tint);
+                    renderer.SetPropertyBlock(properties, index);
+                }
+            }
+        }
+
+        public static Transform ApplyEquippedSled(Transform suppliedSled, MushCustomizationState state)
+        {
+            if (suppliedSled == null || state == null) return suppliedSled;
+            Transform parent = suppliedSled.parent;
+            string santaName = GeneratedPrefix + "Santa Sled";
+            Transform santa = parent != null ? parent.Find(santaName) : null;
+            bool wantsSanta = state.equippedSledBody == MushCustomizationIds.SledSanta;
+            if (wantsSanta && santa == null && parent != null)
+            {
+                MushCustomizationCatalog catalog = MushCustomizationCatalog.Load();
+                if (catalog != null && catalog.sledSanta != null &&
+                    TryCalculateLocalBounds(parent, suppliedSled.gameObject, out Bounds bounds))
+                {
+                    float size = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+                    GameObject created = CreateFittedModel(catalog.sledSanta, parent, santaName, size,
+                        new Vector3(bounds.center.x, bounds.min.y, bounds.center.z), true);
+                    if (created != null)
+                    {
+                        santa = created.transform;
+                        santa.localRotation = suppliedSled.localRotation;
+                    }
+                }
+            }
+            bool showSanta = wantsSanta && santa != null;
+            // Keep the authored object and its lobby interaction collider available.
+            // Only its body renderers change; camera, hands and seating poses stay authored.
+            foreach (Renderer renderer in suppliedSled.GetComponentsInChildren<Renderer>(true))
+                if (!HasGeneratedParent(renderer.transform, suppliedSled)) renderer.enabled = !showSanta;
+            if (santa != null) santa.gameObject.SetActive(showSanta);
+            if (showSanta)
+                RemoveGeneratedChildren(suppliedSled, GeneratedPrefix + "Sled Decoration");
+            else
+                ApplySledBodyColor(suppliedSled, state.equippedSledBody);
+            return showSanta ? santa : suppliedSled;
         }
 
         public static GameObject ApplySledDecoration(
@@ -312,6 +384,7 @@ namespace Mush.Customization
             bool initialized = false;
             foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
             {
+                if (HasGeneratedParent(renderer.transform, root.transform)) continue;
                 Bounds world = renderer.bounds;
                 Vector3 min = world.min;
                 Vector3 max = world.max;

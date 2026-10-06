@@ -61,7 +61,7 @@ public static class MushAuthoringValidator
     {
         int map = SessionState.GetInt(Key + "map", 0);
         SessionState.SetString(Key + "error", "");
-        string path = map == 0 ? "Assets/Art/Scenes/Track_v2.unity" : $"Assets/Scenes/{Maps[map]}.unity";
+        string path = $"Assets/Scenes/{Maps[map]}.unity";
         EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
         MushCurvedMapRuntime runtime = Find<MushCurvedMapRuntime>();
         Require(new SerializedObject(runtime).FindProperty("bakedRoute").arraySize >= 2, "Baked route is missing");

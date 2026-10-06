@@ -68,10 +68,12 @@ public static class MushTrackSceneRepair
                     continue;
 
                 bool mapChanged = false; // 이 맵에서 실제로 복구한 것이 있는지 따로 추적합니다.
-                mapChanged |= RestoreSurface(generatedRoot, "VISIBLE Snow Terrain", terrainMesh, true); // 지형 MeshFilter와 MeshCollider 참조를 복원합니다.
-                mapChanged |= RestoreSurface(generatedRoot, "VISIBLE Curved Packed-Snow Road", roadMesh, true); // 기본 도로 Mesh와 충돌체를 복원합니다.
-                mapChanged |= RestoreSurface(generatedRoot, "Left Sled Track", leftTrackMesh, false); // 왼쪽 썰매 자국 Mesh를 복원합니다.
-                mapChanged |= RestoreSurface(generatedRoot, "Right Sled Track", rightTrackMesh, false); // 오른쪽 썰매 자국 Mesh를 복원합니다.
+                bool showGeneratedRoad = !authoring.HasRoadModel ||
+                    generatedRoot.Find(MushCurvedMapRuntime.DeformedRoadRootName) == null;
+                mapChanged |= RestoreSurface(generatedRoot, "VISIBLE Snow Terrain", terrainMesh, true, !authoring.HasCustomTerrainVisual); // 지형 MeshFilter와 MeshCollider 참조를 복원합니다.
+                mapChanged |= RestoreSurface(generatedRoot, "VISIBLE Curved Packed-Snow Road", roadMesh, true, showGeneratedRoad); // 기본 도로 Mesh와 충돌체를 복원합니다.
+                mapChanged |= RestoreSurface(generatedRoot, "Left Sled Track", leftTrackMesh, false, showGeneratedRoad); // 왼쪽 썰매 자국 Mesh를 복원합니다.
+                mapChanged |= RestoreSurface(generatedRoot, "Right Sled Track", rightTrackMesh, false, showGeneratedRoad); // 오른쪽 썰매 자국 Mesh를 복원합니다.
 
                 if (mapChanged) // 이 맵에서 실제 Mesh 참조가 복구된 경우에만 표시 상태와 모델 프리뷰를 현재 설정에 맞춥니다.
                 {
@@ -87,7 +89,7 @@ public static class MushTrackSceneRepair
             return;
 
         EditorSceneManager.MarkSceneDirty(scene); // 실제로 사라진 Mesh 참조를 복구했으므로 이번 한 번만 정상적인 저장 대상임을 표시합니다.
-        Debug.Log($"[Mush] '{scene.name}'의 사라진 도로/지형 Mesh 참조를 원래 GeneratedMaps Mesh로 복구했습니다. 씬을 한 번 저장하면 이후 자동 복구는 다시 실행되지 않습니다."); // 복구가 실제 발생했을 때만 한 줄 알립니다.
+        Debug.Log($"[Mush] '{scene.name}'의 도로/지형 Mesh 참조와 모델 슬롯에 맞는 표시 상태를 복구했습니다. 씬을 저장하면 이후 자동 복구는 다시 실행되지 않습니다."); // 복구가 실제 발생했을 때만 한 줄 알립니다.
         SceneView.RepaintAll(); // 복구된 도로와 지형이 씬 뷰에 즉시 보이게 갱신합니다.
     }
 
@@ -103,7 +105,7 @@ public static class MushTrackSceneRepair
         return null; // 필요한 Mesh가 없으면 안전하게 복구를 포기합니다.
     }
 
-    private static bool RestoreSurface(Transform generatedRoot, string objectName, Mesh correctMesh, bool restoreCollider) // 한 도로/지형 오브젝트의 손상된 Mesh 참조만 복구합니다.
+    private static bool RestoreSurface(Transform generatedRoot, string objectName, Mesh correctMesh, bool restoreCollider, bool showRenderer) // 한 도로/지형 오브젝트의 Mesh 참조와 올바른 표시 상태를 복구합니다.
     {
         Transform target = generatedRoot.Find(objectName); // 기존 씬 계층의 원래 오브젝트를 이름으로 찾습니다.
         if (target == null || correctMesh == null) // 원래 오브젝트 자체가 없으면 새 오브젝트를 억지로 만들지 않습니다.
@@ -128,11 +130,11 @@ public static class MushTrackSceneRepair
             }
         }
 
-        Renderer renderer = target.GetComponent<Renderer>(); // 이전 패치가 Renderer를 꺼버린 경우도 확인합니다.
-        if (renderer != null && !renderer.enabled) // 현재 복구 단계에서는 원래 기본 도로/지형을 우선 보이게 돌립니다.
+        Renderer renderer = target.GetComponent<Renderer>();
+        if (renderer != null && renderer.enabled != showRenderer)
         {
-            renderer.enabled = true; // 모델 슬롯이 활성화된 경우에는 이어지는 Presentation 갱신이 필요한 것만 다시 숨깁니다.
-            changed = true; // 표시 상태를 복구했음을 기록합니다.
+            renderer.enabled = showRenderer; // 아트 도로가 있으면 기본 도로를 숨겨 같은 높이의 겹침을 막습니다.
+            changed = true;
         }
 
         return changed; // 실제 변경 여부를 호출자에게 반환합니다.

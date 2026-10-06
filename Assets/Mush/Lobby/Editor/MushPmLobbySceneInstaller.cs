@@ -12,7 +12,7 @@ namespace Mush.Lobby.Editor
     [InitializeOnLoad]
     public static class MushPmLobbySceneInstaller
     {
-        private const string ScenePath = "Assets/Art/Scenes/PM_Lobby.unity";
+        private const string ScenePath = "Assets/Scenes/PM_Lobby.unity";
         private const string RigPath = "Assets/VR/VRTemplateAssets/Prefabs/Setup/Complete XR Origin Set Up Variant.prefab";
         private const string MarkerName = "Mush PM Lobby Direct Setup Revision 3";
         private const string OldLobbyPath = "Assets/Mush/Scenes/MushLobby.unity";

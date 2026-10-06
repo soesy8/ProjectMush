@@ -8,7 +8,7 @@ namespace Mush.Lobby
     public sealed class MushLobbyMapPanel : MonoBehaviour
     {
         public static bool IsOpen { get; private set; }
-        private static readonly string[] Scenes = { "snow", "Tree", "SharpCurve" };
+        private static readonly string[] Scenes = { "Track_v2", "Tree", "SharpCurve" };
         private static readonly string[] Names = { "기본 설원", "나무 숲", "급커브맵" };
         private readonly Text[] records = new Text[3];
         private readonly Text[] labels = new Text[3];

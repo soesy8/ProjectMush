@@ -15,10 +15,10 @@ MonoBehaviour:
   koreanFont: {fileID: 12800000, guid: 918f93b250272774ab7c69827fd9595d, type: 3}
   uiPanelPrefab: {fileID: 8231257487936597334, guid: d29398f9395430d4ab5a2421b4b2cceb, type: 3}
   lobbyEnvironment: {fileID: 919132149155446097, guid: 884beb9d9364186469f47e2caf1bcfb8, type: 3}
-  sledNatural: {fileID: 919132149155446097, guid: dc301fce4fe10484b90b621d04205b09, type: 3}
-  sledRed: {fileID: 919132149155446097, guid: b362b6a0763480343b2b9923eb9768e9, type: 3}
-  sledBlue: {fileID: 919132149155446097, guid: d933b63073348974fabe9360cd9a1edb, type: 3}
-  sledBlack: {fileID: 919132149155446097, guid: b20e41bed92ab6040b0d741e813599a0, type: 3}
+  sledNatural: {fileID: 753232516895525819, guid: 3d71f9250050ce2478c7513cf7eba316, type: 3}
+  sledRed: {fileID: 753232516895525819, guid: 3d71f9250050ce2478c7513cf7eba316, type: 3}
+  sledBlue: {fileID: 753232516895525819, guid: 3d71f9250050ce2478c7513cf7eba316, type: 3}
+  sledBlack: {fileID: 753232516895525819, guid: 3d71f9250050ce2478c7513cf7eba316, type: 3}
   sledSanta: {fileID: 919132149155446097, guid: 9eee17af8ac9f9149ac2b289a4cfa0b4, type: 3}
   sledFrontLantern: {fileID: 919132149155446097, guid: e811aea34bd4f6a41a95acac9578168b, type: 3}
   husky: {fileID: 919132149155446097, guid: 48a9d8a7660a7fa49bd38ad18db17619, type: 3}

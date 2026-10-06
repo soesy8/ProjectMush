@@ -10,7 +10,7 @@ using UnityEngine.UI;
 [InitializeOnLoad]
 public static class MushArtTitleSceneInstaller
 {
-    private const string TitleScenePath = "Assets/Art/Scenes/Title.unity";
+    private const string TitleScenePath = "Assets/Scenes/Title.unity";
     private const string OldTitleScenePath = "Assets/Mush/Scenes/MushTitle.unity";
     private const string OptionPrefabPath = "Assets/UI_Panel_Sample/Prefab/OptionUI.prefab";
 
@@ -94,7 +94,7 @@ public static class MushArtTitleSceneInstaller
         if (openedTemporarily)
             EditorSceneManager.CloseScene(targetScene, true);
 
-        Debug.Log("[Mush] Connected the authored UI in Assets/Art/Scenes/Title.unity and made it the build title scene.");
+        Debug.Log("[Mush] Connected the authored UI in Assets/Scenes/Title.unity and made it the build title scene.");
     }
 
     private static void InstallIfNeeded()

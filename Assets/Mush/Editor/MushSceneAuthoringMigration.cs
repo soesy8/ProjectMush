@@ -36,10 +36,10 @@ public static class MushSceneAuthoringMigration
             foreach (GameObject root in scene.GetRootGameObjects())
             {
                 hasTrack |= root.GetComponentInChildren<MushTrackAuthoring>(true) != null;
-                foreach (MeshFilter filter in root.GetComponentsInChildren<MeshFilter>(true)) Add(resources, filter.sharedMesh);
-                foreach (MeshCollider collider in root.GetComponentsInChildren<MeshCollider>(true)) Add(resources, collider.sharedMesh);
+                foreach (MeshFilter filter in root.GetComponentsInChildren<MeshFilter>(true)) Add(resources, filter, filter.sharedMesh);
+                foreach (MeshCollider collider in root.GetComponentsInChildren<MeshCollider>(true)) Add(resources, collider, collider.sharedMesh);
                 foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
-                    foreach (Material material in renderer.sharedMaterials) Add(resources, material);
+                    foreach (Material material in renderer.sharedMaterials) Add(resources, renderer, material);
             }
             if (!hasTrack || resources.Count == 0) return;
             const string folder = "Assets/Mush/GeneratedMaps";
@@ -48,24 +48,33 @@ public static class MushSceneAuthoringMigration
             if (string.IsNullOrEmpty(name)) name = "UnsavedTrack";
             string path = $"{folder}/{name}_AuthoringAssets.asset";
             MushBakedMapAssetContainer container = AssetDatabase.LoadAssetAtPath<MushBakedMapAssetContainer>(path);
-            foreach (Object resource in resources)
+            var pathsToSave = new HashSet<string>(StringComparer.Ordinal);
+            // Finish every sub-asset change before the native importer sees the file.
+            using (new AssetDatabase.AssetEditingScope())
             {
-                if (AssetDatabase.Contains(resource))
+                foreach (Object resource in resources)
                 {
-                    if (resource is Mesh && AssetDatabase.GetAssetPath(resource).StartsWith(folder + "/", StringComparison.Ordinal))
-                        AssetDatabase.SaveAssetIfDirty(resource);
-                    continue;
+                    if (AssetDatabase.Contains(resource))
+                    {
+                        string resourcePath = AssetDatabase.GetAssetPath(resource);
+                        if (resourcePath.StartsWith(folder + "/", StringComparison.Ordinal))
+                            pathsToSave.Add(resourcePath);
+                        continue;
+                    }
+                    if (container == null)
+                    {
+                        container = ScriptableObject.CreateInstance<MushBakedMapAssetContainer>();
+                        AssetDatabase.CreateAsset(container, path);
+                    }
+                    resource.hideFlags = HideFlags.None;
+                    AssetDatabase.AddObjectToAsset(resource, container);
+                    EditorUtility.SetDirty(resource);
+                    EditorUtility.SetDirty(container);
+                    pathsToSave.Add(path);
                 }
-                if (container == null)
-                {
-                    container = ScriptableObject.CreateInstance<MushBakedMapAssetContainer>();
-                    AssetDatabase.CreateAsset(container, path);
-                }
-                resource.hideFlags = HideFlags.None;
-                AssetDatabase.AddObjectToAsset(resource, container);
-                EditorUtility.SetDirty(resource);
+                foreach (string assetPath in pathsToSave)
+                    AssetDatabase.SaveAssetIfDirty(AssetDatabase.GUIDFromAssetPath(assetPath));
             }
-            if (container != null) AssetDatabase.SaveAssetIfDirty(container);
             foreach (GameObject root in scene.GetRootGameObjects())
                 foreach (MushCurvedMapRuntime runtime in root.GetComponentsInChildren<MushCurvedMapRuntime>(true))
                     runtime.ReleaseBakedResourceOwnership();
@@ -73,9 +82,15 @@ public static class MushSceneAuthoringMigration
         finally { saving = false; }
     }
 
-    private static void Add(HashSet<Object> resources, Object resource)
+    private static void Add(HashSet<Object> resources, Component owner, Object resource)
     {
-        if (resource != null) resources.Add(resource);
+        if (resource == null || (resource.hideFlags & HideFlags.DontSaveInEditor) != 0 ||
+            (owner.hideFlags & HideFlags.DontSaveInEditor) != 0) return;
+        // Hidden query helpers are temporary even if their referenced mesh was
+        // accidentally persisted before. Only saved scene objects own baked assets.
+        for (Transform current = owner.transform; current != null; current = current.parent)
+            if ((current.gameObject.hideFlags & HideFlags.DontSaveInEditor) != 0) return;
+        resources.Add(resource);
     }
 
     [MenuItem("Mush/Maps/Save Editable Scene Content")]
@@ -88,7 +103,7 @@ public static class MushSceneAuthoringMigration
     {
         foreach (string name in new[] { "Track_v2", "Tree", "SharpCurve" })
         {
-            string path = name == "Track_v2" ? "Assets/Art/Scenes/Track_v2.unity" : $"Assets/Scenes/{name}.unity";
+            string path = $"Assets/Scenes/{name}.unity";
             Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
             Migrate(scene);
             if (!EditorSceneManager.SaveScene(scene)) throw new IOException("Could not save " + scene.path);

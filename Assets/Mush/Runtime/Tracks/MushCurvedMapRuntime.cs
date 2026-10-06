@@ -229,12 +229,13 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     }
 
     /// <summary>
-    /// 현재 경로와 모델 슬롯을 읽어 저장되지 않는 도로 모델 프리뷰와 표시 상태만 복구합니다.
+    /// 저장된 도로 메시를 다시 생성하지 않고 모델 슬롯에 맞는 표시 상태만 복구합니다.
     /// </summary>
     public void RefreshEditorPresentationOnly()
     {
         if (Application.isPlaying) return;
         rebuiltRoot = transform.Find(GeneratedWorldRootName);
+        activeAuthoring = MushTrackAuthoring.FindFor(transform);
         CacheBakedWorldReferences();
     }
 
@@ -259,6 +260,17 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         ReplaceRibbonMesh("Right Sled Track", 0.10f, 1.75f, 0.145f, false);
 
         roadRenderer = FindGeneratedComponent<Renderer>("VISIBLE Curved Packed-Snow Road");
+
+        // Rebuilding an existing map must replace its old material as well as its mesh.
+        if (activeAuthoring != null)
+        {
+            if (terrainRenderer != null)
+                terrainRenderer.sharedMaterial = CreateCourseMaterial(activeAuthoring.TerrainMaterialOverride,
+                    activeAuthoring.TerrainTextureOverride, "Track_v2 Terrain", Color.white, 0.12f);
+            if (roadRenderer != null)
+                roadRenderer.sharedMaterial = CreateCourseMaterial(activeAuthoring.RoadMaterialOverride,
+                    activeAuthoring.RoadTextureOverride, "Track_v2 Road", Color.white, 0.18f);
+        }
 
         RefreshRoadModelInstances();
         ApplyCustomCoursePresentation();
@@ -417,6 +429,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     {
         roadRenderer = FindGeneratedComponent<Renderer>("VISIBLE Curved Packed-Snow Road");
         terrainRenderer = FindGeneratedComponent<Renderer>("VISIBLE Snow Terrain");
+        ApplyRoadPresentation();
         AmbientSnowTransform = FindGeneratedTransform("FX_AmbientSnow_Rebuilt");
 
         if (!isSharpCurve)
@@ -1033,19 +1046,29 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
 
     private void ApplyCustomCoursePresentation()
     {
+        ApplyRoadPresentation();
+        bool hasTerrainModel = activeTerrainVisual != null;
+        if (terrainRenderer != null)
+            terrainRenderer.enabled = !hasTerrainModel;
+
+        Transform generatedTerrainTransform = rebuiltRoot != null ? rebuiltRoot.Find("VISIBLE Snow Terrain") : null;
+        MeshCollider generatedTerrainCollider = generatedTerrainTransform != null
+            ? generatedTerrainTransform.GetComponent<MeshCollider>()
+            : null;
+        if (generatedTerrainCollider != null)
+            generatedTerrainCollider.enabled = !hasTerrainModel;
+    }
+
+    private void ApplyRoadPresentation()
+    {
         Transform roadModelRoot = rebuiltRoot != null ? rebuiltRoot.Find(DeformedRoadRootName) : null;
         bool hasRoadModel = roadModelRoot != null &&
                             activeAuthoring != null &&
                             activeAuthoring.HasRoadModel;
-        bool hasTerrainModel = activeTerrainVisual != null;
         bool showGeneratedRoad = !hasRoadModel;
-        bool showGeneratedTerrain = !hasTerrainModel;
 
         if (roadRenderer != null)
             roadRenderer.enabled = showGeneratedRoad;
-
-        if (terrainRenderer != null)
-            terrainRenderer.enabled = showGeneratedTerrain;
 
         Renderer leftTrackRenderer = FindGeneratedComponent<Renderer>("Left Sled Track");
         Renderer rightTrackRenderer = FindGeneratedComponent<Renderer>("Right Sled Track");
@@ -1055,14 +1078,6 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             rightTrackRenderer.enabled = showGeneratedRoad;
 
         SetVisualRenderersEnabled(roadModelRoot, hasRoadModel);
-
-
-        Transform generatedTerrainTransform = rebuiltRoot != null ? rebuiltRoot.Find("VISIBLE Snow Terrain") : null;
-        MeshCollider generatedTerrainCollider = generatedTerrainTransform != null
-            ? generatedTerrainTransform.GetComponent<MeshCollider>()
-            : null;
-        if (generatedTerrainCollider != null)
-            generatedTerrainCollider.enabled = !hasTerrainModel;
     }
 
     private GameObject ResolveCustomVisual(GameObject source, string generatedPrefix)
@@ -1116,8 +1131,13 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         Color fallbackColor,
         float smoothness)
     {
-        if (materialOverride != null && textureOverride == null)
-            return materialOverride;
+        if (materialOverride != null)
+        {
+            Texture currentTexture = materialOverride.HasProperty("_BaseMap")
+                ? materialOverride.GetTexture("_BaseMap") : materialOverride.mainTexture;
+            if (textureOverride == null || currentTexture == textureOverride)
+                return materialOverride;
+        }
 
         Material material;
         if (materialOverride != null)

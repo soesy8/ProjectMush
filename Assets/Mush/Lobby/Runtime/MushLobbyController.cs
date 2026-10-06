@@ -38,7 +38,7 @@ namespace Mush.Lobby
         private readonly bool[] occupiedHousingSlots = new bool[3];
         private MushCustomizationState customization;
         private string selectedMap = "기본 설원";
-        private string selectedSceneName = "snow";
+        private string selectedSceneName = "Track_v2";
         private string transientMessage = "마우스 또는 컨트롤러 광선으로 원하는 항목을 선택하세요";
 
         private const string RightControllerSecondaryButtonBinding = "<XRController>{RightHand}/secondaryButton"; // OpenXR의 오른손 XR 컨트롤러 보조 버튼을 지정한다. Quest Touch 계열에서는 이 경로가 B 버튼에 대응한다.
@@ -57,7 +57,7 @@ namespace Mush.Lobby
         private readonly MeshRenderer[,] mapStars = new MeshRenderer[3, 3];
         private readonly TextMesh[] mapRecordLabels = new TextMesh[3];
         private readonly TextMesh[] mapButtonLabels = new TextMesh[3];
-        private static readonly string[] MapSceneNames = { "snow", "Tree", "SharpCurve" };
+        private static readonly string[] MapSceneNames = { "Track_v2", "Tree", "SharpCurve" };
         private static readonly string[] MapDisplayNames = { "기본 설원", "나무 숲", "급커브맵" };
 
         private static readonly Dictionary<string, string> KoreanLabels = new Dictionary<string, string>
@@ -326,8 +326,8 @@ namespace Mush.Lobby
                 RefreshAllText();
                 return;
             }
-            string sceneToLoad = sceneName == "snow" ? "Track_v2" : sceneName;
-            if (!Application.CanStreamedLevelBeLoaded(sceneToLoad))
+
+            if (!Application.CanStreamedLevelBeLoaded(sceneName))
             {
                 transientMessage = $"{displayName} 씬을 찾을 수 없습니다";
                 RefreshAllText();
@@ -337,7 +337,7 @@ namespace Mush.Lobby
             transientMessage = displayName + " 출발 중";
             RefreshAllText();
             MushSceneUI.Active?.SaveCurrent();
-            SceneManager.LoadScene(sceneToLoad);
+            SceneManager.LoadScene(sceneName);
         }
 
         public void SetKoreanFont(Font font)
@@ -443,7 +443,7 @@ namespace Mush.Lobby
                     OpenCustomizationScene();
                     return;
                 case MushLobbyAction.SelectSnowfield:
-                    LoadMap("snow", "기본 설원");
+                    LoadMap("Track_v2", "기본 설원");
                     return;
                 case MushLobbyAction.SelectForest:
                     LoadMap("Tree", "나무 숲");
@@ -1003,11 +1003,24 @@ namespace Mush.Lobby
             return occupiedHousingSlots[index] ? "사용" : "비어 있음";
         }
 
+        private void ApplySavedSledCustomization()
+        {
+            foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+                foreach (Transform visual in root.GetComponentsInChildren<Transform>(true))
+                {
+                    if (visual.name != MushCustomizationVisuals.SuppliedSledName) continue;
+                    Transform sled = MushCustomizationVisuals.ApplyEquippedSled(visual, customization);
+                    MushCustomizationVisuals.ApplySledDecoration(sled, customization, 1.25f);
+                    return;
+                }
+        }
+
         private void ApplySavedCustomization()
         {
             if (customization == null)
                 return;
 
+            ApplySavedSledCustomization();
             MushCustomizationCatalog catalog = MushCustomizationCatalog.Load();
             float housingFloorY = transform.root.position.y;
             foreach (Renderer floorRenderer in transform.root.GetComponentsInChildren<Renderer>(true))

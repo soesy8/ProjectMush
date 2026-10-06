@@ -641,14 +641,12 @@ public sealed class MushTrackAuthoringEditor : Editor
 public static class MushTrackEditorWorldPreview
 {
     private static readonly HashSet<MushTrackAuthoring> PendingTracks = new();
-    private static readonly HashSet<Mesh> DirtyGeneratedMeshes = new();
     private static bool rebuildScheduled;
     private static bool rebuilding;
 
     static MushTrackEditorWorldPreview()
     {
         Undo.undoRedoPerformed += HandleUndoRedo;
-        EditorSceneManager.sceneSaved += HandleSceneSaved;
         SceneView.duringSceneGui += DrawQuickTrackEditButton;
     }
 
@@ -694,23 +692,6 @@ public static class MushTrackEditorWorldPreview
                 continue;
 
             EditorUtility.SetDirty(mesh);
-            DirtyGeneratedMeshes.Add(mesh);
-        }
-    }
-
-    private static void HandleSceneSaved(Scene scene)
-    {
-        if (DirtyGeneratedMeshes.Count == 0)
-            return;
-
-        Mesh[] meshes = new Mesh[DirtyGeneratedMeshes.Count];
-        DirtyGeneratedMeshes.CopyTo(meshes);
-        DirtyGeneratedMeshes.Clear();
-        for (int index = 0; index < meshes.Length; index++)
-        {
-            Mesh mesh = meshes[index];
-            if (mesh != null && AssetDatabase.Contains(mesh))
-                AssetDatabase.SaveAssetIfDirty(mesh);
         }
     }
 
@@ -795,7 +776,6 @@ public static class MushTrackEditorWorldPreview
                 runtime.RebuildSceneCourseGeometry();
                 MarkCourseMeshesDirty(mapRoot);
                 EditorUtility.SetDirty(runtime);
-                MushSceneAuthoringMigration.Persist(authoring.gameObject.scene);
                 EditorSceneManager.MarkSceneDirty(authoring.gameObject.scene); // 바뀐 작은 도로/지형 Mesh는 다음 일반 씬 저장 때만 함께 저장합니다.
                 // 포인트/Inspector 값을 실제로 바꾼 코드가 authoring을 이미 Dirty 처리하므로,
             }

@@ -8,8 +8,8 @@ namespace Mush.Customization.Editor
     public static class MushCustomizationCatalogRepair
     {
         private const string CatalogPath = "Assets/Resources/MushCustomizationCatalog.asset";
-        private const string StoreScenePath = "Assets/Mush/Scenes/MushStore.unity";
-        private const string HousingScenePath = "Assets/Mush/Scenes/MushHousing.unity";
+        private const string StoreScenePath = "Assets/Scenes/MushStore.unity";
+        private const string HousingScenePath = "Assets/Scenes/MushHousing.unity";
 
         public static void RepairReferences()
         {
@@ -24,10 +24,11 @@ namespace Mush.Customization.Editor
             changed |= Assign(ref catalog.koreanFont, "Assets/UI_Panel_Sample/Font/HS두꺼비체.ttf");
             changed |= Assign(ref catalog.uiPanelPrefab, "Assets/UI_Panel_Sample/Prefab/LobbyUI_Panel.prefab");
             changed |= Assign(ref catalog.lobbyEnvironment, "Assets/Mush/Scenes/Mush_Lobby.fbx");
-            changed |= Assign(ref catalog.sledNatural, "Assets/Mush/Scenes/Mush_Sled_Natural.fbx");
-            changed |= Assign(ref catalog.sledRed, "Assets/Mush/Scenes/Mush_Sled_Red.fbx");
-            changed |= Assign(ref catalog.sledBlue, "Assets/Mush/Scenes/Mush_Sled_Blue.fbx");
-            changed |= Assign(ref catalog.sledBlack, "Assets/Mush/Scenes/Mush_Sled_Black.fbx");
+            const string sledPath = "Assets/Art/Prefabs/Sled/Mush_Sledge.prefab";
+            changed |= Assign(ref catalog.sledNatural, sledPath, true);
+            changed |= Assign(ref catalog.sledRed, sledPath, true);
+            changed |= Assign(ref catalog.sledBlue, sledPath, true);
+            changed |= Assign(ref catalog.sledBlack, sledPath, true);
             changed |= Assign(ref catalog.sledSanta, "Assets/Mush/Scenes/Mush_Sled_Santa.fbx");
             changed |= Assign(ref catalog.sledFrontLantern, "Assets/Mush/Scenes/Mush_Sled_FrontLantern.fbx");
             changed |= Assign(ref catalog.husky, "Assets/Mush/Lobby/Dogs/Models/Mush_LowPoly_Husky.fbx");
@@ -53,13 +54,13 @@ namespace Mush.Customization.Editor
             EnsureCustomizationScenesInBuildSettings();
         }
 
-        private static bool Assign<T>(ref T field, string path) where T : Object
+        private static bool Assign<T>(ref T field, string path, bool replaceExisting = false) where T : Object
         {
-            if (field != null)
+            if (field != null && !replaceExisting)
                 return false;
 
             T asset = AssetDatabase.LoadAssetAtPath<T>(path);
-            if (asset == null)
+            if (asset == null || field == asset)
                 return false;
             field = asset;
             return true;

@@ -54,6 +54,7 @@ public static class MushGameSave
         public int[] stars = new int[3];
     }
 
+    // Stable progress and PlayerPrefs keys, independent of the current scene names.
     private static readonly string[] Maps = { "snow", "Tree", "SharpCurve" };
     private static Data current;
     private static bool restoringRide;
@@ -90,6 +91,8 @@ public static class MushGameSave
                     data.dogStaminaVersion = 0;
                 if (data != null && data.scene == "MushLobby")
                     data.scene = "PM_Lobby"; // 기존 저장 파일은 새 아트 로비로 자연스럽게 이관한다.
+                if (data != null && data.scene == "snow")
+                    data.scene = "Track_v2";
                 if (data == null || data.version != 1 || !KnownScene(data.scene) ||
                     !float.IsFinite(data.stamina) || !float.IsFinite(data.elapsed) || data.elapsed < 0f ||
                     data.bestTimes == null || data.bestTimes.Length != 3 || data.stars == null || data.stars.Length != 3)
@@ -112,7 +115,7 @@ public static class MushGameSave
     }
 
     private static bool Finite(Vector3 value) => float.IsFinite(value.x) && float.IsFinite(value.y) && float.IsFinite(value.z);
-    private static bool KnownScene(string scene) => scene is "PM_Lobby" or "MushLobby" or "MushStore" or "MushHousing" or "snow" or "Track_v2" or "Tree" or "SharpCurve";
+    private static bool KnownScene(string scene) => scene is "PM_Lobby" or "MushStore" or "MushHousing" or "Track_v2" or "Tree" or "SharpCurve";
 
     public static string DogId(int dogIndex) => $"dog_{dogIndex + 1}";
 
@@ -311,7 +314,6 @@ public static class MushGameSave
         }
         PlayerPrefs.Save();
         restoringRide = saved.riding;
-        if (saved.scene == "snow") saved.scene = "Track_v2";
         return saved.scene;
     }
 

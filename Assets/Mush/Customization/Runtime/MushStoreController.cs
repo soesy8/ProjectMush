@@ -360,7 +360,11 @@ namespace Mush.Customization
             switch (slot)
             {
                 case MushEquipmentSlot.SledBody:
-                    if (!string.IsNullOrEmpty(itemId)) workingState.equippedSledBody = itemId;
+                    if (!string.IsNullOrEmpty(itemId))
+                    {
+                        workingState.equippedSledBody = itemId;
+                        MushCustomizationSave.Save(workingState);
+                    }
                     break;
                 case MushEquipmentSlot.SledDecoration:
                     workingState.equippedSledDecoration = itemId;
@@ -498,6 +502,7 @@ namespace Mush.Customization
             if (holder == null)
                 return;
             holder.transform.localRotation = Quaternion.Euler(2f, 25f, 0f);
+            MushCustomizationVisuals.ApplySledBodyColor(holder.transform, state.equippedSledBody);
             MushCustomizationVisuals.ApplySledDecoration(holder.transform, state, 2.4f);
         }
 

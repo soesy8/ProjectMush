@@ -31,13 +31,13 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, Min(0.5f)] private float targetDogHeight = 1.30f;
     [SerializeField, HideInInspector, FormerlySerializedAs("leftDogPosition")] private Vector3 legacyLeftDogPosition = new(-0.72f, 0f, 4.15f);
     [SerializeField, HideInInspector, FormerlySerializedAs("rightDogPosition")] private Vector3 legacyRightDogPosition = new(0.72f, 0f, 4.15f);
-    [SerializeField] private Vector3 cameraPosition = new(0f, 1.36f, -1.78f);
-    [SerializeField] private Vector3 cameraLookTarget = new(0f, 1.36f, 8f);
+    [SerializeField] private Vector3 cameraPosition = new(0f, 1.87f, -2.52f);
+    [SerializeField] private Vector3 cameraLookTarget = new(0f, 1.87f, 8f);
 
     [SerializeField, Range(70f, 100f)] private float normalFieldOfView = 82f;
     [SerializeField, Range(75f, 110f)] private float boostFieldOfView = 90f;
 
-    [SerializeField] private string lobbySceneName = "MushLobby";
+    [SerializeField] private string lobbySceneName = "PM_Lobby";
     [SerializeField, Min(1f)] private float finishDistanceTolerance = 11f;
 
     [Header("배달")]
@@ -80,6 +80,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, HideInInspector] private Camera rideCamera;
     [SerializeField, HideInInspector] private Transform rideSeatAnchor;
     [SerializeField, HideInInspector] private Transform sledHolder;
+    private Transform equippedSledVisual;
     [SerializeField, HideInInspector, FormerlySerializedAs("leftDogHolder")] private Transform legacyLeftDogHolder;
     [SerializeField, HideInInspector, FormerlySerializedAs("rightDogHolder")] private Transform legacyRightDogHolder;
     [SerializeField, HideInInspector, FormerlySerializedAs("leftDogVisual")] private Transform legacyLeftDogVisual;
@@ -177,6 +178,11 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         public float gaitPhase;
         public float gaitClock;
         public Animator animator;
+    }
+
+    private void Awake()
+    {
+        if (Application.isPlaying) MushRideParticleGate.Install(this);
     }
 
     private void Start()
@@ -289,12 +295,17 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         dogs.Add(leftDog);
         dogs.Add(rightDog);
 
-        leftGrip = CreateAnchor("Left Rein Grip", rideSeatAnchor, new Vector3(-0.48f, 1.08f, -1.06f));
-        rightGrip = CreateAnchor("Right Rein Grip", rideSeatAnchor, new Vector3(0.48f, 1.08f, -1.06f));
-        leftGrip.localRotation = Quaternion.Euler(18f, -5f, -7f);
-        rightGrip.localRotation = Quaternion.Euler(18f, 5f, 7f);
-        leftHarness = CreateAnchor("Left Dog Harness", leftDog.holder, new Vector3(0f, 0.58f, -0.35f));
-        rightHarness = CreateAnchor("Right Dog Harness", rightDog.holder, new Vector3(0f, 0.58f, -0.35f));
+        ConfigureRideCamera(rideSeatAnchor);
+        leftGrip = CreateAnchor("Left Rein Grip", rideSeatAnchor,
+            cameraBaseLocalPosition + cameraRestLocalRotation * new Vector3(-0.42f, -0.48f, 0.66f));
+        rightGrip = CreateAnchor("Right Rein Grip", rideSeatAnchor,
+            cameraBaseLocalPosition + cameraRestLocalRotation * new Vector3(0.42f, -0.48f, 0.66f));
+        leftGrip.localRotation = cameraRestLocalRotation * Quaternion.Euler(18f, -5f, -7f);
+        rightGrip.localRotation = cameraRestLocalRotation * Quaternion.Euler(18f, 5f, 7f);
+        leftHarness = FindDeepChild(leftDog.visual, "ReinPoint") ??
+            CreateAnchor("Left Dog Harness", leftDog.holder, new Vector3(0f, 0.58f, -0.35f));
+        rightHarness = FindDeepChild(rightDog.visual, "ReinPoint") ??
+            CreateAnchor("Right Dog Harness", rightDog.holder, new Vector3(0f, 0.58f, -0.35f));
         MigrateSceneDogs();
 
         leftMitten = BuildMitten("Left Winter Mitten", leftGrip, -1);
@@ -303,7 +314,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         rightRein = BuildRein("Right Rein", teamObject.transform);
 
         reinsVisual = rideSeatAnchor.gameObject.AddComponent<MushReinsVisual>();
-        reinsVisual.Configure(leftGrip, rightGrip, leftHarness, rightHarness, leftRein, rightRein);
+        reinsVisual.Configure(leftMitten != null ? leftMitten.Find("Rein Grip Point") ?? leftGrip : leftGrip,
+            rightMitten != null ? rightMitten.Find("Rein Grip Point") ?? rightGrip : rightGrip,
+            leftHarness, rightHarness, leftRein, rightRein);
+        reinsVisual.ConfigureRouting(sledHolder, leftDog.holder, rightDog.holder);
         reinsVisual.SetHeld(false);
 
         rideController = teamObject.AddComponent<MushSledKeyboardController>();
@@ -311,7 +325,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         rideController.SetCourseSurface(curvedWorld);
         InitializeCourseRecoveryCheckpoint();
 
-        ConfigureRideCamera(rideSeatAnchor);
         ConfigureQuestRide(rideSeatAnchor, leftGrip, rightGrip);
         BuildSpeedParticles();
         EnsureDogTeamVisible();
@@ -343,6 +356,20 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         built = false;
         BuildRideTeam();
         RepairEditModeBakedColliders();
+    }
+
+    public void ApplySceneRideLayout(Vector3 viewPosition, Quaternion viewRotation)
+    {
+        if (Application.isPlaying || rideSeatAnchor == null || rideCamera == null) return;
+        cameraPosition = viewPosition;
+        rideCamera.transform.SetLocalPositionAndRotation(viewPosition, viewRotation);
+        cameraBaseLocalPosition = viewPosition;
+        cameraRestLocalRotation = viewRotation;
+        // Grip and hand transforms are authored independently of the camera.
+        // Their default poses are assigned only when the ride team is created.
+        Transform hud = FindDeepChild(rideSeatAnchor, "TrackUI");
+        if (hud != null)
+            hud.SetLocalPositionAndRotation(viewPosition + viewRotation * new Vector3(0f, -0.50f, 1.05f), viewRotation);
     }
 
     public void RepairEditModeBakedColliders()
@@ -395,8 +422,11 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         seatRestLocalRotation = savedSeat.localRotation;
         finishMarker = finishMarker != null ? finishMarker : FindDeepChild(mapRoot, "FINISH_Delivery");
         customization = MushCustomizationSave.Load();
+        if (Application.isPlaying) ApplySavedSledCustomization();
         dogs.Clear();
         Transform membersRoot = dogTeamRoot != null ? dogTeamRoot : savedTeam;
+        Transform leftDog = null;
+        Transform rightDog = null;
         foreach (MushRideDog member in membersRoot.GetComponentsInChildren<MushRideDog>(false))
         {
             if (!member.isActiveAndEnabled || member.Visual == null)
@@ -404,6 +434,16 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             DogRuntime dog = CreateSavedDogRuntime(member.transform, member.Visual,
                 member.UseMalamuteAccessories, member.GaitPhase);
             dog.member = member;
+            Transform collar = FindDeepChild(member.Visual, "ReinPoint");
+            if (collar != null)
+            {
+                if (member.Harness != null && member.Harness != collar)
+                    member.Harness.gameObject.SetActive(false);
+                member.Configure(member.Visual, collar, member.CustomizationIndex,
+                    member.UseMalamuteAccessories, member.GaitPhase);
+            }
+            if (member.CustomizationIndex == 0) { leftHarness = member.Harness; leftDog = member.transform; }
+            if (member.CustomizationIndex == 1) { rightHarness = member.Harness; rightDog = member.transform; }
             dogs.Add(dog);
         }
 
@@ -419,7 +459,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         reinsVisual = savedSeat.GetComponent<MushReinsVisual>();
         if (reinsVisual == null)
             reinsVisual = savedSeat.gameObject.AddComponent<MushReinsVisual>();
-        reinsVisual.Configure(leftGrip, rightGrip, leftHarness, rightHarness, leftRein, rightRein);
+        reinsVisual.Configure(leftMitten != null ? leftMitten.Find("Rein Grip Point") ?? leftGrip : leftGrip,
+            rightMitten != null ? rightMitten.Find("Rein Grip Point") ?? rightGrip : rightGrip,
+            leftHarness, rightHarness, leftRein, rightRein);
+        reinsVisual.ConfigureRouting(equippedSledVisual != null ? equippedSledVisual : savedSled, leftDog, rightDog);
         reinsVisual.SetHeld(false);
 
         rideController = savedTeam.GetComponent<MushSledKeyboardController>();
@@ -453,6 +496,19 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         built = true;
         Debug.Log("[Mush] Reused the scene-authored sled and dogs; no runtime ride team was created.", savedTeam);
         return true;
+    }
+
+    private void ApplySavedSledCustomization()
+    {
+        Transform suppliedSled = FindDeepChild(rideSeatAnchor, MushCustomizationVisuals.SuppliedSledName);
+        if (suppliedSled == null)
+        {
+            Debug.LogError("[Mush] 장착 색상을 적용할 새 썰매 모델이 씬에 없습니다.", this);
+            return;
+        }
+        if (!suppliedSled.IsChildOf(sledHolder)) sledHolder.gameObject.SetActive(false);
+        equippedSledVisual = MushCustomizationVisuals.ApplyEquippedSled(suppliedSled, customization);
+        MushCustomizationVisuals.ApplySledDecoration(equippedSledVisual, customization, 1.25f);
     }
 
     private DogRuntime CreateSavedDogRuntime(
@@ -610,13 +666,19 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             ? catalog.GetPrefab(customization.equippedSledBody)
             : null;
         selectedSled ??= sledPrefab;
-        string visualName = customization != null
+        bool suppliedSled = selectedSled != null && selectedSled.name == MushCustomizationVisuals.SuppliedSledName;
+        string visualName = suppliedSled ? MushCustomizationVisuals.SuppliedSledName : customization != null
             ? "Equipped " + customization.equippedSledBody + " Visual"
             : "Natural Sled Visual";
-        GameObject model = InstantiateModel(selectedSled, visualName, holder, sledScale);
+        GameObject model = InstantiateModel(selectedSled, visualName, holder, suppliedSled ? 1f : sledScale);
         if (model == null)
         {
             BuildFallbackSled(holder);
+        }
+        else if (suppliedSled)
+        {
+            model.transform.localPosition = new Vector3(0f, 0f, -1.899f);
+            MushCustomizationVisuals.ApplySledBodyColor(model.transform, customization?.equippedSledBody);
         }
         else
         {
@@ -629,10 +691,11 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             }
         }
 
-        GameObject decoration = MushCustomizationVisuals.ApplySledDecoration(holder, customization, 1.25f);
+        GameObject decoration = MushCustomizationVisuals.ApplySledDecoration(
+            suppliedSled ? model.transform : holder, customization, 1.25f);
         if (decoration != null && customization?.equippedSledDecoration == MushCustomizationIds.SledLantern)
             BuildVisibleRideLantern(decoration.transform);
-        BuildSledCockpit(holder);
+        if (!suppliedSled) BuildSledCockpit(holder);
     }
 
     private DogRuntime BuildDog(
@@ -889,6 +952,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
                     break;
             }
         }
+        bool preserveScenePose = rideCamera != null;
         if (rideCamera == null)
         {
             GameObject cameraObject = new("Main Camera");
@@ -900,19 +964,22 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         MushVrRenderPerformance.ConfigureCamera(rideCamera);
 
-        rideCamera.transform.SetParent(team, false);
-        bool santaSled = customization?.equippedSledBody == MushCustomizationIds.SledSanta;
-        cameraBaseLocalPosition = santaSled
-            ? new Vector3(0f, 1.62f, -1.42f)
-            : new Vector3(0f, Mathf.Max(cameraPosition.y, 1.46f), Mathf.Max(cameraPosition.z, -1.62f));
-        Vector3 effectiveLookTarget = santaSled
-            ? new Vector3(0f, 1.12f, 6.2f)
-            : new Vector3(cameraLookTarget.x, Mathf.Min(cameraLookTarget.y, 1.28f), cameraLookTarget.z);
-        rideCamera.transform.localPosition = cameraBaseLocalPosition;
-        Vector3 lookDirection = effectiveLookTarget - cameraBaseLocalPosition;
-        rideCamera.transform.localRotation = lookDirection.sqrMagnitude > 0.001f
-            ? Quaternion.LookRotation(lookDirection.normalized, Vector3.up)
-            : Quaternion.identity;
+        rideCamera.transform.SetParent(team, preserveScenePose);
+        if (preserveScenePose)
+        {
+            cameraBaseLocalPosition = rideCamera.transform.localPosition;
+            cameraPosition = cameraBaseLocalPosition;
+            normalFieldOfView = rideCamera.fieldOfView;
+        }
+        else
+        {
+            cameraBaseLocalPosition = cameraPosition;
+            rideCamera.transform.localPosition = cameraBaseLocalPosition;
+            Vector3 lookDirection = cameraLookTarget - cameraBaseLocalPosition;
+            rideCamera.transform.localRotation = lookDirection.sqrMagnitude > 0.001f
+                ? Quaternion.LookRotation(lookDirection.normalized, Vector3.up)
+                : Quaternion.identity;
+        }
         cameraRestLocalRotation = rideCamera.transform.localRotation;
         rideCamera.nearClipPlane = 0.04f;
         rideCamera.farClipPlane = 500f;
@@ -1713,7 +1780,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         speedParticles = particleObject.AddComponent<ParticleSystem>();
         ParticleSystem.MainModule main = speedParticles.main;
         main.loop = true;
-        main.playOnAwake = true;
+        main.playOnAwake = false;
         main.maxParticles = 260;
         main.simulationSpace = ParticleSystemSimulationSpace.Local;
         main.startLifetime = new ParticleSystem.MinMaxCurve(0.42f, 0.68f);
@@ -1759,7 +1826,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             runtimeMaterials["SpeedSnowParticles"] = particleMaterial;
         }
 
-        speedParticles.Play();
+        speedParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
     }
 
     private void UpdateRidePresentation(bool running, float boost01)
@@ -1800,8 +1867,11 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         if (speedParticles != null)
         {
+            bool moving = running && rideController.CurrentSpeed > 0.1f;
             ParticleSystem.EmissionModule emission = speedParticles.emission;
-            emission.rateOverTime = running ? Mathf.Lerp(18f, 125f, smoothedBoost) : 0f;
+            emission.rateOverTime = moving ? Mathf.Lerp(15f, 85f, smoothedBoost) : 0f;
+            if (!moving) speedParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            else if (speedParticles.gameObject.activeInHierarchy && !speedParticles.isPlaying) speedParticles.Play();
             ParticleSystem.VelocityOverLifetimeModule velocity = speedParticles.velocityOverLifetime;
             velocity.z = -Mathf.Lerp(13f, 30f, smoothedBoost);
         }
@@ -2591,23 +2661,20 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
     private Transform EnsureSavedHand(Transform grip, Transform oldHand, string handName, bool left)
     {
+        // Preserve the saved model, pose, scale and rein anchor, including
+        // replacement models that do not use a SkinnedMeshRenderer.
+        if (oldHand != null)
+            return oldHand;
         if (grip == null)
-            return oldHand;
-        if (oldHand != null && oldHand.Find("Palm") == null)
-            return oldHand;
+            return null;
 
         Transform artHand = MushPlayerHands.Create(grip, left, handName);
         if (artHand == null)
         {
             Debug.LogError($"[Mush] Supplied {handName} prefab is missing from Resources.", this);
-            return oldHand;
+            return null;
         }
-        if (oldHand != null)
-        {
-            oldHand.gameObject.SetActive(false);
-            if (Application.isPlaying) Destroy(oldHand.gameObject);
-            else DestroyImmediate(oldHand.gameObject);
-        }
+        MushPlayerHands.FitRideHand(artHand);
         return artHand;
     }
 
@@ -2616,6 +2683,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         Transform hand = MushPlayerHands.Create(parent, side < 0, mittenName);
         if (hand == null)
             Debug.LogError($"[Mush] Supplied {mittenName} prefab is missing from Resources.", this);
+        else MushPlayerHands.FitRideHand(hand);
         return hand;
     }
 

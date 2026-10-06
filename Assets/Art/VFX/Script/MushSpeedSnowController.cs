@@ -105,6 +105,7 @@ public sealed class MushSpeedSnowRuntimeController : MonoBehaviour
             return;
 
         ParticleSystem.MainModule main = speedSnow.main;
+        main.playOnAwake = false;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.startSpeed = 0f;
 
