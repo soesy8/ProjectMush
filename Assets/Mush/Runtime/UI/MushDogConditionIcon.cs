@@ -6,17 +6,21 @@ using UnityEngine.UI;
 public sealed class MushDogConditionIcon : MaskableGraphic
 {
     [SerializeField] private MushDogCondition condition;
+    [SerializeField] private Image conditionArtwork;
+    [SerializeField] private Sprite normalArtwork;
+    [SerializeField] private Sprite goodArtwork;
+    [SerializeField] private Sprite badArtwork;
 
     public void SetCondition(MushDogCondition value)
     {
-        if (condition == value) return;
+        // Track the condition without replacing the scene-authored artwork.
         condition = value;
-        SetVerticesDirty();
     }
 
     protected override void OnPopulateMesh(VertexHelper mesh)
     {
         mesh.Clear();
+        if (conditionArtwork != null) return;
         Rect rect = GetPixelAdjustedRect();
         Vector2 center = rect.center;
         float radius = Mathf.Min(rect.width, rect.height) * 0.48f;

@@ -624,17 +624,7 @@ namespace Mush.Customization
             if (themedPanel != null)
                 return themedPanel;
 
-            GameObject panel = new(objectName);
-            RectTransform rect = panel.AddComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            rect.anchorMin = Vector2.one * 0.5f;
-            rect.anchorMax = Vector2.one * 0.5f;
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
-            Image image = panel.AddComponent<Image>();
-            image.color = color;
-            image.raycastTarget = false;
-            return image;
+            return MushUiPanelSkin.CreateImage(parent, objectName, position, size, color);
         }
 
         private MushStoreUiButton CreateButton(
@@ -645,15 +635,10 @@ namespace Mush.Customization
             Action callback,
             Color color)
         {
-            GameObject buttonObject = new(label + " Button");
-            RectTransform rect = buttonObject.AddComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            rect.anchorMin = Vector2.one * 0.5f;
-            rect.anchorMax = Vector2.one * 0.5f;
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
-            Image image = buttonObject.AddComponent<Image>();
-            image.color = color;
+            Image image = MushUiPanelSkin.CreateImage(parent, label + " Button", position, size, color);
+            if (image == null) return null;
+            GameObject buttonObject = image.gameObject;
+            RectTransform rect = image.rectTransform;
             BoxCollider collider = buttonObject.AddComponent<BoxCollider>();
             collider.size = new Vector3(size.x, size.y, 12f);
 

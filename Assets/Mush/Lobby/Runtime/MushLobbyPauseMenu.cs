@@ -18,7 +18,6 @@ namespace Mush.Lobby
                               (optionPanel != null && optionPanel.activeSelf);
 
         private Camera viewCamera;
-        private Font font;
         private GameObject pausePanel;
         private GameObject optionPanel;
         private TextMesh optionValues;
@@ -40,8 +39,9 @@ namespace Mush.Lobby
         public void Configure(Camera camera, Font koreanFont)
         {
             viewCamera = camera;
-            font = koreanFont;
-            Build();
+            pausePanel = authoredPausePanel;
+            optionPanel = authoredOptionPanel;
+            BindAuthoredButtons();
         }
 
         private void Awake()
@@ -85,32 +85,6 @@ namespace Mush.Lobby
             AudioListener.pause = open;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
-        }
-
-        private void Build()
-        {
-            if (viewCamera == null || pausePanel != null)
-                return;
-
-            pausePanel = CreatePanel("Lobby Pause", "일시정지");
-            CreateButton(pausePanel.transform, "돌아가기", 0.30f, () => SetOpen(false));
-            CreateButton(pausePanel.transform, "타이틀로", -0.05f, GoToTitle);
-            CreateButton(pausePanel.transform, "옵션", -0.40f, OpenOptions);
-            CreateButton(pausePanel.transform, "나가기", -0.75f, Quit);
-
-            optionPanel = CreatePanel("Lobby Options", "옵션");
-            optionValues = CreateText(optionPanel.transform, string.Empty, new Vector3(0f, 0.27f, -0.06f), 0.030f);
-            CreateButton(optionPanel.transform, "전체 음량 -", -0.05f, () => AdjustAudio(-0.1f, 0f, 0f), -0.58f);
-            CreateButton(optionPanel.transform, "전체 음량 +", -0.05f, () => AdjustAudio(0.1f, 0f, 0f), 0.58f);
-            CreateButton(optionPanel.transform, "음악 -", -0.40f, () => AdjustAudio(0f, -0.1f, 0f), -0.58f);
-            CreateButton(optionPanel.transform, "음악 +", -0.40f, () => AdjustAudio(0f, 0.1f, 0f), 0.58f);
-            CreateButton(optionPanel.transform, "효과음 -", -0.75f, () => AdjustAudio(0f, 0f, -0.1f), -0.58f);
-            CreateButton(optionPanel.transform, "효과음 +", -0.75f, () => AdjustAudio(0f, 0f, 0.1f), 0.58f);
-            CreateButton(optionPanel.transform, "뒤로", -1.10f, CloseOptions);
-            RefreshOptionValues();
-
-            pausePanel.SetActive(false);
-            optionPanel.SetActive(false);
         }
 
         private void BindAuthoredButtons()
@@ -159,57 +133,6 @@ namespace Mush.Lobby
                 if (child.name == name)
                     return child;
             return null;
-        }
-
-        private GameObject CreatePanel(string name, string title)
-        {
-            GameObject panel = new(name);
-            panel.transform.SetParent(viewCamera.transform, false);
-            panel.transform.localPosition = new Vector3(0f, 0.20f, 2.05f);
-            GameObject back = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            back.name = "Panel Back";
-            back.transform.SetParent(panel.transform, false);
-            back.transform.localScale = new Vector3(2.45f, 2.15f, 0.06f);
-            back.GetComponent<Renderer>().sharedMaterial = CreateMaterial(new Color(0.045f, 0.06f, 0.085f));
-            Destroy(back.GetComponent<Collider>());
-            CreateText(panel.transform, title, new Vector3(0f, 0.78f, -0.06f), 0.065f);
-            return panel;
-        }
-
-        private void CreateButton(Transform parent, string label, float y, Action action, float x = 0f)
-        {
-            GameObject buttonObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            buttonObject.name = label + " Button";
-            buttonObject.transform.SetParent(parent, false);
-            buttonObject.transform.localPosition = new Vector3(x, y, -0.07f);
-            buttonObject.transform.localScale = new Vector3(x == 0f ? 1.45f : 1.02f, 0.26f, 0.10f);
-            Renderer renderer = buttonObject.GetComponent<Renderer>();
-            renderer.sharedMaterial = CreateMaterial(new Color(0.20f, 0.31f, 0.43f));
-            BoxCollider collider = buttonObject.GetComponent<BoxCollider>();
-            collider.isTrigger = true;
-            XRSimpleInteractable xr = buttonObject.AddComponent<XRSimpleInteractable>();
-            xr.selectMode = InteractableSelectMode.Single;
-            MushLobbyPauseButton button = buttonObject.AddComponent<MushLobbyPauseButton>();
-            button.Configure(action, renderer);
-            CreateText(buttonObject.transform, label, new Vector3(0f, 0f, -0.56f), 0.035f);
-        }
-
-        private TextMesh CreateText(Transform parent, string content, Vector3 position, float size)
-        {
-            GameObject textObject = new(content + " Text");
-            textObject.transform.SetParent(parent, false);
-            textObject.transform.localPosition = position;
-            TextMesh text = textObject.AddComponent<TextMesh>();
-            text.text = content;
-            text.font = font;
-            text.fontSize = 64;
-            text.characterSize = size;
-            text.anchor = TextAnchor.MiddleCenter;
-            text.alignment = TextAlignment.Center;
-            text.color = Color.white;
-            if (font != null)
-                text.GetComponent<MeshRenderer>().sharedMaterial = font.material;
-            return text;
         }
 
         private void OpenOptions()
@@ -268,11 +191,6 @@ namespace Mush.Lobby
             AudioListener.pause = false;
         }
 
-        private static Material CreateMaterial(Color color)
-        {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-            return new Material(shader) { color = color };
-        }
     }
 
     [DisallowMultipleComponent]

@@ -18,23 +18,7 @@ public sealed class MushRideHud : MonoBehaviour
     [SerializeField] private RectTransform runningDog;
     private int previousSeconds = -1;
 
-    private void Awake()
-    {
-        if (staminaFill == null && trackRoot != null)
-        {
-            foreach (Image image in trackRoot.GetComponentsInChildren<Image>(true))
-            {
-                if (image.name != "FilledImage") continue;
-                staminaFill = image;
-                break;
-            }
-        }
-        if (staminaFill == null) return;
-        staminaFill.type = Image.Type.Filled;
-        staminaFill.fillMethod = Image.FillMethod.Horizontal;
-        staminaFill.fillOrigin = (int)Image.OriginHorizontal.Left;
-        staminaFill.fillAmount = ride != null ? Mathf.Clamp01(ride.Stamina01) : 1f;
-    }
+
 
     private void LateUpdate()
     {
@@ -63,18 +47,7 @@ public sealed class MushRideHud : MonoBehaviour
                 timer.color = seconds <= 10 ? new Color(1f, 0.3f, 0.2f) : Color.white;
             }
         }
-        // Current route projection deliberately decreases when the sled travels backwards.
-        float value = Mathf.Clamp01(ride.RouteProgress);
-        if (progress != null) progress.fillAmount = value;
-        if (staminaFill != null) staminaFill.fillAmount = Mathf.Clamp01(ride.Stamina01);
-        if (progressIcon != null && progress != null)
-        {
-            RectTransform rect = progress.rectTransform;
-            progressIcon.position = rect.TransformPoint(new Vector3(Mathf.Lerp(rect.rect.xMin, rect.rect.xMax, value), rect.rect.center.y, 0f));
-        }
-        bool boosting = ride.IsBoosting;
-        if (standingDog != null && standingDog.activeSelf == boosting) standingDog.SetActive(!boosting);
-        if (runningDog != null && runningDog.gameObject.activeSelf != boosting) runningDog.gameObject.SetActive(boosting);
+
     }
 
 }

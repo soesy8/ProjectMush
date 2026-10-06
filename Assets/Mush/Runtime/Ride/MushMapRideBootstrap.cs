@@ -104,7 +104,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private Quaternion cameraRestLocalRotation;
     [SerializeField, HideInInspector] private ParticleSystem speedParticles;
     private MushSnowfieldBlizzardController snowController;
-    private Mesh resultStarMesh;
     private readonly Transform[] resultFilledStars = new Transform[3];
     private readonly ParticleSystem[] resultStarBursts = new ParticleSystem[3];
     private readonly bool[] resultStarLanded = new bool[3];
@@ -1177,33 +1176,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         questRig?.SetRayEnabled(paused);
     }
 
-    private void CreatePauseText(
-        string text,
-        Transform parent,
-        Vector3 localPosition,
-        float characterSize,
-        float maxWidth,
-        float maxHeight)
-    {
-        // Use the same path as the result panel so assigning the Korean font
-        // also assigns its atlas material. A Font with the default Arial
-        // material produced broken or completely missing glyphs in Quest.
-        TextMesh textMesh = CreateWorldText(text, parent, localPosition, characterSize, Color.white);
-        textMesh.transform.localRotation = Quaternion.identity; // 패널 루트가 이미 카메라 방향이므로 추가 180도 회전을 하면 글자가 뒤집힌다.
-        if (textMesh.TryGetComponent(out MeshRenderer renderer))
-        {
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            renderer.sortingOrder = 20;
-
-            Bounds textBounds = renderer.localBounds;
-            float widthScale = textBounds.size.x > 0.0001f ? maxWidth / textBounds.size.x : 1f;
-            float heightScale = textBounds.size.y > 0.0001f ? maxHeight / textBounds.size.y : 1f;
-            float fitScale = Mathf.Min(1f, widthScale, heightScale);
-            textMesh.transform.localScale = Vector3.one * fitScale; // 지정한 제목/버튼 칸보다 큰 글자는 비율을 유지한 채 자동 축소한다.
-        }
-    }
-
     private void BuildMissionTimerDisplay()
     {
         if (rideSeatAnchor == null)
@@ -1223,45 +1195,9 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (missionTimerRoot != null)
         {
             if (vrControlHintRoot != null) vrControlHintRoot.SetActive(false);
-            MushUiPanelSkin.ApplyFont(missionTimerText);
             return;
         }
 
-        missionTimerRoot = new GameObject("Delivery Mission Timer");
-        // Mount the existing timer on the sled's front centre instead of the
-        // camera corner.  The seat pivot is shared by the camera, hands and
-        // sled, so turns and steep slopes cannot pull the display away from
-        // the marked cockpit position.
-        missionTimerRoot.transform.SetParent(rideSeatAnchor, false);
-        missionTimerRoot.transform.localPosition = new Vector3(0f, 0.95f, -0.63f);
-        missionTimerRoot.transform.localRotation = Quaternion.identity;
-
-        Material back = GetRuntimeMaterial("MissionTimerBack", new Color(0.018f, 0.026f, 0.040f), 0.12f);
-        CreatePrimitive("Timer Back", PrimitiveType.Cube, missionTimerRoot.transform,
-            Vector3.zero, new Vector3(0.60f, 0.14f, 0.026f), back);
-        missionTimerText = CreateWorldText("02:00", missionTimerRoot.transform,
-            new Vector3(0f, 0f, -0.030f), 0.022f, Color.white);
-        missionTimerText.transform.localRotation = Quaternion.identity;
-
-        vrControlHintRoot = new GameObject("Quest Driving Control Hint");
-        vrControlHintRoot.transform.SetParent(missionTimerRoot.transform, false);
-        vrControlHintRoot.transform.localPosition = new Vector3(0f, -0.125f, 0f);
-        vrControlHintRoot.transform.localRotation = Quaternion.identity;
-        Material hintBack = GetRuntimeMaterial(
-            "QuestDrivingHintBack",
-            new Color(0.025f, 0.040f, 0.060f),
-            0.14f);
-        CreatePrimitive("Quest Hint Back", PrimitiveType.Cube, vrControlHintRoot.transform,
-            Vector3.zero, new Vector3(0.74f, 0.078f, 0.022f), hintBack);
-        CreatePauseText(
-            "B 일시정지 · 체력 0이면 속도·가속력 감소",
-            vrControlHintRoot.transform,
-            new Vector3(0f, 0f, -0.026f),
-            0.009f,
-            0.68f,
-            0.042f);
-        vrControlHintRoot.SetActive(false);
-        UpdateMissionTimerText();
     }
 
     private void UpdateMissionTimer()
@@ -1352,274 +1288,17 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             return;
         }
 
-        resultPanel = new GameObject("Delivery Result Panel");
-        Material panel = GetRuntimeMaterial("DeliveryResultPanel", new Color(0.025f, 0.045f, 0.075f), 0.18f);
-        Material trim = GetRuntimeMaterial("DeliveryResultTrim", new Color(0.72f, 0.36f, 0.07f), 0.36f);
-        Material button = GetRuntimeMaterial("DeliveryResultButton", new Color(0.10f, 0.28f, 0.48f), 0.28f);
-        Material lobbyButton = GetRuntimeMaterial("DeliveryResultLobbyButton", new Color(0.68f, 0.24f, 0.045f), 0.28f);
-
-        CreatePrimitive("Result Back", PrimitiveType.Cube, resultPanel.transform,
-            Vector3.zero, new Vector3(3.35f, 2.20f, 0.07f), panel);
-        CreatePrimitive("Result Top Trim", PrimitiveType.Cube, resultPanel.transform,
-            new Vector3(0f, 1.02f, -0.055f), new Vector3(3.10f, 0.045f, 0.025f), trim);
-        MushUiPanelSkin.ApplyPanel(resultPanel.transform, new Vector2(3.35f, 2.20f));
-
-        resultStarMesh = BuildResultStarMesh();
-        float[] starX = { -0.76f, 0f, 0.76f };
-        for (int index = 0; index < 3; index++)
-        {
-            Vector3 target = new(starX[index], 0.09f, -0.095f);
-            CreateEmptyStarOutline(index, target);
-            resultFilledStars[index] = CreateFilledResultStar(index, StarFlightStart(index));
-            resultStarBursts[index] = CreateStarImpactBurst(index, target);
-        }
-
-        resultButtonsRoot = new GameObject("Result Buttons");
-        resultButtonsRoot.transform.SetParent(resultPanel.transform, false);
-        CreateResultButton("로비로", resultButtonsRoot.transform, new Vector3(-0.72f, -0.72f, -0.085f),
-            lobbyButton, ReturnToLobby);
-        CreateResultButton("다시 하기", resultButtonsRoot.transform, new Vector3(0.72f, -0.72f, -0.085f),
-            button, RetryCurrentMap);
-        resultButtonsRoot.SetActive(false);
-        LayoutResultPanel();
-        resultPanel.SetActive(false);
     }
 
     private void LayoutResultPanel()
     {
-        const float width = 5.8f;
-        const float height = 3.8f;
-        Transform root = resultPanel.transform;
-        Transform backing = root.Find("Result Back");
-        if (backing != null)
-        {
-            backing.localScale = new Vector3(width, height, 0.07f);
-            // The decorative canvas has transparent gaps. Keep an opaque depth-writing
-            // backing so world particles cannot show through the result panel.
-            if (backing.TryGetComponent(out Renderer backingRenderer))
-            {
-                backingRenderer.sharedMaterial = GetRuntimeMaterial(
-                    "DeliveryResultOpaqueBack", new Color(0.025f, 0.045f, 0.075f), 0.18f);
-                backingRenderer.enabled = true;
-            }
-        }
-        Transform trim = root.Find("Result Top Trim");
-        if (trim != null) trim.gameObject.SetActive(false);
-        Transform skin = root.Find("Mush UI Panel Skin");
-        if (skin != null)
-            skin.localScale = new Vector3(width / 200f, height / 100f, 1f);
-
-        // Retire unbounded legacy labels in saved result panels.
-        foreach (TextMesh legacy in resultPanel.GetComponentsInChildren<TextMesh>(true))
-            if (legacy.TryGetComponent(out MeshRenderer renderer)) renderer.enabled = false;
-
-        for (int i = 0; i < 3; i++)
-        {
-            Vector3 target = StarTarget(i);
-            Transform outline = root.Find($"Empty Star {i + 1}");
-            if (outline != null) outline.localPosition = target;
-            if (resultStarBursts[i] != null)
-                resultStarBursts[i].transform.localPosition = target + Vector3.back * 0.035f;
-        }
-
-        if (resultButtonsRoot != null)
-        {
-            foreach (MushQuestRayAction button in resultButtonsRoot.GetComponentsInChildren<MushQuestRayAction>(true))
-            {
-                float x = button.name.Contains("로비") ? -1.17f : 1.17f;
-                button.transform.localPosition = new Vector3(x, -1.12f, -0.085f);
-                button.transform.localScale = new Vector3(2f, 0.56f, 0.10f);
-            }
-        }
-
-        Transform typography = root.Find("Result Typography");
-        if (typography == null)
-        {
-            GameObject canvasObject = new("Result Typography", typeof(RectTransform), typeof(Canvas));
-            typography = canvasObject.transform;
-            typography.SetParent(root, false);
-            Canvas canvas = canvasObject.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            ((RectTransform)typography).sizeDelta = new Vector2(580f, 380f);
-        }
-        typography.localPosition = new Vector3(0f, 0f, -0.18f);
-        typography.localRotation = Quaternion.identity;
-        typography.localScale = Vector3.one * 0.01f;
-
-        TMP_FontAsset font = null;
-        if (rideTeam != null)
-        {
-            foreach (TMP_Text text in rideTeam.GetComponentsInChildren<TMP_Text>(true))
-                if (text.name == "TimerText") { font = text.font; break; }
-        }
-        if (font == null) font = TMP_Settings.defaultFontAsset;
-        SetResultLabel(typography, "Title", "배달 완료!", new Vector2(0f, 106f),
-            new Vector2(440f, 80f), 52f, new Color(1f, 0.88f, 0.56f), font);
-        SetResultLabel(typography, "Time", $"기록  {FormatElapsed(missionElapsedSeconds)}",
-            new Vector2(-128f, 36f), new Vector2(218f, 54f), 30f, Color.white, font);
-        typography.Find("Limit")?.gameObject.SetActive(false);
-        SetResultLabel(typography, "BestRecord", $"최고기록  {FormatElapsed(bestCompletionSeconds)}",
-            new Vector2(128f, 36f), new Vector2(252f, 54f), 30f, Color.white, font);
-
-        // Button labels follow the same delayed reveal as their colliders and backgrounds.
-        Transform labels = resultButtonsRoot.transform.Find("Result Button Labels");
-        if (labels == null)
-        {
-            GameObject buttonCanvas = new("Result Button Labels", typeof(RectTransform), typeof(Canvas));
-            labels = buttonCanvas.transform;
-            labels.SetParent(resultButtonsRoot.transform, false);
-            buttonCanvas.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
-            ((RectTransform)labels).sizeDelta = new Vector2(580f, 380f);
-        }
-        labels.localPosition = new Vector3(0f, 0f, -0.18f);
-        labels.localRotation = Quaternion.identity;
-        labels.localScale = Vector3.one * 0.01f;
-        SetResultLabel(labels, "Lobby", "로비로", new Vector2(-117f, -112f),
-            new Vector2(174f, 52f), 34f, Color.white, font);
-        SetResultLabel(labels, "Retry", "다시 하기", new Vector2(117f, -112f),
-            new Vector2(174f, 52f), 34f, Color.white, font);
-    }
-
-    private static void SetResultLabel(Transform parent, string name, string value, Vector2 position,
-        Vector2 size, float fontSize, Color color, TMP_FontAsset font)
-    {
-        Transform existing = parent.Find(name);
-        TextMeshProUGUI label;
-        if (existing == null)
-        {
-            GameObject textObject = new(name, typeof(RectTransform));
-            textObject.transform.SetParent(parent, false);
-            label = textObject.AddComponent<TextMeshProUGUI>();
-        }
-        else label = existing.GetComponent<TextMeshProUGUI>();
-        RectTransform rect = label.rectTransform;
-        rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * 0.5f;
-        rect.anchoredPosition = position;
-        rect.sizeDelta = size;
-        label.font = font;
-        if (font != null) label.fontSharedMaterial = font.material;
-        label.text = value;
-        label.color = color;
-        label.alignment = TextAlignmentOptions.Center;
-        label.fontSize = fontSize;
-        label.enableAutoSizing = true;
-        label.fontSizeMin = fontSize * 0.8f;
-        label.fontSizeMax = fontSize;
-        label.characterSpacing = 2f;
-        label.textWrappingMode = TextWrappingModes.NoWrap;
-        label.overflowMode = TextOverflowModes.Truncate;
-        label.raycastTarget = false;
-    }
-
-    private TextMesh CreateWorldText(
-        string value,
-        Transform parent,
-        Vector3 localPosition,
-        float characterSize,
-        Color color)
-    {
-        GameObject textObject = new(value + " Text");
-        textObject.transform.SetParent(parent, false);
-        textObject.transform.localPosition = localPosition;
-        textObject.transform.localRotation = Quaternion.identity;
-        TextMesh textMesh = textObject.AddComponent<TextMesh>();
-        textMesh.text = value;
-        textMesh.anchor = TextAnchor.MiddleCenter;
-        textMesh.alignment = TextAlignment.Center;
-        textMesh.characterSize = characterSize;
-        textMesh.fontSize = 64;
-        textMesh.color = color;
-
-        MushUiPanelSkin.ApplyFont(textMesh);
-        return textMesh;
-    }
-
-    private void CreateEmptyStarOutline(int index, Vector3 localPosition)
-    {
-        GameObject outlineObject = new($"Empty Star {index + 1}");
-        outlineObject.transform.SetParent(resultPanel.transform, false);
-        outlineObject.transform.localPosition = localPosition;
-        LineRenderer outline = outlineObject.AddComponent<LineRenderer>();
-        outline.useWorldSpace = false;
-        outline.loop = true;
-        outline.positionCount = 10;
-        outline.startWidth = 0.035f;
-        outline.endWidth = 0.035f;
-        outline.numCapVertices = 3;
-        outline.numCornerVertices = 3;
-        outline.shadowCastingMode = ShadowCastingMode.Off;
-        outline.receiveShadows = false;
-        outline.sharedMaterial = GetUiUnlitMaterial("EmptyStar", new Color(0.48f, 0.54f, 0.62f, 0.92f));
-        for (int point = 0; point < 10; point++)
-        {
-            float radius = (point & 1) == 0 ? 0.34f : 0.15f;
-            float angle = (90f - point * 36f) * Mathf.Deg2Rad;
-            outline.SetPosition(point, new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, 0f));
-        }
-    }
-
-    private Transform CreateFilledResultStar(int index, Vector3 startPosition)
-    {
-        GameObject star = new($"Flying Result Star {index + 1}");
-        star.transform.SetParent(resultPanel.transform, false);
-        star.transform.localPosition = startPosition;
-        star.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-        MeshFilter filter = star.AddComponent<MeshFilter>();
-        filter.sharedMesh = resultStarMesh;
-        MeshRenderer renderer = star.AddComponent<MeshRenderer>();
-        renderer.sharedMaterial = GetUiUnlitMaterial("FilledStar", new Color(1f, 0.66f, 0.055f));
-        renderer.shadowCastingMode = ShadowCastingMode.Off;
-        renderer.receiveShadows = false;
-        star.SetActive(false);
-        return star.transform;
-    }
-
-    private ParticleSystem CreateStarImpactBurst(int index, Vector3 localPosition)
-    {
-        GameObject effect = new($"Star Impact VFX {index + 1}");
-        effect.transform.SetParent(resultPanel.transform, false);
-        effect.transform.localPosition = localPosition + new Vector3(0f, 0f, -0.035f);
-        ParticleSystem particles = effect.AddComponent<ParticleSystem>();
-        particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-        ParticleSystem.MainModule main = particles.main;
-        main.loop = false;
-        main.playOnAwake = false;
-        main.duration = 0.45f;
-        main.maxParticles = 48;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(0.28f, 0.55f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.45f, 1.25f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.025f, 0.075f);
-        main.startColor = new ParticleSystem.MinMaxGradient(
-            new Color(1f, 0.48f, 0.02f),
-            new Color(1f, 0.96f, 0.52f));
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        ParticleSystem.EmissionModule emission = particles.emission;
-        emission.enabled = false;
-        ParticleSystem.ShapeModule shape = particles.shape;
-        shape.shapeType = ParticleSystemShapeType.Sphere;
-        shape.radius = 0.055f;
-        ParticleSystemRenderer renderer = effect.GetComponent<ParticleSystemRenderer>();
-        renderer.renderMode = ParticleSystemRenderMode.Billboard;
-        renderer.shadowCastingMode = ShadowCastingMode.Off;
-        renderer.receiveShadows = false;
-        renderer.sharedMaterial = GetUiUnlitMaterial("StarImpact", new Color(1f, 0.64f, 0.04f));
-        return particles;
-    }
-
-    private void CreateResultButton(
-        string label,
-        Transform parent,
-        Vector3 localPosition,
-        Material material,
-        Action action)
-    {
-        GameObject button = CreatePrimitive(label + " Result Button", PrimitiveType.Cube, parent,
-            localPosition, new Vector3(1.18f, 0.36f, 0.10f), material);
-        BoxCollider collider = button.AddComponent<BoxCollider>();
-        collider.size = Vector3.one;
-        Renderer renderer = button.GetComponent<Renderer>();
-        MushQuestRayAction rayAction = button.AddComponent<MushQuestRayAction>();
-        rayAction.Configure(action, renderer, Color.Lerp(renderer.material.color, Color.white, 0.25f));
+        // Only update values. Artwork, typography and button layout are authored in the scene.
+        Transform typography = resultPanel != null ? resultPanel.transform.Find("Result Typography") : null;
+        if (typography == null) return;
+        TMP_Text time = typography.Find("Time")?.GetComponent<TMP_Text>();
+        TMP_Text record = typography.Find("BestRecord")?.GetComponent<TMP_Text>();
+        if (time != null) time.text = $"기록  {FormatElapsed(missionElapsedSeconds)}";
+        if (record != null) record.text = $"최고기록  {FormatElapsed(bestCompletionSeconds)}";
     }
 
     private void UpdateResultSequence()
@@ -1705,54 +1384,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private static Vector3 StarTarget(int index)
     {
         return new Vector3((index - 1) * 1.05f, -0.24f, -0.13f);
-    }
-
-    private Mesh BuildResultStarMesh()
-    {
-        Mesh mesh = new() { name = "Runtime Delivery Result Star" };
-        Vector3[] vertices = new Vector3[11];
-        vertices[0] = Vector3.zero;
-        for (int point = 0; point < 10; point++)
-        {
-            float radius = (point & 1) == 0 ? 0.34f : 0.15f;
-            float angle = (90f - point * 36f) * Mathf.Deg2Rad;
-            vertices[point + 1] = new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, 0f);
-        }
-
-        int[] triangles = new int[60];
-        int write = 0;
-        for (int point = 0; point < 10; point++)
-        {
-            int current = point + 1;
-            int next = (point + 1) % 10 + 1;
-            triangles[write++] = 0;
-            triangles[write++] = current;
-            triangles[write++] = next;
-            triangles[write++] = 0;
-            triangles[write++] = next;
-            triangles[write++] = current;
-        }
-        mesh.vertices = vertices;
-        mesh.triangles = triangles;
-        mesh.RecalculateBounds();
-        return mesh;
-    }
-
-    private Material GetUiUnlitMaterial(string key, Color color)
-    {
-        string materialKey = "UIUnlit_" + key;
-        if (runtimeMaterials.TryGetValue(materialKey, out Material existing) && existing != null)
-            return existing;
-
-        Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ??
-                        Shader.Find("Unlit/Color") ?? Shader.Find("Sprites/Default");
-        Material material = new(shader) { name = "Runtime " + materialKey };
-        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
-        if (material.HasProperty("_Color")) material.SetColor("_Color", color);
-        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
-        material.enableInstancing = true;
-        runtimeMaterials[materialKey] = material;
-        return material;
     }
 
     private static string FormatRemaining(float seconds)
@@ -3045,8 +2676,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             Time.timeScale = 1f;
             AudioListener.pause = false;
         }
-        if (resultStarMesh != null)
-            DestroyForCurrentMode(resultStarMesh);
         foreach (Material material in runtimeMaterials.Values)
         {
             if (material != null)

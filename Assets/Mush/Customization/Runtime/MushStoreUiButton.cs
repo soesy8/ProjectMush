@@ -9,17 +9,12 @@ namespace Mush.Customization
     public sealed class MushStoreUiButton : MonoBehaviour, IMushQuestRayTarget
     {
         private RectTransform rect;
-        private Image image;
         private Action callback;
-        private Color normalColor;
-        private bool questHovered;
 
         public void Configure(RectTransform newRect, Image newImage, Action newCallback, Color newNormalColor)
         {
             rect = newRect;
-            image = newImage;
             callback = newCallback;
-            normalColor = newNormalColor;
         }
 
         private void Update()
@@ -30,8 +25,6 @@ namespace Mush.Customization
 
             bool hovered = mouse != null &&
                            RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), null);
-            if (image != null)
-                image.color = hovered || questHovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
             if (hovered && mouse != null && mouse.leftButton.wasPressedThisFrame)
             {
                 MushSounds.PlayClick();
@@ -41,7 +34,7 @@ namespace Mush.Customization
 
         public void SetQuestRayHovered(bool hovered)
         {
-            questHovered = hovered;
+            // Hover appearance is authored with the UI artwork.
         }
 
         public void SelectWithQuestRay()

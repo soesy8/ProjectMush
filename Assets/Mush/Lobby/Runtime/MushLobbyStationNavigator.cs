@@ -45,16 +45,15 @@ namespace Mush.Lobby
             new("벽난로", new Vector3(-2.80f, 0f, -3.25f), FireplaceYaw), // 먼저 의자 뒤쪽에서 벽난로와 의자를 보고, 의자를 선택해야 실제 좌석으로 들어간다.
         };
 
-        private readonly List<Material> ownedMaterials = new();
         private readonly List<MushLobbyStationButton> buttons = new();
         private Camera lobbyCamera;
         private MushLobbyController controller;
         private MushSeatedRigLock seatedRig;
         private MushDesktopSeatedLook desktopLook;
-        private Transform menuRoot;
+        [SerializeField] private Transform menuRoot;
         private Transform housingChair;
-        private Material buttonMaterial;
-        private Material selectedMaterial;
+        [SerializeField] private Material buttonMaterial;
+        [SerializeField] private Material selectedMaterial;
         private int selectedIndex;
         private int currentStationIndex;
         private bool stickClickWasPressed;
@@ -87,9 +86,7 @@ namespace Mush.Lobby
                 DisableBuiltInLocomotionConflict();
             if (menuRoot == null)
                 menuRoot = FindDescendant(lobbyRoot != null ? lobbyRoot : owner.transform.root, "Lobby Station Travel Menu");
-            if (menuRoot == null)
-                BuildMenu(lobbyRoot != null ? lobbyRoot : owner.transform.root);
-            else
+            if (menuRoot != null)
                 CacheMenuReferences();
             EnsureChairSeatInteraction(lobbyRoot != null ? lobbyRoot : owner.transform.root);
         }
@@ -461,125 +458,20 @@ namespace Mush.Lobby
             menuRoot.rotation = Quaternion.LookRotation(forward, Vector3.up);
         }
 
-        private void BuildMenu(Transform parent)
-        {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            Material background = CreateMaterial(shader, "Mush Station Menu Background", new Color(0.035f, 0.045f, 0.06f), 0.14f);
-            buttonMaterial = CreateMaterial(shader, "Mush Station Menu Button", new Color(0.28f, 0.13f, 0.065f), 0.20f);
-            selectedMaterial = CreateMaterial(shader, "Mush Station Menu Selected", new Color(0.92f, 0.48f, 0.10f), 0.30f);
 
-            GameObject rootObject = new("Lobby Station Travel Menu");
-            menuRoot = rootObject.transform;
-            menuRoot.SetParent(parent, true);
-
-            CreateCube("Menu Background", menuRoot, Vector3.zero, new Vector3(1.56f, 1.18f, 0.045f), background, true);
-            CreateText("Title", menuRoot, new Vector3(0f, 0.49f, -0.041f), 0.014f, "이동할 장소");
-            CreateText("Guide", menuRoot, new Vector3(0f, -0.50f, -0.041f), 0.0065f, "왼쪽 스틱 방향 + 트리거   ·   PC: 마우스 클릭");
-
-            const float radiusX = 0.54f;
-            const float radiusY = 0.32f;
-            float stationAngleStep = 360f / Stations.Length;
-            for (int index = 0; index < Stations.Length; index++)
-            {
-                float angle = (90f - index * stationAngleStep) * Mathf.Deg2Rad;
-                Vector3 localPosition = new(
-                    Mathf.Cos(angle) * radiusX,
-                    Mathf.Sin(angle) * radiusY - 0.01f,
-                    -0.038f);
-                GameObject buttonObject = CreateCube(
-                    "Station Button - " + Stations[index].label,
-                    menuRoot,
-                    localPosition,
-                    new Vector3(0.36f, 0.13f, 0.055f),
-                    buttonMaterial,
-                    true);
-                buttonObject.AddComponent<XRSimpleInteractable>();
-                MushLobbyStationButton button = buttonObject.AddComponent<MushLobbyStationButton>();
-                button.Configure(this, index, buttonObject.GetComponent<Renderer>());
-                buttons.Add(button);
-                CreateText(
-                    "Station Label - " + Stations[index].label,
-                    menuRoot,
-                    localPosition + new Vector3(0f, 0f, -0.031f),
-                    0.0078f,
-                    Stations[index].label);
-            }
-
-            menuRoot.gameObject.SetActive(false);
-        }
 
         private void RefreshSelectionVisuals()
         {
-            for (int index = 0; index < buttons.Count; index++)
-                buttons[index]?.SetSelected(index == selectedIndex, buttonMaterial, selectedMaterial);
+            // Selection still controls travel; the authored button artwork stays unchanged.
         }
 
-        private Material CreateMaterial(Shader shader, string materialName, Color color, float smoothness)
-        {
-            Material material = new(shader) { name = materialName };
-            if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
-            if (material.HasProperty("_Color")) material.SetColor("_Color", color);
-            if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", smoothness);
-            ownedMaterials.Add(material);
-            return material;
-        }
 
-        private static GameObject CreateCube(
-            string objectName,
-            Transform parent,
-            Vector3 localPosition,
-            Vector3 localScale,
-            Material material,
-            bool trigger)
-        {
-            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            cube.name = objectName;
-            cube.transform.SetParent(parent, false);
-            cube.transform.localPosition = localPosition;
-            cube.transform.localRotation = Quaternion.identity;
-            cube.transform.localScale = localScale;
-            if (cube.TryGetComponent(out Renderer renderer))
-                renderer.sharedMaterial = material;
-            if (cube.TryGetComponent(out Collider collider))
-                collider.isTrigger = trigger;
-            return cube;
-        }
 
-        private static void CreateText(
-            string objectName,
-            Transform parent,
-            Vector3 localPosition,
-            float characterSize,
-            string value)
-        {
-            GameObject textObject = new(objectName);
-            textObject.transform.SetParent(parent, false);
-            textObject.transform.localPosition = localPosition;
-            textObject.transform.localRotation = Quaternion.identity;
-            TextMesh text = textObject.AddComponent<TextMesh>();
-            text.text = value;
-            text.anchor = TextAnchor.MiddleCenter;
-            text.alignment = TextAlignment.Center;
-            text.fontSize = 64;
-            text.characterSize = characterSize;
-            text.color = Color.white;
-            Font font = MushLobbyController.ActiveKoreanFont;
-            if (font == null)
-                return;
-            text.font = font;
-            if (textObject.TryGetComponent(out MeshRenderer renderer))
-                renderer.sharedMaterial = font.material;
-        }
 
-        private void OnDestroy()
-        {
-            foreach (Material material in ownedMaterials)
-            {
-                if (material != null)
-                    Destroy(material);
-            }
-            ownedMaterials.Clear();
-        }
+
+
+
+
     }
 
 }
