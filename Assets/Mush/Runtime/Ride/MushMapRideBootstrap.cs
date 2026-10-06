@@ -140,6 +140,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private bool resultVisible;
     public bool HasFinished => resultVisible;
     public bool IsPaused => ridePaused;
+    public bool IsOffCourse => offCourse;
     public Camera RideCamera => rideCamera;
     public Transform RideViewAnchor => rideSeatAnchor;
     public Vector3 RideViewLocalPosition => cameraBaseLocalPosition;
@@ -187,6 +188,21 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private void Start()
     {
         BuildRideTeam();
+        if (built) ConfigureRideAudio();
+    }
+
+    private void ConfigureRideAudio()
+    {
+        MushRideAudio audio = rideTeam.GetComponent<MushRideAudio>();
+        if (audio == null) audio = rideTeam.gameObject.AddComponent<MushRideAudio>();
+        audio.Configure(this, rideController, rideSeatAnchor != null ? rideSeatAnchor : rideTeam);
+        foreach (DogRuntime dog in dogs)
+        {
+            if (dog?.animator == null) continue;
+            MushDogFootstepAudio footsteps = dog.animator.GetComponent<MushDogFootstepAudio>();
+            if (footsteps == null) footsteps = dog.animator.gameObject.AddComponent<MushDogFootstepAudio>();
+            footsteps.Configure(this);
+        }
     }
 
     public void CaptureSavedRide(MushGameSave.Data data)
@@ -1040,6 +1056,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             -1f,
             1f);
         rideController.SetExternalSteering(steering);
+        rideController.SetExternalReinTension(Mathf.Max(leftPull, rightPull) / Mathf.Max(0.05f, questReinPullForFullTurn));
         UpdateQuestDrivingHaptics(leftPull, rightPull);
     }
 
@@ -1266,6 +1283,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     {
         if (resultPanel != null)
         {
+            FindDeepChild(resultPanel.transform, "Result Back")?.gameObject.SetActive(false);
             resultButtonsRoot = FindDeepChild(resultPanel.transform, "Result Buttons")?.gameObject;
             for (int i = 0; i < 3; i++)
             {
@@ -1339,6 +1357,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             if (!resultStarLanded[index])
             {
                 resultStarLanded[index] = true;
+                MushSounds.PlayStar(index);
                 resultStarBursts[index]?.Emit(30);
                 PulseQuestBothHands(0.38f, 0.09f);
             }
@@ -2027,19 +2046,25 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         StopRideEffectsForResult();
         PulseQuestBothHands(0.56f, 0.20f);
 
-        EnsureResultPanel();
-        if (resultPanel != null && rideCamera != null)
-        {
-            Vector3 forward = Vector3.ProjectOnPlane(rideCamera.transform.forward, Vector3.up).normalized;
-            if (forward.sqrMagnitude < 0.01f) forward = rideTeam.forward;
-            resultPanel.transform.position = rideCamera.transform.position + forward * 3.4f + Vector3.up * 0.85f;
-            resultPanel.transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
-            resultPanel.transform.localScale = Vector3.one * 0.90f;
-            resultPanel.SetActive(true);
-        }
+        MushSounds.FadeTrackMusicForClear();
+        PresentResultPanel();
         questRig?.SetRayEnabled(true);
 
         Debug.Log($"[Mush] 배달 완료: {FormatElapsed(missionElapsedSeconds)}, 별 {earnedStars}개", this);
+    }
+
+    private void PresentResultPanel()
+    {
+        EnsureResultPanel();
+        if (resultPanel == null || rideCamera == null) return;
+
+        Vector3 forward = Vector3.ProjectOnPlane(rideCamera.transform.forward, Vector3.up).normalized;
+        if (forward.sqrMagnitude < 0.01f) forward = rideTeam.forward;
+        resultPanel.transform.position = rideCamera.transform.position + forward * 3.4f + Vector3.up * 0.85f;
+        resultPanel.transform.rotation = Quaternion.LookRotation(forward, Vector3.up) *
+                                         Quaternion.Euler(8f, 0f, 0f);
+        resultPanel.transform.localScale = Vector3.one * 0.90f;
+        resultPanel.SetActive(true);
     }
 
     private void StopRideEffectsForResult()

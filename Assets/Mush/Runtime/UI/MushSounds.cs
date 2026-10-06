@@ -8,6 +8,12 @@ public sealed class MushSounds : MonoBehaviour
     private static MushSounds instance;
     private AudioSource uiSource;
     private AudioSource musicSource;
+    private MushAudioChannel musicChannel;
+    private Coroutine musicFade;
+    private float musicVolume = 1f;
+    private int musicSceneHandle = -1;
+    private const float TrackFadeInSeconds = 5f;
+    private const float ClearFadeSeconds = 2f;
     private MushSoundBank bank;
     private int lastClickFrame = -1;
     private int lastHoverFrame = -1;
@@ -39,7 +45,8 @@ public sealed class MushSounds : MonoBehaviour
         musicSource.playOnAwake = false;
         musicSource.loop = true;
         musicSource.spatialBlend = 0f;
-        music.AddComponent<MushAudioChannel>().SetBus(MushAudioChannel.Bus.Music);
+        musicChannel = music.AddComponent<MushAudioChannel>();
+        musicChannel.SetBus(MushAudioChannel.Bus.Music);
         SceneManager.sceneLoaded += OnSceneLoaded;
         SceneManager.activeSceneChanged += OnActiveSceneChanged;
     }
@@ -65,10 +72,62 @@ public sealed class MushSounds : MonoBehaviour
     private void UpdateMusic(Scene scene)
     {
         AudioClip clip = MusicForScene(scene);
-        if (musicSource.clip == clip) return;
+        bool isTrackMusic = clip != null && bank != null && clip == bank.drivingMusic;
+        // A retry starts a fresh fade, while duplicate scene callbacks leave playback alone.
+        if (musicSource.clip == clip && (!isTrackMusic || musicSceneHandle == scene.handle)) return;
+        musicSceneHandle = scene.handle;
+        if (musicFade != null)
+        {
+            StopCoroutine(musicFade);
+            musicFade = null;
+        }
         musicSource.Stop();
         musicSource.clip = clip;
-        if (clip != null) musicSource.Play();
+        SetMusicVolume(isTrackMusic ? 0f : 1f);
+        if (clip == null) return;
+        musicSource.Play();
+        if (isTrackMusic) FadeMusicTo(1f, TrackFadeInSeconds);
+    }
+
+    public static void FadeTrackMusicForClear()
+    {
+        if (instance == null || instance.bank == null ||
+            instance.musicSource.clip != instance.bank.drivingMusic) return;
+        instance.FadeMusicTo(0.4f, ClearFadeSeconds);
+    }
+
+    private void SetMusicVolume(float volume)
+    {
+        musicVolume = volume;
+        // Keep the envelope separate from the player's music volume setting.
+        musicChannel.SetVolume(volume);
+    }
+
+    private void FadeMusicTo(float target, float duration)
+    {
+        if (musicFade != null) StopCoroutine(musicFade);
+        musicFade = StartCoroutine(FadeMusic(target, duration));
+    }
+
+    private IEnumerator FadeMusic(float target, float duration)
+    {
+        float start = musicVolume;
+        float elapsed = 0f;
+        double previousTime = Time.realtimeSinceStartupAsDouble;
+        while (elapsed < duration)
+        {
+            yield return null;
+            double now = Time.realtimeSinceStartupAsDouble;
+            if (!AudioListener.pause)
+            {
+                elapsed += (float)(now - previousTime);
+                float progress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / duration));
+                SetMusicVolume(Mathf.Lerp(start, target, progress));
+            }
+            previousTime = now;
+        }
+        SetMusicVolume(target);
+        musicFade = null;
     }
 
     private AudioClip MusicForScene(Scene scene)

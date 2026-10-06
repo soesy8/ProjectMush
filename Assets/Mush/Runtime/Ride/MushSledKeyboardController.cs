@@ -72,6 +72,9 @@ namespace Mush.Prototype
         private MushDogRideEffect activeDogEffect;
         private bool externalSteeringActive;
         private float externalSteeringInput;
+        private float externalReinTension;
+        private float reinTension;
+        public event System.Action AccelerationEntered;
 
         [System.Serializable]
         public sealed class SavedMotion
@@ -119,6 +122,7 @@ namespace Mush.Prototype
         public int SpeedLevel => speedLevel;
         public float CurrentSpeed => currentSpeed;
         public float CurrentSteering => currentSteering;
+        public float ReinTension => rideStarted ? reinTension : 0f;
         public bool IsBoosting => rideStarted && speedLevel == 2;
         public float FirstLevelSpeed => firstLevelSpeed;
         public float SecondLevelSpeed => secondLevelSpeed;
@@ -171,6 +175,7 @@ namespace Mush.Prototype
 
             if (!rideStarted)
             {
+                reinTension = 0f;
                 UpdateSteeringVisuals(0f, 0f);
                 return;
             }
@@ -185,6 +190,11 @@ namespace Mush.Prototype
                 if (keyboard.dKey.isPressed)
                     steeringInput += 1f;
             }
+
+            // Two Quest pulls can cancel steering while both reins remain under tension.
+            reinTension = externalSteeringActive
+                ? Mathf.Max(Mathf.Abs(externalSteeringInput), externalReinTension)
+                : keyboard != null && (keyboard.aKey.isPressed || keyboard.dKey.isPressed) ? 1f : 0f;
 
             float steeringRate = Mathf.Approximately(steeringInput, 0f)
                 ? steeringReleaseRate
@@ -264,6 +274,8 @@ namespace Mush.Prototype
             externalSteeringInput = Mathf.Clamp(steering, -1f, 1f);
         }
 
+        public void SetExternalReinTension(float tension) => externalReinTension = Mathf.Clamp01(tension);
+
         public void SetTerrainSpeedLimit(bool limited, float firstLevelLimit = 3f, float secondLevelLimit = 5f)
         {
             terrainLimitedFirstLevelSpeed = Mathf.Max(0.1f, firstLevelLimit);
@@ -327,6 +339,7 @@ namespace Mush.Prototype
             currentSpeed = 0f;
             currentSteering = 0f;
             externalSteeringInput = 0f;
+            externalReinTension = reinTension = 0f;
             terrainSpeedLimited = false;
             ClearOffCourseImpactRecovery();
             UpdateSteeringVisuals(0f, 0f);
@@ -395,6 +408,7 @@ namespace Mush.Prototype
                 return;
 
             speedLevel = nextLevel;
+            if (nextLevel == 2) AccelerationEntered?.Invoke();
             Debug.Log($"[Mush] Speed level: {speedLevel}/2", this);
         }
 

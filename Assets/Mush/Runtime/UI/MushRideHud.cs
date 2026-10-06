@@ -17,8 +17,6 @@ public sealed class MushRideHud : MonoBehaviour
     [SerializeField] private RectTransform progressIcon;
     [SerializeField] private GameObject progressRoot;
     [SerializeField] private GameObject trackRoot;
-    [SerializeField] private GameObject standingDog;
-    [SerializeField] private RectTransform runningDog;
     private int previousSeconds = -1;
     private int previousFirstStamina = -1;
     private int previousSecondStamina = -1;
@@ -36,7 +34,6 @@ public sealed class MushRideHud : MonoBehaviour
         if (trackRoot != null && trackRoot.activeSelf != visible) trackRoot.SetActive(visible);
         if (progressRoot != null && progressRoot.activeSelf != visible) progressRoot.SetActive(visible);
         if (!visible) return;
-        RefreshDogSpeedState(ride.IsBoosting && !ride.IsPaused);
         RefreshStamina(staminaFill, staminaText, 0, "카이", ref previousFirstStamina);
         RefreshStamina(secondStaminaFill, secondStaminaText, 1, "루미", ref previousSecondStamina);
         int seconds = Mathf.CeilToInt(ride.RemainingSeconds);
@@ -59,12 +56,6 @@ public sealed class MushRideHud : MonoBehaviour
                 timer.color = seconds <= 10 ? new Color(1f, 0.3f, 0.2f) : Color.white;
             }
         }
-    }
-
-    private void RefreshDogSpeedState(bool boosting)
-    {
-        if (standingDog != null && standingDog.activeSelf == boosting) standingDog.SetActive(!boosting);
-        if (runningDog != null && runningDog.gameObject.activeSelf != boosting) runningDog.gameObject.SetActive(boosting);
     }
 
     private void RefreshProgress(float routeProgress)

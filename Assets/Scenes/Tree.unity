@@ -12933,6 +12933,10 @@ PrefabInstance:
       propertyPath: m_ReceiveShadows
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2748710560039667944, guid: 5140d0ca29e54914fba3861c84a4582e, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4190413609192565275, guid: 5140d0ca29e54914fba3861c84a4582e, type: 3}
       propertyPath: m_Name
       value: Delivery Result Panel
@@ -12959,11 +12963,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7494252045662687549, guid: 5140d0ca29e54914fba3861c84a4582e, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 1
+      value: 0.9975641
       objectReference: {fileID: 0}
     - target: {fileID: 7494252045662687549, guid: 5140d0ca29e54914fba3861c84a4582e, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0
+      value: 0.06975647
       objectReference: {fileID: 0}
     - target: {fileID: 7494252045662687549, guid: 5140d0ca29e54914fba3861c84a4582e, type: 3}
       propertyPath: m_LocalRotation.y
@@ -71435,8 +71439,6 @@ MonoBehaviour:
   progressIcon: {fileID: 736096475}
   progressRoot: {fileID: 736096477}
   trackRoot: {fileID: 0}
-  standingDog: {fileID: 0}
-  runningDog: {fileID: 0}
 --- !u!1 &1831526312
 GameObject:
   m_ObjectHideFlags: 0
@@ -84057,8 +84059,6 @@ MonoBehaviour:
   progressIcon: {fileID: 98000000000044}
   progressRoot: {fileID: 98000000000020}
   trackRoot: {fileID: 98000000000241}
-  standingDog: {fileID: 98000000000262}
-  runningDog: {fileID: 98000000000255}
 --- !u!222 &98000000000046
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -88930,7 +88930,7 @@ RectTransform:
   m_GameObject: {fileID: 98000000000241}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: -0.63}
-  m_LocalScale: {x: 0.002, y: 0.002, z: 0.002}
+  m_LocalScale: {x: 0.0027, y: 0.0027, z: 0.0027}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 98000000000240}
@@ -89438,7 +89438,7 @@ GameObject:
   - component: {fileID: 98000000000264}
   - component: {fileID: 98000000000265}
   m_Layer: 5
-  m_Name: DogStateImage_Normal
+  m_Name: Timer Icon
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -89490,9 +89490,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: a668f193224e0c341aa902da4abb5d38, type: 3}
+  m_Sprite: {fileID: 21300000, guid: bca8c0182a3eff74b9632e8b2a419b76, type: 3}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1

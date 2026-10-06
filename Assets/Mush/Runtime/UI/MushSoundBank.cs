@@ -9,6 +9,13 @@ public sealed class MushSoundBank : ScriptableObject
     public AudioClip fireplaceAmbience;
     [Range(0f, 1f)] public float fireplaceAmbienceVolume = 0.15f;
     public AudioClip click;
+    public AudioClip[] pawSnow;
+    public AudioClip reinsTension;
+    public AudioClip sledSoftSnow;
+    public AudioClip sledIcyGrains;
+    public AudioClip accelerationEnter;
+    public AnimationClip kaiRunFootsteps;
+    public AnimationClip lumiRunFootsteps;
     public AudioClip starFirst;
     public AudioClip starThird;
     public AudioClip[] bonfire;

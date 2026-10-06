@@ -8242,21 +8242,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1660057539 &9223372036854775807
-SceneRoots:
-  m_ObjectHideFlags: 0
-  m_Roots:
-  - {fileID: 2180000003}
-  - {fileID: 1720510440}
-  - {fileID: 1200125431}
-  - {fileID: 1717610732}
-  - {fileID: 1140899250}
-  - {fileID: 1989554541}
-  - {fileID: 1582297315}
-  - {fileID: 1920603930}
-  - {fileID: 525712950}
-  - {fileID: 98000000000001}
-  - {fileID: 1045399019}
 --- !u!224 &98000000000001
 RectTransform:
   m_ObjectHideFlags: 0
@@ -9072,9 +9057,9 @@ RectTransform:
   - {fileID: 98000000000043}
   m_Father: {fileID: 98000000000016}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 175, y: -537.72504}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &98000000000018
@@ -9617,9 +9602,9 @@ RectTransform:
   - {fileID: 98000000000049}
   m_Father: {fileID: 98000000000016}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 175, y: -229.02501}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000045
@@ -9638,9 +9623,9 @@ RectTransform:
   - {fileID: 98000000000052}
   m_Father: {fileID: 98000000000016}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 175, y: -74.675}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000046
@@ -9681,9 +9666,9 @@ RectTransform:
   - {fileID: 98000000000053}
   m_Father: {fileID: 98000000000016}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 175, y: -383.375}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000048
@@ -12840,3 +12825,18 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 8
+--- !u!1660057539 &9223372036854775807
+SceneRoots:
+  m_ObjectHideFlags: 0
+  m_Roots:
+  - {fileID: 2180000003}
+  - {fileID: 1720510440}
+  - {fileID: 1200125431}
+  - {fileID: 1717610732}
+  - {fileID: 1140899250}
+  - {fileID: 1989554541}
+  - {fileID: 1582297315}
+  - {fileID: 1920603930}
+  - {fileID: 525712950}
+  - {fileID: 98000000000001}
+  - {fileID: 1045399019}
