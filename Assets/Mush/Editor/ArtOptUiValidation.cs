@@ -204,8 +204,8 @@ public static class ArtOptUiValidation
         TMP_Text secondText = (TMP_Text)data.FindProperty("secondStaminaText").objectReferenceValue;
         GameObject track = (GameObject)data.FindProperty("trackRoot").objectReferenceValue;
         Vector2 panelSize = track.transform.Find("TrackUI_Panel").GetComponent<RectTransform>().sizeDelta;
-        Require(Vector2.Distance(panelSize, new Vector2(300f * 1.18f, 180f * 1.28f)) < 0.001f,
-            "Track HUD must be 18% wider and 28% taller.");
+        Require(Vector2.Distance(panelSize, new Vector2(272.58f, 156.672f)) < 0.001f,
+            "Track HUD must match the authored size of 272.58 by 156.672.");
         foreach (UnityEngine.UI.Image fill in new[] { first, second, progress })
             Require(fill.type == UnityEngine.UI.Image.Type.Filled &&
                     fill.fillMethod == UnityEngine.UI.Image.FillMethod.Horizontal && fill.fillOrigin == 0,
@@ -228,7 +228,7 @@ public static class ArtOptUiValidation
                     Require(Mathf.Approximately(first.fillAmount, value / 100f) &&
                             Mathf.Approximately(second.fillAmount, (100 - value) / 100f),
                         "Track stamina bars must show each dog's actual stamina.");
-                    Require(firstText.text == $"카이  {value} / 100" && secondText.text == $"루미  {100 - value} / 100",
+                    Require(firstText.text == $"{value} / 100" && secondText.text == $"{100 - value} / 100",
                         "Track dog stamina labels are incorrect.");
                 }
                 sample.dogs[0].stamina = 33.75f;

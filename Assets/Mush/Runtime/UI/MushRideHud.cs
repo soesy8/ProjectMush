@@ -34,8 +34,8 @@ public sealed class MushRideHud : MonoBehaviour
         if (trackRoot != null && trackRoot.activeSelf != visible) trackRoot.SetActive(visible);
         if (progressRoot != null && progressRoot.activeSelf != visible) progressRoot.SetActive(visible);
         if (!visible) return;
-        RefreshStamina(staminaFill, staminaText, 0, "카이", ref previousFirstStamina);
-        RefreshStamina(secondStaminaFill, secondStaminaText, 1, "루미", ref previousSecondStamina);
+        RefreshStamina(staminaFill, staminaText, 0, ref previousFirstStamina);
+        RefreshStamina(secondStaminaFill, secondStaminaText, 1, ref previousSecondStamina);
         int seconds = Mathf.CeilToInt(ride.RemainingSeconds);
         if (timer != null)
         {
@@ -77,13 +77,13 @@ public sealed class MushRideHud : MonoBehaviour
     }
 
     private static void RefreshStamina(Image fill, TMP_Text label, int dogIndex,
-        string dogName, ref int previousValue)
+        ref int previousValue)
     {
         float value = Mathf.Clamp(MushGameSave.GetDogStamina(dogIndex), 0f, 100f);
         if (fill != null) fill.fillAmount = value / 100f;
         int displayed = Mathf.FloorToInt(value);
         if (label != null && displayed != previousValue)
-            label.text = $"{dogName}  {displayed} / 100";
+            label.text = $"{displayed} / 100";
         previousValue = displayed;
     }
 }
