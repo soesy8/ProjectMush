@@ -1,0 +1,104 @@
+{
+  "scenes": [
+    {
+      "file": "Assets/Scenes/Title.unity",
+      "groups": [
+        "Canvas"
+      ],
+      "removed": 15,
+      "imported": 199,
+      "unresolved": []
+    },
+    {
+      "file": "Assets/Scenes/PM_Lobby.unity",
+      "groups": [
+        "Lobby Dog Status UI",
+        "Lobby Pause UI",
+        "MAP BOARD Panel",
+        "MONEY BAG SHOP Panel",
+        "HOUSE FLOOR PLAN Panel",
+        "Lobby Station Travel Menu",
+        "하우징 Interaction Hover Panel",
+        "커스터마이징 Interaction Hover Panel",
+        "지도 Interaction Hover Panel",
+        "상점 Interaction Hover Panel"
+      ],
+      "removed": 1006,
+      "imported": 1772,
+      "unresolved": []
+    },
+    {
+      "file": "Assets/Scenes/Track_v2.unity",
+      "groups": [
+        "Mush Scene UI",
+        "TrackUI",
+        "Delivery Result Panel"
+      ],
+      "removed": 267,
+      "imported": 431,
+      "unresolved": []
+    },
+    {
+      "file": "Assets/Scenes/Tree.unity",
+      "groups": [
+        "Mush Scene UI",
+        "TrackUI"
+      ],
+      "removed": 267,
+      "imported": 267,
+      "unresolved": []
+    },
+    {
+      "file": "Assets/Scenes/SharpCurve.unity",
+      "groups": [
+        "Mush Scene UI",
+        "TrackUI"
+      ],
+      "removed": 267,
+      "imported": 267,
+      "unresolved": []
+    }
+  ],
+  "assets": [
+    "Art/Textures/UI/T_UI_Fill.png",
+    "Art/Textures/UI/T_UI_SlideHandle.png",
+    "Art/Textures/UI/T_UI_Slider.png",
+    "Art/Scenes/Test/FontStyle/Fonts/Mush_Gold_Korean_2350.asset",
+    "Art/Scenes/Test/FontStyle/Materials/Mush_Gold_Korean_2350_GoldDepth.mat",
+    "Art/Textures/UI/T_UI_Background.png",
+    "Art/Textures/UI/T_UI_Close.png",
+    "Art/Textures/UI/T_UI_Panel.png",
+    "Art/Textures/UI/T_UI_Title.png",
+    "Art/Textures/UI/T_UI_Leaf.png",
+    "Art/Textures/UI/T_UI_Snow.png",
+    "Art/Textures/UI/T_UI_Button_Selected.png",
+    "Art/Textures/UI/T_UI_Button_Pressed.png",
+    "Art/Textures/UI/T_UI_Button_Disabled.png",
+    "Art/Textures/UI/T_UI_Button.png",
+    "Art/Textures/UI/T_UI_Ride.png",
+    "Art/Textures/UI/T_UI_FastRide.png",
+    "UI_Panel_Sample/Resources/Material/UI_Shadow_Mat.mat",
+    "Art/Textures/UI/T_LUMI_Normal.png",
+    "Art/Textures/UI/T_LUMI_High.png",
+    "Art/Textures/UI/T_LUMI_Low.png",
+    "Art/Textures/UI/T_KAI_Normal.png",
+    "Art/Textures/UI/T_KAI_High.png",
+    "Art/Textures/UI/T_KAI_Low.png",
+    "Mush/LegacyUISprites/rounded-rectangle.png",
+    "Mush/Runtime/UI/Baked/Mush_Station_Menu_Button.mat",
+    "Mush/Runtime/UI/Baked/Mush_Station_Menu_Background.mat",
+    "Mush/Runtime/UI/Baked/Runtime_UIUnlit_FilledStar.mat",
+    "Mush/Runtime/UI/Baked/Delivery_Result_Star.asset",
+    "Mush/Runtime/UI/Baked/Runtime_UIUnlit_EmptyStar.mat",
+    "Mush/Runtime/UI/Baked/Runtime_UIUnlit_StarImpact.mat",
+    "Mush/Runtime/UI/Baked/Runtime_DeliveryResultOpaqueBack.mat",
+    "Mush/Runtime/UI/Baked/Runtime_DeliveryResultButton.mat",
+    "Mush/Runtime/UI/Baked/Runtime_DeliveryResultTrim.mat",
+    "Mush/Runtime/UI/Baked/Runtime_DeliveryResultLobbyButton.mat",
+    "Art/Scenes/Test/FontStyle/Shaders/GoldDepth_SDF.shader",
+    "Art/Scenes/Test/FontStyle/Shaders/GoldDepth_Properties.cginc",
+    "Art/Scenes/Test/FontStyle/Shaders/GoldDepth_Functions.cginc",
+    "UI_Panel_Sample/Resources/Material/UI_Shadow.shader",
+    "Art/Scenes/Test/FontStyle/Source/HSDuggobi.ttf"
+  ]
+}

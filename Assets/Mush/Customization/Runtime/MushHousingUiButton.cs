@@ -1,5 +1,6 @@
 using System;
 using Mush.Quest;
+using Mush.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -10,47 +11,53 @@ namespace Mush.Customization
     public sealed class MushHousingUiButton : MonoBehaviour, IMushQuestRayTarget
     {
         private RectTransform rect;
-        private Image image;
         private Action callback;
-        private Color normalColor;
-        private bool questHovered;
+        private Canvas canvas;
+        private MushUiButtonFeedback feedback;
+        private int rayHoverCount;
+        private bool mouseHovered;
 
         public void Configure(RectTransform newRect, Image newImage, Action newCallback, Color newNormalColor)
         {
             rect = newRect;
-            image = newImage;
             callback = newCallback;
-            normalColor = newNormalColor;
+            canvas = rect != null ? rect.GetComponentInParent<Canvas>() : null;
+            if (newImage != null)
+            {
+                newImage.color = newNormalColor;
+                feedback = MushUiButtonFeedback.Attach(gameObject, newImage);
+            }
         }
 
         private void Update()
         {
             Mouse mouse = Mouse.current;
-            if (rect == null)
-                return;
-
-            Canvas canvas = rect.GetComponentInParent<Canvas>();
+            if (rect == null) return;
             Camera eventCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
-            bool hovered = !XRSettings.isDeviceActive && mouse != null &&
-                           RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), eventCamera);
-            if (image != null)
-                image.color = hovered || questHovered ? Color.Lerp(normalColor, Color.white, 0.18f) : normalColor;
-            if (hovered && mouse != null && mouse.leftButton.wasPressedThisFrame)
-            {
-                MushSounds.PlayClick();
-                callback?.Invoke();
-            }
+            mouseHovered = !XRSettings.isDeviceActive && mouse != null &&
+                RectTransformUtility.RectangleContainsScreenPoint(rect, mouse.position.ReadValue(), eventCamera);
+            feedback?.SetHovered(mouseHovered || rayHoverCount > 0);
+            if (mouseHovered && mouse.leftButton.wasPressedThisFrame) SelectWithQuestRay();
         }
 
         public void SetQuestRayHovered(bool hovered)
         {
-            questHovered = hovered;
+            rayHoverCount = Mathf.Max(0, rayHoverCount + (hovered ? 1 : -1));
+            feedback?.SetHovered(mouseHovered || rayHoverCount > 0);
         }
 
         public void SelectWithQuestRay()
         {
+            feedback?.PulsePressed();
             MushSounds.PlayClick();
             callback?.Invoke();
+        }
+
+        private void OnDisable()
+        {
+            rayHoverCount = 0;
+            mouseHovered = false;
+            feedback?.SetHovered(false);
         }
     }
 }

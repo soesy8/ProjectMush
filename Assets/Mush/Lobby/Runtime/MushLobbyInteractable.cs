@@ -29,7 +29,8 @@ namespace Mush.Lobby
     [DisallowMultipleComponent]
     public sealed class MushLobbyInteractable : MonoBehaviour, IMushQuestRayTarget
     {
-        public bool IsWorldObject => UsesObjectHoverPanel();
+        public bool IsWorldObject => action is MushLobbyAction.OpenMapBoard or MushLobbyAction.OpenShop or
+            MushLobbyAction.OpenHousing or MushLobbyAction.OpenCustomization;
 
         [SerializeField] private MushLobbyController controller;
         [SerializeField] private MushLobbyAction action;
@@ -41,7 +42,7 @@ namespace Mush.Lobby
         private XRSimpleInteractable xrInteractable;
         private Color restingColor;
         private bool hasColor;
-        private GameObject hoverPanelCanvas;
+        [SerializeField] private GameObject hoverPanelCanvas;
         private Camera hoverCamera;
         private bool mouseHovered;
         private int questHoverCount;
@@ -64,7 +65,7 @@ namespace Mush.Lobby
                 hasColor = true;
             }
             if (Application.isPlaying)
-                BuildHoverPanel();
+                BindAuthoredHoverPanel();
         }
 
         public void SetController(MushLobbyController newController) => controller = newController;
@@ -86,7 +87,7 @@ namespace Mush.Lobby
                 restingColor = highlightRenderer.material.color;
                 hasColor = true;
             }
-            BuildHoverPanel();
+            BindAuthoredHoverPanel();
         }
 
         private void OnEnable()
@@ -205,76 +206,15 @@ namespace Mush.Lobby
                 UpdateHoverPanelPose();
         }
 
-        private void BuildHoverPanel()
+        private void BindAuthoredHoverPanel()
         {
-            if (hoverPanelCanvas != null || hoverPanelPrefab == null || !UsesObjectHoverPanel())
-                return;
-
-            hoverCamera = Camera.main;
-            hoverPanelCanvas = new GameObject(
-                name + " Hover Panel",
-                typeof(RectTransform),
-                typeof(Canvas),
-                typeof(CanvasGroup));
-            hoverPanelCanvas.SetActive(false);
-            hoverPanelCanvas.transform.SetParent(transform, true);
-            CanvasGroup group = hoverPanelCanvas.GetComponent<CanvasGroup>();
-            group.blocksRaycasts = false;
-            group.interactable = false;
-            Canvas canvas = hoverPanelCanvas.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            canvas.worldCamera = hoverCamera;
-            canvas.overrideSorting = true;
-            canvas.sortingOrder = 120;
-
-            RectTransform canvasRect = hoverPanelCanvas.GetComponent<RectTransform>();
-            canvasRect.sizeDelta = new Vector2(200f, 100f);
-            canvasRect.localScale = Vector3.one * 0.003f;
-
-            // Keep the editable scene source hidden even if it was enabled for preview.
-            if (hoverPanelPrefab.scene.IsValid())
-                hoverPanelPrefab.SetActive(false);
-            GameObject panel = Instantiate(hoverPanelPrefab, canvasRect, false);
-            panel.name = "LobbyMenuUI";
-            RectTransform panelRect = panel.GetComponent<RectTransform>();
-            if (panelRect != null)
-            {
-                panelRect.anchorMin = Vector2.one * 0.5f;
-                panelRect.anchorMax = Vector2.one * 0.5f;
-                panelRect.anchoredPosition3D = Vector3.zero;
-            }
-            panel.SetActive(true);
-
-            TextMeshProUGUI label = panel.GetComponentInChildren<TextMeshProUGUI>(true);
-            if (label != null)
-                label.text = HoverLabel();
-            foreach (Graphic graphic in panel.GetComponentsInChildren<Graphic>(true))
-                graphic.raycastTarget = false;
-            foreach (BaseRaycaster raycaster in panel.GetComponentsInChildren<BaseRaycaster>(true))
-                raycaster.enabled = false;
-            foreach (Collider panelCollider in panel.GetComponentsInChildren<Collider>(true))
-                panelCollider.enabled = false;
-
-            hoverPanelCanvas.SetActive(false);
+            if (hoverPanelCanvas == null)
+                hoverPanelCanvas = transform.Find(name + " Hover Panel")?.gameObject;
         }
 
-        private bool UsesObjectHoverPanel()
-        {
-            return action == MushLobbyAction.OpenMapBoard || action == MushLobbyAction.OpenShop ||
-                   action == MushLobbyAction.OpenHousing || action == MushLobbyAction.OpenCustomization;
-        }
 
-        private string HoverLabel()
-        {
-            return action switch
-            {
-                MushLobbyAction.OpenMapBoard => "지도",
-                MushLobbyAction.OpenShop => "상점",
-                MushLobbyAction.OpenHousing => "집 꾸미기",
-                MushLobbyAction.OpenCustomization => "커스텀",
-                _ => string.Empty
-            };
-        }
+
+
 
         private void UpdateHoverPanelPose()
         {

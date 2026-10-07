@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Mush.Quest;
+using Mush.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
@@ -280,10 +281,10 @@ namespace Mush.Customization
                 int index = MushHousingLayout.PlacementForItem(item.id);
                 bool placed = !string.IsNullOrEmpty(workingState.GetHousingPlacement(index));
                 Color color = selectedIndex == index ? Accent : ButtonColor;
-                RectTransform card = CreateRect(inventoryRoot, item.displayName + " Card",
-                    new Vector2((i - (items.Count - 1) * 0.5f) * (width + 18f), 0f), new Vector2(width, 146f));
-                Image image = card.gameObject.AddComponent<Image>();
-                image.color = color;
+                Image image = MushUiPanelSkin.CreateImage(inventoryRoot, item.displayName + " Card",
+                    new Vector2((i - (items.Count - 1) * 0.5f) * (width + 18f), 0f), new Vector2(width, 146f), color);
+                if (image == null) continue;
+                RectTransform card = image.rectTransform;
                 AddButton(card, image, () => BeginSelection(index), color);
                 RectTransform thumbnailRect = CreateRect(card, "Thumbnail", new Vector2(-width * 0.5f + 92f, 0f), new Vector2(168f, 124f));
                 RawImage thumbnail = thumbnailRect.gameObject.AddComponent<RawImage>();
@@ -550,16 +551,15 @@ namespace Mush.Customization
 
         private static void CreatePanel(Transform parent, string name, Vector2 position, Vector2 size, Color color)
         {
-            Image image = CreateRect(parent, name, position, size).gameObject.AddComponent<Image>();
-            image.color = color;
-            image.raycastTarget = false;
+            Image image = MushUiPanelSkin.CreateImage(parent, name, position, size, color);
+            if (image != null) image.raycastTarget = false;
         }
 
         private MushHousingUiButton CreateButton(Transform parent, string label, Vector2 position, Vector2 size, Action callback, Color color)
         {
-            RectTransform rect = CreateRect(parent, label, position, size);
-            Image image = rect.gameObject.AddComponent<Image>();
-            image.color = color;
+            Image image = MushUiPanelSkin.CreateImage(parent, label, position, size, color);
+            if (image == null) return null;
+            RectTransform rect = image.rectTransform;
             CreateText(rect, "Label", Vector2.zero, size - new Vector2(16f, 6f), 26, Ink, label);
             return AddButton(rect, image, callback, color);
         }

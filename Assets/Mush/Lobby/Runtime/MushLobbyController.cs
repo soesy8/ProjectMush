@@ -1,5 +1,6 @@
 using Mush.Quest;
 using System;
+using TMPro;
 using System.Collections.Generic;
 using Mush.Customization;
 using Mush.UI;
@@ -54,14 +55,6 @@ namespace Mush.Lobby
         private MushLobbyDogRoamer lapDog; // 벽난로 좌석에서 호출해 현재 무릎으로 올라오는 한 마리를 기억한다.
         private Vector2 previousPetPointerPosition;
         private bool petPointerReady;
-        private Mesh mapStarMesh;
-        private Material mapEarnedStarMaterial;
-        private Material mapEmptyStarMaterial;
-        private readonly MeshRenderer[,] mapStars = new MeshRenderer[3, 3];
-        private readonly TextMesh[] mapRecordLabels = new TextMesh[3];
-        private readonly TextMesh[] mapButtonLabels = new TextMesh[3];
-        private static readonly string[] MapSceneNames = { "Track_v2", "Tree", "SharpCurve" };
-        private static readonly string[] MapDisplayNames = { "기본 설원", "나무 숲", "급커브맵" };
 
         private static readonly Dictionary<string, string> KoreanLabels = new Dictionary<string, string>
         {
@@ -132,11 +125,6 @@ namespace Mush.Lobby
             if (themeFont != null)
                 koreanFont = themeFont;
             ActiveKoreanFont = koreanFont;
-            LocalizeLobbyText();
-            EnsureSharpCurveMapButton();
-            MushUiPanelSkin.ApplyPanel(mapPanel != null ? mapPanel.transform : null, new Vector2(3.0f, 1.75f));
-            MushUiPanelSkin.ApplyPanel(shopPanel != null ? shopPanel.transform : null, new Vector2(4.85f, 3.35f));
-            MushUiPanelSkin.ApplyPanel(housingPanel != null ? housingPanel.transform : null, new Vector2(3.0f, 1.75f));
             SetAllPanels(false);
             SetObjectsActive(dogScarves, false);
             SetObjectsActive(placedFurniture, false);
@@ -180,9 +168,6 @@ namespace Mush.Lobby
         {
             callDogsVrAction?.Dispose(); // 직접 생성한 InputAction은 더 이상 필요 없을 때 Dispose해서 입력 시스템 자원을 명확하게 해제한다.
             callDogsVrAction = null; // 파괴 과정에서 폐기된 액션을 다시 참조하지 않도록 필드도 비운다.
-            if (mapStarMesh != null) Destroy(mapStarMesh);
-            if (mapEarnedStarMaterial != null) Destroy(mapEarnedStarMaterial);
-            if (mapEmptyStarMaterial != null) Destroy(mapEmptyStarMaterial);
         }
 
         private void Update()
@@ -357,7 +342,6 @@ namespace Mush.Lobby
         {
             koreanFont = font;
             ActiveKoreanFont = font;
-            LocalizeLobbyText();
         }
 
         public static string TranslateLobbyText(string text)
@@ -391,8 +375,6 @@ namespace Mush.Lobby
         {
             shopPanel = newShopPanel;
             shopStatusText = newShopStatusText;
-            if (Application.isPlaying)
-                MushUiPanelSkin.ApplyPanel(shopPanel != null ? shopPanel.transform : null, new Vector2(4.85f, 3.35f));
         }
 
         public bool AcquireShopItem(string itemId, string displayName)
@@ -668,8 +650,8 @@ namespace Mush.Lobby
             {
                 if (panel == mapPanel && lobbyCamera != null)
                 {
-                    MushLobbyMapPanel menu = panel.GetComponent<MushLobbyMapPanel>() ?? panel.AddComponent<MushLobbyMapPanel>();
-                    menu.Configure(this, lobbyCamera, koreanFont != null ? koreanFont : MushUiPanelSkin.ThemeFont);
+                    MushLobbyMapPanel menu = panel.GetComponent<MushLobbyMapPanel>();
+                    if (menu != null) menu.Configure(this, lobbyCamera, koreanFont);
                 }
                 else
                     PositionPanelForCurrentView(panel);
@@ -693,242 +675,20 @@ namespace Mush.Lobby
             panel.transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
         }
 
-        private void EnsureSharpCurveMapButton()
-        {
-            if (mapPanel == null)
-                return;
 
-            Transform snowButton = mapPanel.transform.Find("SNOWFIELD Button") ??
-                                   mapPanel.transform.Find("기본 설원 Button");
-            Transform forestButton = mapPanel.transform.Find("PINE FOREST Button") ??
-                                     mapPanel.transform.Find("나무 숲 Button");
-            Vector3 snowPosition = new(-0.84f, 0.08f, -0.075f);
-            Vector3 forestPosition = new(0f, 0.08f, -0.075f);
-            Vector3 sharpPosition = new(0.84f, 0.08f, -0.075f);
-            mapButtonLabels[0] = ArrangeMapButton(snowButton, MapDisplayNames[0], snowPosition);
-            mapButtonLabels[1] = ArrangeMapButton(forestButton, MapDisplayNames[1], forestPosition);
 
-            Transform sharpButton = mapPanel.transform.Find("SHARP CURVE Button") ??
-                                    mapPanel.transform.Find("급커브맵 Button");
-            if (sharpButton == null)
-            {
-                GameObject button = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                button.name = "SHARP CURVE Button";
-                button.transform.SetParent(mapPanel.transform, false);
-                button.transform.localPosition = sharpPosition;
-                button.transform.localRotation = Quaternion.identity;
-                button.transform.localScale = new Vector3(0.70f, 0.34f, 0.10f);
 
-                Renderer renderer = button.GetComponent<Renderer>();
-                Renderer template = snowButton != null ? snowButton.GetComponent<Renderer>() :
-                    forestButton != null ? forestButton.GetComponent<Renderer>() : null;
-                if (renderer != null && template != null)
-                    renderer.sharedMaterial = template.sharedMaterial;
-
-                button.AddComponent<XRSimpleInteractable>();
-                MushLobbyInteractable interactable = button.AddComponent<MushLobbyInteractable>();
-                interactable.Configure(this, MushLobbyAction.SelectSharpCurve, renderer);
-                sharpButton = button.transform;
-
-                GameObject labelObject = new("Sharp Curve Label");
-                labelObject.transform.SetParent(mapPanel.transform, false);
-                labelObject.transform.localPosition = sharpPosition + new Vector3(0f, 0f, -0.065f);
-                labelObject.transform.localRotation = Quaternion.identity;
-                TextMesh label = labelObject.AddComponent<TextMesh>();
-                label.text = "급커브맵";
-                label.anchor = TextAnchor.MiddleCenter;
-                label.alignment = TextAlignment.Center;
-                label.characterSize = 0.027f;
-                label.fontSize = 64;
-                label.color = Color.white;
-                if (koreanFont != null)
-                {
-                    label.font = koreanFont;
-                    if (labelObject.TryGetComponent(out MeshRenderer textRenderer))
-                        textRenderer.sharedMaterial = koreanFont.material;
-                }
-            }
-
-            mapButtonLabels[2] = ArrangeMapButton(sharpButton, MapDisplayNames[2], sharpPosition);
-            NormalizeMapPanelLayout();
-            BuildMapRecords();
-        }
-
-        private void BuildMapRecords()
-        {
-            if (mapPanel == null || mapStarMesh != null)
-                return;
-
-            mapStarMesh = new Mesh { name = "Map Progress Star" };
-            Vector3[] vertices = new Vector3[11];
-            int[] triangles = new int[60];
-            for (int point = 0; point < 10; point++)
-            {
-                float angle = (90f - point * 36f) * Mathf.Deg2Rad;
-                float radius = (point & 1) == 0 ? 0.055f : 0.025f;
-                vertices[point + 1] = new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, 0f);
-                int current = point + 1;
-                int next = (point + 1) % 10 + 1;
-                int offset = point * 6;
-                triangles[offset] = 0;
-                triangles[offset + 1] = current;
-                triangles[offset + 2] = next;
-                triangles[offset + 3] = 0;
-                triangles[offset + 4] = next;
-                triangles[offset + 5] = current;
-            }
-            mapStarMesh.vertices = vertices;
-            mapStarMesh.triangles = triangles;
-            mapStarMesh.RecalculateBounds();
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-            mapEarnedStarMaterial = new Material(shader) { name = "Earned Map Star", color = new Color(1f, 0.72f, 0.12f) };
-            mapEmptyStarMaterial = new Material(shader) { name = "Empty Map Star", color = new Color(0.30f, 0.34f, 0.38f) };
-
-            for (int map = 0; map < MapSceneNames.Length; map++)
-            {
-                float x = (map - 1) * 0.84f;
-                for (int star = 0; star < 3; star++)
-                {
-                    GameObject icon = new(MapSceneNames[map] + " Progress Star " + (star + 1), typeof(MeshFilter), typeof(MeshRenderer));
-                    icon.transform.SetParent(mapPanel.transform, false);
-                    icon.transform.localPosition = new Vector3(x + (star - 1) * 0.15f, -0.19f, -0.145f);
-                    icon.GetComponent<MeshFilter>().sharedMesh = mapStarMesh;
-                    MeshRenderer renderer = icon.GetComponent<MeshRenderer>();
-                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                    renderer.receiveShadows = false;
-                    mapStars[map, star] = renderer;
-                }
-                GameObject labelObject = new(MapSceneNames[map] + " Best Record", typeof(TextMesh));
-                labelObject.transform.SetParent(mapPanel.transform, false);
-                labelObject.transform.localPosition = new Vector3(x, -0.39f, -0.145f);
-                TextMesh text = labelObject.GetComponent<TextMesh>();
-                ConfigurePanelText(text, 0.0105f, 0.90f);
-                text.color = new Color(0.94f, 0.91f, 0.83f);
-                MushUiPanelSkin.ApplyFont(text);
-                mapRecordLabels[map] = text;
-            }
-            RefreshMapRecords();
-        }
 
         private void RefreshMapRecords()
         {
-            for (int map = 0; map < MapSceneNames.Length; map++)
-            {
-                bool unlocked = MushGameSave.IsStageUnlocked(MapSceneNames[map]);
-                int earned = unlocked ? MushMapRecords.GetBestStars(MapSceneNames[map]) : 0;
-                for (int star = 0; star < 3; star++)
-                    if (mapStars[map, star] != null)
-                        mapStars[map, star].sharedMaterial = star < earned ? mapEarnedStarMaterial : mapEmptyStarMaterial;
-                if (mapRecordLabels[map] != null)
-                    mapRecordLabels[map].text = unlocked
-                        ? MushMapRecords.BestTimeLabel(MapSceneNames[map])
-                        : "잠김\n이전 스테이지 완료";
-                if (mapButtonLabels[map] != null)
-                    mapButtonLabels[map].text = unlocked
-                        ? MapDisplayNames[map]
-                        : MapDisplayNames[map] + "\n잠김";
-            }
+            if (mapPanel != null) mapPanel.GetComponent<MushLobbyMapPanel>()?.RefreshRecords();
         }
 
-        private TextMesh ArrangeMapButton(Transform button, string label, Vector3 position)
-        {
-            if (button == null)
-                return null;
 
-            button.localPosition = position;
-            button.localRotation = Quaternion.identity;
-            button.localScale = new Vector3(0.70f, 0.34f, 0.10f);
 
-            TextMesh buttonLabel = button.GetComponentInChildren<TextMesh>(true);
-            if (buttonLabel == null)
-            {
-                foreach (TextMesh candidate in mapPanel.GetComponentsInChildren<TextMesh>(true))
-                {
-                    if (!candidate.text.StartsWith(label, StringComparison.Ordinal))
-                        continue;
-                    buttonLabel = candidate;
-                    break;
-                }
-            }
 
-            if (buttonLabel == null)
-                return null;
 
-            // Old map labels were children of non-uniformly scaled cubes,
-            // while the runtime sharp-curve label was a direct panel child.
-            // Make every label a sibling of its button so one size means the
-            // same visible size for all three maps.
-            buttonLabel.transform.SetParent(mapPanel.transform, false);
-            buttonLabel.transform.localPosition = position + new Vector3(0f, 0f, -0.065f);
-            buttonLabel.transform.localRotation = Quaternion.identity;
-            buttonLabel.transform.localScale = Vector3.one;
-            ConfigurePanelText(buttonLabel, 0.016f, 0.90f);
-            return buttonLabel;
-        }
 
-        private void NormalizeMapPanelLayout()
-        {
-            if (mapPanel == null)
-                return;
-
-            TextMesh title = null;
-            Transform titleTransform = mapPanel.transform.Find("Title");
-            if (titleTransform != null)
-                title = titleTransform.GetComponent<TextMesh>();
-            if (title != null)
-            {
-                title.transform.localPosition = new Vector3(0f, 0.61f, -0.085f);
-                title.transform.localRotation = Quaternion.identity;
-                title.transform.localScale = Vector3.one;
-                ConfigurePanelText(title, 0.023f, 0.90f);
-            }
-
-            if (mapStatusText != null)
-            {
-                mapStatusText.transform.localPosition = new Vector3(0f, 0.36f, -0.085f);
-                mapStatusText.transform.localRotation = Quaternion.identity;
-                mapStatusText.transform.localScale = Vector3.one;
-                ConfigurePanelText(mapStatusText, 0.012f, 0.78f);
-            }
-
-            Transform closeButton = mapPanel.transform.Find("CLOSE Button") ??
-                                    mapPanel.transform.Find("닫기 Button");
-            if (closeButton == null)
-                return;
-
-            closeButton.localPosition = new Vector3(0f, -0.69f, -0.075f);
-            closeButton.localRotation = Quaternion.identity;
-            closeButton.localScale = new Vector3(0.72f, 0.24f, 0.10f);
-            TextMesh closeLabel = closeButton.GetComponentInChildren<TextMesh>(true);
-            if (closeLabel == null)
-            {
-                foreach (TextMesh candidate in mapPanel.GetComponentsInChildren<TextMesh>(true))
-                {
-                    if (candidate.text == "닫기")
-                    {
-                        closeLabel = candidate;
-                        break;
-                    }
-                }
-            }
-
-            if (closeLabel == null)
-                return;
-            closeLabel.transform.SetParent(mapPanel.transform, false);
-            closeLabel.transform.localPosition = closeButton.localPosition + new Vector3(0f, 0f, -0.065f);
-            closeLabel.transform.localRotation = Quaternion.identity;
-            closeLabel.transform.localScale = Vector3.one;
-            ConfigurePanelText(closeLabel, 0.015f, 0.90f);
-        }
-
-        private static void ConfigurePanelText(TextMesh text, float characterSize, float lineSpacing)
-        {
-            text.anchor = TextAnchor.MiddleCenter;
-            text.alignment = TextAlignment.Center;
-            text.fontSize = 64;
-            text.characterSize = characterSize;
-            text.lineSpacing = lineSpacing;
-        }
 
         private void SetBackgroundLobbyTextVisible(bool visible)
         {
@@ -997,16 +757,23 @@ namespace Mush.Lobby
                 lobbyStatusText.gameObject.SetActive(false);
 
             if (mapStatusText != null)
-                mapStatusText.text = MushGameSave.IsStageUnlocked(selectedSceneName)
+                SetStatusValue(mapStatusText, MushGameSave.IsStageUnlocked(selectedSceneName)
                     ? $"선택: {selectedMap}\n버튼을 누르면 바로 출발합니다"
-                    : $"선택: {selectedMap}\n잠김 · 이전 스테이지를 완료하세요";
+                    : $"선택: {selectedMap}\n잠김 · 이전 스테이지를 완료하세요");
 
             if (shopStatusText != null)
-                shopStatusText.text = "별도 상점 화면에서 물품을 획득하고 장착할 수 있습니다";
+                SetStatusValue(shopStatusText, "별도 상점 화면에서 물품을 획득하고 장착할 수 있습니다");
 
             if (housingStatusText != null)
-                housingStatusText.text = "집 꾸미기 상자를 누르면 별도 하우징 화면으로 이동합니다";
+                SetStatusValue(housingStatusText, "집 꾸미기 상자를 누르면 별도 하우징 화면으로 이동합니다");
 
+        }
+
+        private static void SetStatusValue(TextMesh source, string value)
+        {
+            source.text = value;
+            TMP_Text display = source.GetComponentInChildren<TMP_Text>(true);
+            if (display != null) display.text = value;
         }
 
         private string SlotState(int index)
@@ -1127,25 +894,7 @@ namespace Mush.Lobby
             }
         }
 
-        private void LocalizeLobbyText()
-        {
-            foreach (GameObject sceneRoot in gameObject.scene.GetRootGameObjects())
-            {
-                foreach (TextMesh textMesh in sceneRoot.GetComponentsInChildren<TextMesh>(true))
-                {
-                    if (textMesh == null)
-                        continue;
 
-                    textMesh.text = TranslateLobbyText(textMesh.text);
-                    if (koreanFont == null)
-                        continue;
-
-                    textMesh.font = koreanFont;
-                    if (textMesh.TryGetComponent(out MeshRenderer renderer))
-                        renderer.sharedMaterial = koreanFont.material;
-                }
-            }
-        }
 
         private static void SetObjectsActive(GameObject[] objects, bool active)
         {

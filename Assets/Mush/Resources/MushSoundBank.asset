@@ -12,9 +12,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 24823d82769f4596830fd3ba8a08c32b, type: 3}
   m_Name: MushSoundBank
   m_EditorClassIdentifier: Assembly-CSharp::MushSoundBank
-  click: {fileID: 8300000, guid: 9e882618303d6cc40b4c272c8930bae8, type: 3}
-  starFirst: {fileID: 8300000, guid: e533faba26f494e46b0ac8afce2f4663, type: 3}
-  starThird: {fileID: 8300000, guid: 20f069932c14784448c3219909650ff8, type: 3}
+  titleMusic: {fileID: 8300000, guid: d0d00ccae8e419447bb229c2ce87b9dd, type: 3}
+  lobbyMusic: {fileID: 8300000, guid: c3d49f998df370f4390199ac7905a1a0, type: 3}
+  drivingMusic: {fileID: 8300000, guid: 0b4ef1aa74ab81747b8ea4ea0ea55e5d, type: 3}
+  hover: {fileID: 8300000, guid: 248a0825fbfa18943b90fd8ce6728eb0, type: 3}
+  fireplaceAmbience: {fileID: 8300000, guid: 7a81cbbdf516d064fa77f9f036a0b174, type: 3}
+  fireplaceAmbienceVolume: 0.15
+  click: {fileID: 8300000, guid: 6685c17a655ee22409c84ac5e71abdf5, type: 3}
+  canisterGrab: {fileID: 8300000, guid: 83e3ddd75ddd12849a0d1a3e5dc8987e, type: 3}
+  canisterSetDown: {fileID: 8300000, guid: 3c903994954b58948bd04bd7abd96783, type: 3}
+  pawSnow:
+  - {fileID: 8300000, guid: 1d91db5141f3f61428a6599801fc17f1, type: 3}
+  - {fileID: 8300000, guid: 628109023c929f440b3ffd2b37bab1be, type: 3}
+  - {fileID: 8300000, guid: deac906e940b1ad47b6af5665de91ab2, type: 3}
+  - {fileID: 8300000, guid: 7abcd466dd984924f8a229901ba3ef27, type: 3}
+  reinsTension: {fileID: 8300000, guid: 0d8cd361a96068645a1c5b5f730f01a5, type: 3}
+  sledSoftSnow: {fileID: 8300000, guid: ba524d366b0cf2e4dbadcf69d0bc508e, type: 3}
+  sledIcyGrains: {fileID: 8300000, guid: b799832208158494a81f968e834d0599, type: 3}
+  accelerationEnter: {fileID: 8300000, guid: a867569f3004184469f0129a575f569f, type: 3}
+  kaiRunFootsteps: {fileID: 7400000, guid: 8a8658dae48992643882559c9843c806, type: 2}
+  lumiRunFootsteps: {fileID: 7400000, guid: 2d2fca62a987edd4f803c94505b9153b, type: 2}
+  starFirst: {fileID: 8300000, guid: 517b832bcd2406541897f93b5d9339ab, type: 3}
+  starThird: {fileID: 8300000, guid: f3fe7a22e2190e34f8f8d8c79454fe0f, type: 3}
   bonfire:
   - {fileID: 8300000, guid: c5ef59da767f283468f475ddaf3d5c21, type: 3}
   - {fileID: 8300000, guid: e79c8555182b41a4f982224868240098, type: 3}

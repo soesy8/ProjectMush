@@ -43,6 +43,8 @@ namespace Mush.Lobby
         {
             if (transform.Find("Bonfire Sound") == null)
                 MushSoundLoop.Create(transform, true);
+            if (transform.Find("Mush Fire Ambience") == null)
+                CreateAmbience();
             if (transform.Find(FlameObjectName) == null)
                 CreateFlameParticles();
 
@@ -53,6 +55,25 @@ namespace Mush.Lobby
                 baseLightRange = fireplaceLight.range;
             }
             flickerSeed = Random.Range(0f, 100f);
+        }
+
+        private void CreateAmbience()
+        {
+            MushSoundBank bank = MushSoundBank.Load();
+            if (bank == null || bank.fireplaceAmbience == null) return;
+            GameObject ambience = new("Mush Fire Ambience");
+            ambience.transform.SetParent(transform, false);
+            AudioSource source = ambience.AddComponent<AudioSource>();
+            source.clip = bank.fireplaceAmbience;
+            source.loop = true;
+            source.playOnAwake = true;
+            source.spatialBlend = 1f;
+            source.rolloffMode = AudioRolloffMode.Linear;
+            source.minDistance = 1.5f;
+            source.maxDistance = 14f;
+            source.volume = bank.fireplaceAmbienceVolume;
+            ambience.AddComponent<MushAudioChannel>();
+            if (Application.isPlaying) source.Play();
         }
 
         private void CreateFlameParticles()

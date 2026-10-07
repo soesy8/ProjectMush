@@ -301,9 +301,9 @@ namespace Mush.Lobby.Editor
                         new PanelButtonSpec("공간 3", MushLobbyAction.HousingSlotC)
                     }, out TextMesh housingStatus, true);
 
-                MushUiPanelSkin.ApplyPanel(mapPanel.transform, new Vector2(3.0f, 1.75f));
-                MushUiPanelSkin.ApplyPanel(shopPanel.transform, new Vector2(3.0f, 1.75f));
-                MushUiPanelSkin.ApplyPanel(housingPanel.transform, new Vector2(3.0f, 1.75f));
+                MushUiPanelAuthoring.ApplyPanel(mapPanel.transform, new Vector2(3.0f, 1.75f));
+                MushUiPanelAuthoring.ApplyPanel(shopPanel.transform, new Vector2(3.0f, 1.75f));
+                MushUiPanelAuthoring.ApplyPanel(housingPanel.transform, new Vector2(3.0f, 1.75f));
 
                 BuildDogTeam(sceneRoot.transform, out MushLobbyDogRoamer[] dogs, out GameObject[] scarves);
                 GameObject[] furniture = BuildHousingFurniture(sceneRoot.transform);

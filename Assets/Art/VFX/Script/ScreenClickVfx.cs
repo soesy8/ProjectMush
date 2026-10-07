@@ -13,6 +13,28 @@ namespace Mush.Art.Test
     [AddComponentMenu("Mush/UI/화면 클릭 VFX")]
     public sealed class ScreenClickVfx : MonoBehaviour
     {
+        private static ScreenClickVfx active;
+        private MushMapRideBootstrap ride;
+        private Material worldMaterial;
+
+        private bool CanPlay => isActiveAndEnabled &&
+            (IsMenuScene(gameObject.scene) || (ride != null && ride.HasFinished));
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetState() => active = null;
+
+        private static bool IsMenuScene(Scene scene) =>
+            scene.name is "Title" or "MushTitle" or "PM_Lobby" or "MushLobby";
+
+        private static MushMapRideBootstrap FindRide(Scene scene)
+        {
+            foreach (GameObject root in scene.GetRootGameObjects())
+            {
+                MushMapRideBootstrap found = root.GetComponentInChildren<MushMapRideBootstrap>(true);
+                if (found != null) return found;
+            }
+            return null;
+        }
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void RegisterForScenes()
         {
@@ -30,9 +52,19 @@ namespace Mush.Art.Test
         {
             if (!scene.IsValid() || !scene.isLoaded)
                 return;
+            MushMapRideBootstrap sceneRide = FindRide(scene);
+            if (!IsMenuScene(scene) && sceneRide == null)
+                return;
             foreach (GameObject root in scene.GetRootGameObjects())
-                if (root.GetComponentInChildren<ScreenClickVfx>(true) != null)
-                    return;
+            {
+                ScreenClickVfx existing = root.GetComponentInChildren<ScreenClickVfx>(true);
+                if (existing == null) continue;
+                existing.gameObject.SetActive(true);
+                existing.enabled = true;
+                existing.ride = sceneRide;
+                active = existing;
+                return;
+            }
 
             GameObject prefab = Resources.Load<GameObject>("ClickVFX");
             if (prefab == null)
@@ -40,6 +72,8 @@ namespace Mush.Art.Test
             GameObject instance = Object.Instantiate(prefab);
             instance.name = "ClickVFX";
             SceneManager.MoveGameObjectToScene(instance, scene);
+            instance.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            instance.GetComponent<ScreenClickVfx>().ride = sceneRide;
         }
 
         private const int ShardCount = 4;
@@ -145,6 +179,9 @@ namespace Mush.Art.Test
 
         private void Awake()
         {
+            active = this;
+            ride = FindRide(gameObject.scene);
+            worldMaterial = Resources.Load<Material>("MushUIOverlay");
             if (!AreImagesAssigned())
             {
                 Debug.LogError(
@@ -212,6 +249,7 @@ namespace Mush.Art.Test
 
         private void OnDestroy()
         {
+            if (active == this) active = null;
             if (runtimeSprites == null)
                 return;
 
@@ -225,17 +263,55 @@ namespace Mush.Art.Test
         private void Update()
         {
             Pointer pointer = Pointer.current;
-            if (pointer != null && pointer.press.wasPressedThisFrame &&
-                RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    canvasRect, pointer.position.ReadValue(), null, out Vector2 localPoint))
-            {
-                instances[nextInstance].Play(localPoint, Time.unscaledTime);
-                nextInstance = (nextInstance + 1) % instances.Length;
-            }
+            if (gameObject.scene == SceneManager.GetActiveScene() &&
+                !UnityEngine.XR.XRSettings.isDeviceActive &&
+                pointer != null && pointer.press.wasPressedThisFrame)
+                PlayScreen(pointer.position.ReadValue());
 
             float now = Time.unscaledTime;
             foreach (ClickVfxInstance instance in instances)
                 instance.Tick(now);
+        }
+
+        /// <summary>Desktop and touch effects render above scene UI without consuming input.</summary>
+        public static void PlayScreen(Vector2 screenPosition)
+        {
+            ScreenClickVfx vfx = ResolveActive();
+            if (vfx == null || !vfx.CanPlay || vfx.instances == null) return;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    vfx.canvasRect, screenPosition, null, out Vector2 localPoint)) return;
+            vfx.TakeInstance().Play(localPoint, Time.unscaledTime);
+            MushSounds.PlayClick();
+        }
+
+        /// <summary>Quest effects appear at the ray hit in both eyes, including world-space result buttons.</summary>
+        public static void PlayWorld(Vector3 worldPosition, Camera camera)
+        {
+            ScreenClickVfx vfx = ResolveActive();
+            if (vfx == null || !vfx.CanPlay || vfx.instances == null || camera == null) return;
+            vfx.TakeInstance().PlayWorld(worldPosition, camera, Time.unscaledTime);
+            MushSounds.PlayClick();
+        }
+
+        private static ScreenClickVfx ResolveActive()
+        {
+            Scene scene = SceneManager.GetActiveScene();
+            if (active != null && active.gameObject.scene == scene) return active;
+            foreach (GameObject root in scene.GetRootGameObjects())
+            {
+                ScreenClickVfx found = root.GetComponentInChildren<ScreenClickVfx>(true);
+                if (found == null) continue;
+                active = found;
+                return found;
+            }
+            return null;
+        }
+
+        private ClickVfxInstance TakeInstance()
+        {
+            ClickVfxInstance instance = instances[nextInstance];
+            nextInstance = (nextInstance + 1) % instances.Length;
+            return instance;
         }
 
         private bool AreImagesAssigned()
@@ -250,8 +326,6 @@ namespace Mush.Art.Test
 
         private static Sprite CreateRuntimeSprite(Texture2D texture)
         {
-            texture.wrapMode = TextureWrapMode.Clamp;
-            texture.filterMode = FilterMode.Bilinear;
             return Sprite.Create(
                 texture,
                 new Rect(0f, 0f, texture.width, texture.height),
@@ -265,6 +339,8 @@ namespace Mush.Art.Test
         {
             private readonly ScreenClickVfx settings;
             private readonly RectTransform root;
+            private readonly Canvas effectCanvas;
+            private readonly UnityEngine.UI.Image[] graphics;
             private readonly UnityEngine.UI.Image aura;
             private readonly UnityEngine.UI.Image ring;
             private readonly UnityEngine.UI.Image flash;
@@ -288,6 +364,7 @@ namespace Mush.Art.Test
                 this.settings = settings;
                 root = CreateRect(parent, $"ClickVFX_{index}", Vector2.zero, new Vector2(320f, 320f));
                 root.localScale = Vector3.one * settings.overallScale;
+                effectCanvas = root.gameObject.AddComponent<Canvas>();
                 CanvasGroup group = root.gameObject.AddComponent<CanvasGroup>();
                 group.alpha = settings.overallAlpha;
                 group.interactable = false;
@@ -349,13 +426,39 @@ namespace Mush.Art.Test
                     shardImages[shardIndex] = shardImage;
                 }
 
+                graphics = root.GetComponentsInChildren<UnityEngine.UI.Image>(true);
                 root.gameObject.SetActive(false);
             }
 
             public void Play(Vector2 anchoredPosition, float now)
             {
-                root.anchoredPosition = anchoredPosition;
+                root.SetParent(settings.canvasRect, false);
+                effectCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                effectCanvas.overrideSorting = false;
+                root.localRotation = Quaternion.identity;
+                root.localScale = Vector3.one * settings.overallScale;
+                foreach (UnityEngine.UI.Image graphic in graphics) graphic.material = null;
+                root.anchoredPosition3D = new Vector3(anchoredPosition.x, anchoredPosition.y, 0f);
                 root.SetAsLastSibling();
+                root.gameObject.SetActive(true);
+                startedAt = now;
+                playing = true;
+                Apply(0f);
+            }
+
+            public void PlayWorld(Vector3 worldPosition, Camera camera, float now)
+            {
+                root.SetParent(settings.transform, false);
+                effectCanvas.renderMode = RenderMode.WorldSpace;
+                effectCanvas.worldCamera = camera;
+                effectCanvas.overrideSorting = true;
+                effectCanvas.sortingOrder = settings.sortingOrder + 1;
+                Vector3 towardCamera = camera.transform.position - worldPosition;
+                float distance = Mathf.Max(0.25f, towardCamera.magnitude);
+                root.SetPositionAndRotation(
+                    worldPosition + towardCamera.normalized * 0.015f, camera.transform.rotation);
+                root.localScale = Vector3.one * (distance * 0.00055f * settings.overallScale);
+                foreach (UnityEngine.UI.Image graphic in graphics) graphic.material = settings.worldMaterial;
                 root.gameObject.SetActive(true);
                 startedAt = now;
                 playing = true;

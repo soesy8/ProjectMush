@@ -11,38 +11,37 @@ public sealed class MushRideHud : MonoBehaviour
     [SerializeField] private TMP_Text timer;
     [SerializeField] private Image progress;
     [SerializeField, FormerlySerializedAs("staminaDepletion")] private Image staminaFill;
+    [SerializeField] private Image secondStaminaFill;
+    [SerializeField] private bool useTeamStamina;
+    [SerializeField] private TMP_Text staminaText;
+    [SerializeField] private TMP_Text secondStaminaText;
     [SerializeField] private RectTransform progressIcon;
     [SerializeField] private GameObject progressRoot;
     [SerializeField] private GameObject trackRoot;
-    [SerializeField] private GameObject standingDog;
-    [SerializeField] private RectTransform runningDog;
     private int previousSeconds = -1;
+    private int previousFirstStamina = -1;
+    private int previousSecondStamina = -1;
 
-    private void Awake()
+    private void OnEnable()
     {
-        if (staminaFill == null && trackRoot != null)
-        {
-            foreach (Image image in trackRoot.GetComponentsInChildren<Image>(true))
-            {
-                if (image.name != "FilledImage") continue;
-                staminaFill = image;
-                break;
-            }
-        }
-        if (staminaFill == null) return;
-        staminaFill.type = Image.Type.Filled;
-        staminaFill.fillMethod = Image.FillMethod.Horizontal;
-        staminaFill.fillOrigin = (int)Image.OriginHorizontal.Left;
-        staminaFill.fillAmount = ride != null ? Mathf.Clamp01(ride.Stamina01) : 1f;
+        previousSeconds = previousFirstStamina = previousSecondStamina = -1;
     }
 
     private void LateUpdate()
     {
         if (ride == null) return;
         bool visible = !ride.HasFinished;
+        RefreshProgress(ride.RouteProgress);
         if (trackRoot != null && trackRoot.activeSelf != visible) trackRoot.SetActive(visible);
         if (progressRoot != null && progressRoot.activeSelf != visible) progressRoot.SetActive(visible);
         if (!visible) return;
+        if (useTeamStamina)
+            RefreshStaminaValue(staminaFill, staminaText, MushGameSave.TeamStamina, ref previousFirstStamina);
+        else
+        {
+            RefreshStamina(staminaFill, staminaText, 0, ref previousFirstStamina);
+            RefreshStamina(secondStaminaFill, secondStaminaText, 1, ref previousSecondStamina);
+        }
         int seconds = Mathf.CeilToInt(ride.RemainingSeconds);
         if (timer != null)
         {
@@ -63,18 +62,40 @@ public sealed class MushRideHud : MonoBehaviour
                 timer.color = seconds <= 10 ? new Color(1f, 0.3f, 0.2f) : Color.white;
             }
         }
-        // Current route projection deliberately decreases when the sled travels backwards.
-        float value = Mathf.Clamp01(ride.RouteProgress);
-        if (progress != null) progress.fillAmount = value;
-        if (staminaFill != null) staminaFill.fillAmount = Mathf.Clamp01(ride.Stamina01);
-        if (progressIcon != null && progress != null)
-        {
-            RectTransform rect = progress.rectTransform;
-            progressIcon.position = rect.TransformPoint(new Vector3(Mathf.Lerp(rect.rect.xMin, rect.rect.xMax, value), rect.rect.center.y, 0f));
-        }
-        bool boosting = ride.IsBoosting;
-        if (standingDog != null && standingDog.activeSelf == boosting) standingDog.SetActive(!boosting);
-        if (runningDog != null && runningDog.gameObject.activeSelf != boosting) runningDog.gameObject.SetActive(boosting);
     }
 
+    private void RefreshProgress(float routeProgress)
+    {
+        float value = Mathf.Clamp01(routeProgress);
+        if (progress == null) return;
+        progress.fillAmount = value;
+        if (progressIcon == null) return;
+
+        // Convert the fill edge into the icon parent's coordinates, so the marker
+        // follows the authored bar even when its anchors or width change.
+        Rect rect = progress.rectTransform.rect;
+        Vector3 edge = progress.rectTransform.TransformPoint(
+            new Vector3(Mathf.Lerp(rect.xMin, rect.xMax, value), rect.center.y, 0f));
+        Vector3 local = progressIcon.parent.InverseTransformPoint(edge);
+        Vector3 position = progressIcon.localPosition;
+        position.x = local.x;
+        progressIcon.localPosition = position;
+    }
+
+    private static void RefreshStamina(Image fill, TMP_Text label, int dogIndex,
+        ref int previousValue)
+    {
+        RefreshStaminaValue(fill, label, MushGameSave.GetDogStamina(dogIndex), ref previousValue);
+    }
+
+    private static void RefreshStaminaValue(Image fill, TMP_Text label, float stamina,
+        ref int previousValue)
+    {
+        float value = Mathf.Clamp(stamina, 0f, 100f);
+        if (fill != null) fill.fillAmount = value / 100f;
+        int displayed = Mathf.FloorToInt(value);
+        if (label != null && displayed != previousValue)
+            label.text = $"{displayed} / 100";
+        previousValue = displayed;
+    }
 }
