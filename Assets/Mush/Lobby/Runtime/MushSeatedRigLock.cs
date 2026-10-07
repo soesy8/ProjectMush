@@ -129,6 +129,7 @@ namespace Mush.Lobby
             {
                 Collider candidate = collisionBuffer[index];
                 if (candidate == null || candidate.transform.IsChildOf(transform) ||
+                    (candidate.GetComponentInParent<MushLobbyFeedDispenser>() is MushLobbyFeedDispenser dispenser && dispenser.IsHeld) ||
                     ContainsCollider(currentCollisionBuffer, currentCount, candidate) ||
                     IsWalkableFloorCollider(candidate))
                     continue; // 고정 좌석과 이미 겹친 상태라면 빠져나오는 이동까지 막지 않는다.

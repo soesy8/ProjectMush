@@ -224,11 +224,29 @@ namespace Mush.Customization
                 bool owned = workingState.Owns(item.id);
                 string label = item.displayName + (owned ? "\n보유 중" : $"\n{item.price} 골드");
                 CreateButton(dynamicUi, label, position, new Vector2(260f, 96f),
-                    () => AcquireItem(item), owned ? AcquiredColor : ButtonColor);
+                    () => AcquireItem(item), owned ? AcquiredColor : ButtonColor,
+                    () => PreviewStoreItem(item));
             }
 
+            RefreshStoreStatus();
+        }
+
+        private void PreviewStoreItem(MushCustomizationItemDefinition item)
+        {
+            if (mainPage != MainPage.Store || item == null || storePreviewItem == item.id)
+                return;
+
+            storePreviewItem = item.id;
+            transientStatus = string.Empty;
+            RefreshStoreStatus();
+            // Keep the hovered buttons in place while changing only the model preview.
+            RefreshPreview();
+        }
+
+        private void RefreshStoreStatus()
+        {
             string pageStatus = string.IsNullOrEmpty(transientStatus)
-                ? $"상점 · {CategoryName(storeCategory)} · 보유 물품 {workingState.ownedItems.Count}개"
+                ? "마우스·레이를 올려 미리보기 · 클릭하면 구매"
                 : transientStatus;
             statusText.text = $"보유 골드 {MushGameSave.Current.gold} · {pageStatus}";
         }
@@ -464,7 +482,6 @@ namespace Mush.Customization
             if (item == null)
                 return;
 
-            previewCaption.text = "상품 미리보기 · " + item.displayName;
             if (item.category == MushItemCategory.Sled)
             {
                 MushCustomizationState previewState = workingState.Clone();
@@ -491,6 +508,8 @@ namespace Mush.Customization
                         previewRoot, item.displayName + " Preview", 3.0f, new Vector3(0f, -1.15f, 0f), true);
                 if (holder != null) holder.transform.localRotation = Quaternion.Euler(0f, 25f, 0f);
             }
+            string purchaseState = workingState.Owns(item.id) ? "보유 중" : $"{item.price} 골드 · 클릭하여 구매";
+            previewCaption.text = $"상품 미리보기 · {item.displayName}\n{purchaseState}";
         }
 
         private void BuildSledPreview(MushCustomizationState state)
@@ -503,6 +522,27 @@ namespace Mush.Customization
                 return;
             holder.transform.localRotation = Quaternion.Euler(2f, 25f, 0f);
             MushCustomizationVisuals.ApplySledBodyColor(holder.transform, state.equippedSledBody);
+            if (prefab.name == MushCustomizationVisuals.SuppliedSledName)
+            {
+                // The snapshot stage has no reflection environment. Keep the authored
+                // atlas colors visible without changing the shared sled material.
+                var properties = new MaterialPropertyBlock();
+                foreach (Renderer renderer in holder.GetComponentsInChildren<Renderer>(true))
+                {
+                    Material[] materials = renderer.sharedMaterials;
+                    for (int index = 0; index < materials.Length; index++)
+                    {
+                        Material material = materials[index];
+                        if (material == null || !material.HasProperty("_MetallicMapStrength"))
+                            continue;
+                        properties.Clear();
+                        renderer.GetPropertyBlock(properties, index);
+                        properties.SetFloat("_MetallicMapStrength", 0f);
+                        properties.SetFloat("_Metallic", 0f);
+                        renderer.SetPropertyBlock(properties, index);
+                    }
+                }
+            }
             MushCustomizationVisuals.ApplySledDecoration(holder.transform, state, 2.4f);
         }
 
@@ -643,7 +683,8 @@ namespace Mush.Customization
             Vector2 position,
             Vector2 size,
             Action callback,
-            Color color)
+            Color color,
+            Action hoverCallback = null)
         {
             GameObject buttonObject = new(label + " Button");
             RectTransform rect = buttonObject.AddComponent<RectTransform>();
@@ -662,7 +703,7 @@ namespace Mush.Customization
             text.raycastTarget = false;
 
             MushStoreUiButton button = buttonObject.AddComponent<MushStoreUiButton>();
-            button.Configure(rect, image, callback, color);
+            button.Configure(rect, image, callback, color, hoverCallback);
             return button;
         }
 

@@ -1,3 +1,4 @@
+using Mush.Quest;
 using System;
 using System.Collections.Generic;
 using Mush.Customization;
@@ -14,6 +15,8 @@ namespace Mush.Lobby
     public sealed class MushLobbyController : MonoBehaviour
     {
         public static Font ActiveKoreanFont { get; private set; }
+        public bool IsPanelOpen => (mapPanel != null && mapPanel.activeSelf) ||
+            (shopPanel != null && shopPanel.activeSelf) || (housingPanel != null && housingPanel.activeSelf);
 
         [Header("View")]
         [SerializeField] private Camera lobbyCamera;
@@ -88,7 +91,8 @@ namespace Mush.Lobby
             ["COZY CHAIR"] = "포근한 의자",
             ["DOG BED"] = "개 침대",
             ["NATURAL SLED"] = "기본 썰매",
-            ["RED SLED"] = "빨간 썰매",
+            ["RED SLED"] = "보라 썰매",
+            ["PURPLE SLED"] = "보라 썰매",
             ["BLUE SLED"] = "파란 썰매",
             ["BLACK SLED"] = "검은 썰매",
             ["SANTA SLED"] = "산타 썰매",
@@ -205,27 +209,33 @@ namespace Mush.Lobby
                 UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
             if (mouse != null && mouse.leftButton.wasPressedThisFrame && lobbyCamera != null && !overUi && !MushLobbyMapPanel.IsOpen)
             {
-                Ray ray = lobbyCamera.ScreenPointToRay(mouse.position.ReadValue());
+                Ray ray = MushDesktopSeatedLook.GetDesktopPointerRay(lobbyCamera);
                 if (stationNavigator != null && stationNavigator.IsMenuOpen)
                 {
                     stationNavigator.TryHandleDesktopClick(ray);
                 }
                 else if (TryGetDogUnderPointer(ray, out MushLobbyDogInteraction pointedDog))
                 {
-                    pointedDog.Pet(); // PC에서는 화면 중앙이 아니라 실제 마우스 커서 아래의 개를 우선 쓰다듬는다.
+                    pointedDog.Pet(); // 화면 중앙의 손 조준점이 가리키는 개를 쓰다듬는다.
                 }
-                else if (Physics.Raycast(ray, out RaycastHit hit, 12f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide))
+                else if (Physics.Raycast(ray, out RaycastHit hit,
+                    IsPanelOpen ? 12f : MushDesktopSeatedLook.DesktopInteractionDistance,
+                    Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide))
                 {
+                    bool inReach = hit.distance <= MushDesktopSeatedLook.DesktopInteractionDistance;
                     MushLobbyInteractable interactable = hit.collider.GetComponentInParent<MushLobbyInteractable>();
                     if (interactable != null)
-                        interactable.Trigger();
+                    {
+                        if (inReach || !interactable.IsWorldObject)
+                            interactable.Trigger();
+                    }
                     else if (hit.collider.GetComponentInParent<MushLobbyShopItem>() is MushLobbyShopItem shopItem)
                         shopItem.Trigger();
-                    else if (hit.collider.GetComponentInParent<MushLobbyFeedDispenser>() is MushLobbyFeedDispenser feedDispenser)
+                    else if (inReach && hit.collider.GetComponentInParent<MushLobbyFeedDispenser>() is MushLobbyFeedDispenser feedDispenser)
                         feedDispenser.Trigger();
-                    else if (hit.collider.GetComponentInParent<MushLobbyChairSeatInteractable>() is MushLobbyChairSeatInteractable chairSeat)
+                    else if (inReach && hit.collider.GetComponentInParent<MushLobbyChairSeatInteractable>() is MushLobbyChairSeatInteractable chairSeat)
                         chairSeat.Trigger();
-                    else
+                    else if (inReach)
                         hit.collider.GetComponentInParent<MushLobbyDogInteraction>()?.Pet();
                 }
             }
@@ -269,14 +279,14 @@ namespace Mush.Lobby
 
         private void HandleDesktopPointerPetting(Mouse mouse)
         {
-            if (XRSettings.isDeviceActive || mouse == null || lobbyCamera == null ||
+            if (MushQuestTrackedInputRig.IsXrActive || mouse == null || lobbyCamera == null ||
                 (stationNavigator != null && stationNavigator.IsMenuOpen))
             {
                 petPointerReady = false;
                 return;
             }
 
-            Vector2 pointerPosition = mouse.position.ReadValue();
+            Vector2 pointerPosition = MushDesktopSeatedLook.PointerScreenPosition;
             if (!petPointerReady || mouse.leftButton.wasPressedThisFrame)
             {
                 previousPetPointerPosition = pointerPosition;
@@ -284,12 +294,14 @@ namespace Mush.Lobby
                 return;
             }
 
-            Vector2 pointerDelta = pointerPosition - previousPetPointerPosition;
+            Vector2 pointerDelta = Cursor.lockState == CursorLockMode.Locked
+                ? mouse.delta.ReadValue()
+                : pointerPosition - previousPetPointerPosition;
             previousPetPointerPosition = pointerPosition;
             if (!mouse.leftButton.isPressed || pointerDelta.sqrMagnitude < 2f * 2f)
                 return;
 
-            Ray pointerRay = lobbyCamera.ScreenPointToRay(pointerPosition);
+            Ray pointerRay = MushDesktopSeatedLook.GetDesktopPointerRay(lobbyCamera, pointerPosition);
             if (TryGetDogUnderPointer(pointerRay, out MushLobbyDogInteraction dog))
                 dog.Pet(); // 좌클릭을 누른 채 커서를 개 위에서 움직이는 동안 실제 쓰다듬기 입력으로 처리한다.
         }
@@ -298,7 +310,8 @@ namespace Mush.Lobby
         {
             dog = null;
             float nearestDistance = float.PositiveInfinity;
-            RaycastHit[] hits = Physics.RaycastAll(pointerRay, 12f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
+            RaycastHit[] hits = Physics.RaycastAll(pointerRay, MushDesktopSeatedLook.DesktopInteractionDistance,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
             foreach (RaycastHit hit in hits)
             {
                 MushLobbyDogInteraction candidate = hit.collider.GetComponentInParent<MushLobbyDogInteraction>();

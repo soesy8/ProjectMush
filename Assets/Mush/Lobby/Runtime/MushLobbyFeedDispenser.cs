@@ -6,6 +6,7 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 namespace Mush.Lobby
 {
     [DisallowMultipleComponent]
+    [DefaultExecutionOrder(10010)]
     public sealed class MushLobbyFeedDispenser : MonoBehaviour
     {
         private const float PourAngle = 35f;
@@ -23,6 +24,7 @@ namespace Mush.Lobby
 
         public static bool IsDesktopCanisterHeld =>
             activeDesktopDispenser != null && activeDesktopDispenser.heldOnDesktop;
+        public bool IsHeld => heldInVr || heldOnDesktop;
 
         public void Configure(MushLobbyFeedingStation newStation, Renderer newHighlightRenderer)
         {
@@ -57,6 +59,8 @@ namespace Mush.Lobby
 
             if (!heldOnDesktop || station == null)
                 return;
+            if (!Application.isFocused || Time.timeScale <= 0f || MushDesktopSeatedLook.IsDesktopMenuOpen)
+                return;
 
             Mouse mouse = Mouse.current;
             if (mouse != null && mouse.rightButton.wasPressedThisFrame)
@@ -65,19 +69,22 @@ namespace Mush.Lobby
                 return;
             }
 
-            Keyboard keyboard = Keyboard.current;
-            float tiltInput = 0f;
-            if (keyboard != null)
-            {
-                if (keyboard.leftArrowKey.isPressed) tiltInput += 1f;
-                if (keyboard.rightArrowKey.isPressed) tiltInput -= 1f;
-            }
-            float targetTilt = tiltInput * 68f;
-            desktopTilt = Mathf.MoveTowards(desktopTilt, targetTilt, Time.deltaTime * 95f);
-
-            Vector3 pointerWorld = station.DesktopHoldWorld;
             if (mouse != null)
-                station.TryGetDesktopPointerWorld(mouse.position.ReadValue(), out pointerWorld);
+            {
+                float scroll = mouse.scroll.ReadValue().y;
+                if (scroll != 0f)
+                    desktopTilt = Mathf.Clamp(desktopTilt + Mathf.Sign(scroll) * 10f, -68f, 68f);
+            }
+
+        }
+
+        private void LateUpdate()
+        {
+            if (!heldOnDesktop || station == null || !Application.isFocused || Time.timeScale <= 0f ||
+                MushDesktopSeatedLook.IsDesktopMenuOpen)
+                return;
+            if (!station.TryGetDesktopPointerWorld(MushDesktopSeatedLook.PointerScreenPosition, out Vector3 pointerWorld))
+                return;
             transform.SetPositionAndRotation(pointerWorld, station.GetDesktopCanisterRotation(desktopTilt));
             if (Mathf.Abs(desktopTilt) >= PourAngle)
                 station.PourFrom(GetPourWorldPosition(), Time.deltaTime);

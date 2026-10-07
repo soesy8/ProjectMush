@@ -14,7 +14,7 @@ namespace Mush.Customization
 
         [Header("Sleds")]
         public GameObject sledNatural;
-        public GameObject sledRed;
+        [InspectorName("Purple Sled")] public GameObject sledRed;
         public GameObject sledBlue;
         public GameObject sledBlack;
         public GameObject sledSanta;
@@ -51,7 +51,7 @@ namespace Mush.Customization
             return itemId switch
             {
                 MushCustomizationIds.SledNatural => sledNatural,
-                MushCustomizationIds.SledRed => sledRed,
+                MushCustomizationIds.SledPurple => sledRed,
                 MushCustomizationIds.SledBlue => sledBlue,
                 MushCustomizationIds.SledBlack => sledBlack,
                 MushCustomizationIds.SledSanta => sledSanta,

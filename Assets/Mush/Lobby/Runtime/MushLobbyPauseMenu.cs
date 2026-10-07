@@ -25,6 +25,32 @@ namespace Mush.Lobby
         [SerializeField] private GameObject authoredPausePanel;
         [SerializeField] private GameObject authoredOptionPanel;
         [SerializeField] private Canvas authoredCanvas;
+        private InputAction leftXMenuAction;
+        private bool leftXMenuArmed;
+        private bool vrCanvasConfigured;
+
+        private void OnEnable()
+        {
+            leftXMenuAction ??= new InputAction("Lobby Pause (VR X)", InputActionType.Button,
+                "<XRController>{LeftHand}/primaryButton");
+            leftXMenuAction.Enable();
+            leftXMenuArmed = !leftXMenuAction.IsPressed();
+        }
+
+        private void OnDisable() => leftXMenuAction?.Disable();
+
+        private void Update()
+        {
+            TryConfigureVrCanvas();
+            if (!MushQuestTrackedInputRig.IsXrActive || leftXMenuAction == null)
+                return;
+            if (!leftXMenuAction.IsPressed())
+                leftXMenuArmed = true;
+            if (!leftXMenuArmed || !leftXMenuAction.WasPressedThisFrame())
+                return;
+            leftXMenuArmed = false;
+            Toggle();
+        }
 
         public void ConfigureAuthored(Camera camera, GameObject pause, GameObject options, Canvas canvas)
         {
@@ -53,17 +79,25 @@ namespace Mush.Lobby
             BindAuthoredButtons();
         }
 
-        private void Start()
+        private void Start() => TryConfigureVrCanvas();
+
+        private void TryConfigureVrCanvas()
         {
-            if (authoredCanvas != null && XRSettings.isDeviceActive && viewCamera != null)
+            if (!vrCanvasConfigured && authoredCanvas != null &&
+                MushQuestTrackedInputRig.IsXrActive && viewCamera != null)
             {
-                authoredCanvas.transform.SetParent(viewCamera.transform, true);
+                authoredCanvas.transform.SetParent(viewCamera.transform, false);
                 MushQuestTrackedInputRig.ConfigureWorldCanvas(authoredCanvas, viewCamera, 2.05f);
+                RectTransform rect = authoredCanvas.GetComponent<RectTransform>();
+                rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * 0.5f;
+                rect.SetLocalPositionAndRotation(Vector3.forward * 2.05f, Quaternion.identity);
+                vrCanvasConfigured = true;
             }
         }
 
         private void OnDestroy()
         {
+            leftXMenuAction?.Dispose();
             if (Active == this)
                 Active = null;
             RestoreTime();

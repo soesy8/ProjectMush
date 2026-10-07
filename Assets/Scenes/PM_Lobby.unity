@@ -38333,7 +38333,7 @@ GameObject:
   - component: {fileID: 666405833}
   - component: {fileID: 666405832}
   m_Layer: 0
-  m_Name: RED SLED Shop Tile
+  m_Name: PURPLE SLED Shop Tile
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -38372,7 +38372,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Mush.Lobby.MushLobbyShopItem
   controller: {fileID: 0}
   itemId: sled_red
-  displayName: RED SLED
+  displayName: PURPLE SLED
   stateText: {fileID: 1356212132}
   previewRoot: {fileID: 1814500930}
   previewTurnSpeed: 24

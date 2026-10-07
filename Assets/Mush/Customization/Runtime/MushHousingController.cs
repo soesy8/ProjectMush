@@ -108,6 +108,13 @@ namespace Mush.Customization
                 return;
             }
             if (ghost == null) return;
+            Mouse mouse = Mouse.current;
+            if (!XRSettings.isDeviceActive && mouse != null)
+            {
+                float scroll = mouse.scroll.ReadValue().y;
+                if (scroll != 0f)
+                    candidateYaw = Mathf.Repeat(candidateYaw + Mathf.Sign(scroll) * 15f, 360f);
+            }
             ghost.SetActive(onPlan);
             footprint.SetActive(onPlan);
             if (!onPlan)
@@ -215,7 +222,7 @@ namespace Mush.Customization
             CreatePanel(canvas.transform, "Tools", new Vector2(615f, 42f), new Vector2(420f, 756f), PanelColor);
             selectionText = CreateText(canvas.transform, "Selected Furniture", new Vector2(615f, 335f), new Vector2(380f, 92f), 30, Ink, "가구를 선택해 주세요");
             CreateText(canvas.transform, "Instructions", new Vector2(615f, 204f), new Vector2(368f, 145f), 23, Ink,
-                "가구 선택 → 평면도 조준 → 놓기\n\n놓은 가구도 눌러서 옮길 수 있습니다");
+                "가구 선택 → 평면도 조준 → 놓기\n마우스 휠: 15°씩 회전\n\n놓은 가구도 눌러서 옮길 수 있습니다");
             CreateButton(canvas.transform, "90° 회전  ·  X / R", new Vector2(615f, 78f), new Vector2(362f, 64f), RotateSelection, ButtonColor);
             CreateButton(canvas.transform, "보관함으로 회수", new Vector2(615f, -4f), new Vector2(362f, 64f), RemoveSelection, ButtonColor);
             CreateButton(canvas.transform, "이동 취소  ·  B / Esc", new Vector2(615f, -86f), new Vector2(362f, 64f), CancelSelection, ButtonColor);
@@ -485,7 +492,6 @@ namespace Mush.Customization
             camera.nearClipPlane = 0.03f;
             camera.farClipPlane = 30f;
             camera.depth = -10f;
-            camera.stereoTargetEye = StereoTargetEyeMask.None;
             camera.targetTexture = texture;
             camera.aspect = (float)texture.width / texture.height;
             UniversalAdditionalCameraData data = camera.GetUniversalAdditionalCameraData();

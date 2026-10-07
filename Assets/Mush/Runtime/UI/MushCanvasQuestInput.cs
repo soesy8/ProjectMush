@@ -2,16 +2,24 @@ using System.Collections.Generic;
 using Mush.Quest;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 using UnityEngine.XR;
 
 /// <summary>Feeds the existing Quest pointer rays into the same authored buttons and sliders as the mouse.</summary>
+[DefaultExecutionOrder(-250)]
 public sealed class MushCanvasQuestInput : MonoBehaviour
 {
+    private const float TitleCanvasDistance = 2.35f;
+
     [SerializeField] private Canvas canvas;
     [SerializeField] private GraphicRaycaster raycaster;
     private static readonly List<MushCanvasQuestInput> ActiveCanvases = new();
     private bool titleRigInstalled;
+    private Camera titleSourceCamera;
+    private Camera titleUiCamera;
+    private List<Camera> titleCameraStack;
+    private int titleOriginalCullingMask;
     private readonly List<RaycastResult> hits = new();
     private readonly PointerEventData[] pointers = new PointerEventData[2];
     private readonly GameObject[] hovered = new GameObject[2];
@@ -47,25 +55,91 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         hovered[hand] = null;
     }
 
-    private void Update()
+    private void Start() => TryConfigureTitleVrCanvas();
+
+    private void Update() => TryConfigureTitleVrCanvas();
+
+    private void TryConfigureTitleVrCanvas()
     {
         if (titleRigInstalled || gameObject.scene.name is not ("MushTitle" or "Title") || canvas == null ||
-            !XRSettings.isDeviceActive) return;
-        if (canvas.worldCamera == null)
-        {
-            Camera titleCamera = Camera.main;
-            if (titleCamera == null)
-                return;
-            canvas.renderMode = RenderMode.ScreenSpaceCamera;
-            canvas.worldCamera = titleCamera;
-            canvas.planeDistance = 2f;
-            canvas.sortingOrder = 100;
-        }
-        Camera camera = canvas.worldCamera;
+            !MushQuestTrackedInputRig.IsXrActive) return;
+        Camera camera = canvas.worldCamera != null ? canvas.worldCamera : Camera.main;
+        RectTransform rect = canvas.GetComponent<RectTransform>();
+        if (camera == null || rect == null)
+            return;
+
         // Ride and lobby already own tracked rigs. Only the new title needs to install one.
-        MushQuestTrackedInputRig rig = MushQuestTrackedInputRig.InstallForCamera(camera);
-        titleRigInstalled = rig != null;
-        rig?.SetRayEnabled(true);
+        MushQuestTrackedInputRig rig = camera.GetComponentInParent<MushQuestTrackedInputRig>();
+        if (rig == null)
+            rig = MushQuestTrackedInputRig.InstallForCamera(camera);
+        if (rig == null)
+            return;
+
+        // Render the complete authored title canvas in both headset eyes, including the logo and options.
+        // Configure it even when a camera is already assigned: an overlay does not become VR UI by itself.
+        Camera uiCamera = CreateTitleUiCamera(camera);
+        MushQuestTrackedInputRig.ConfigureWorldCanvas(canvas, uiCamera, TitleCanvasDistance);
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = 100;
+        rect.SetParent(camera.transform, false);
+        rect.anchorMin = Vector2.one * 0.5f;
+        rect.anchorMax = Vector2.one * 0.5f;
+        rect.pivot = Vector2.one * 0.5f;
+        rect.SetLocalPositionAndRotation(Vector3.forward * TitleCanvasDistance, Quaternion.identity);
+        Canvas.ForceUpdateCanvases();
+        rig.SetRayEnabled(true);
+        titleRigInstalled = true;
+    }
+
+    private Camera CreateTitleUiCamera(Camera source)
+    {
+        UniversalAdditionalCameraData baseData = source.GetUniversalAdditionalCameraData();
+        ScriptableRenderer renderer = baseData.scriptableRenderer;
+        if (baseData.renderType != CameraRenderType.Base || renderer == null ||
+            !renderer.SupportsCameraStackingType(CameraRenderType.Base) ||
+            !renderer.SupportsCameraStackingType(CameraRenderType.Overlay))
+            return source;
+
+        // Render the authored title after the landscape, with its own cleared depth buffer.
+        const int uiLayer = 5;
+        const int uiMask = 1 << uiLayer;
+        titleSourceCamera = source;
+        titleOriginalCullingMask = source.cullingMask;
+        titleCameraStack = baseData.cameraStack;
+        GameObject cameraObject = new("Mush VR Title UI Camera");
+        cameraObject.transform.SetParent(source.transform, false);
+        titleUiCamera = cameraObject.AddComponent<Camera>();
+        titleUiCamera.CopyFrom(source);
+        titleUiCamera.cullingMask = uiMask;
+        titleUiCamera.nearClipPlane = 0.01f;
+        titleUiCamera.farClipPlane = 10f;
+        titleUiCamera.useOcclusionCulling = false;
+        titleUiCamera.enabled = true;
+
+        UniversalAdditionalCameraData uiData = titleUiCamera.GetUniversalAdditionalCameraData();
+        uiData.renderType = CameraRenderType.Overlay;
+        uiData.renderPostProcessing = false;
+        uiData.renderShadows = false;
+        uiData.requiresDepthTexture = false;
+        uiData.requiresColorTexture = false;
+        uiData.allowXRRendering = true;
+        baseData.allowXRRendering = true;
+        foreach (Transform child in canvas.GetComponentsInChildren<Transform>(true))
+            child.gameObject.layer = uiLayer;
+        source.cullingMask &= ~uiMask;
+        titleCameraStack.Add(titleUiCamera);
+        return titleUiCamera;
+    }
+
+    private void OnDestroy()
+    {
+        if (titleUiCamera != null)
+        {
+            titleCameraStack?.Remove(titleUiCamera);
+            Destroy(titleUiCamera.gameObject);
+        }
+        if (titleSourceCamera != null)
+            titleSourceCamera.cullingMask = titleOriginalCullingMask;
     }
 
     public static bool Handle(XRNode hand, Ray ray, bool pressed, bool held)

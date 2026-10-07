@@ -29,6 +29,8 @@ namespace Mush.Lobby
     [DisallowMultipleComponent]
     public sealed class MushLobbyInteractable : MonoBehaviour, IMushQuestRayTarget
     {
+        public bool IsWorldObject => UsesObjectHoverPanel();
+
         [SerializeField] private MushLobbyController controller;
         [SerializeField] private MushLobbyAction action;
         [SerializeField] private Renderer highlightRenderer;
@@ -185,11 +187,12 @@ namespace Mush.Lobby
             Mouse mouse = Mouse.current;
             bool hovered = false;
             if (mouse != null && hoverCamera != null && Application.isFocused &&
-                !UnityEngine.XR.XRSettings.isDeviceActive &&
+                !MushQuestTrackedInputRig.IsXrActive &&
                 (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
             {
-                Ray ray = hoverCamera.ScreenPointToRay(mouse.position.ReadValue());
-                hovered = Physics.Raycast(ray, out RaycastHit hit, 12f, Physics.DefaultRaycastLayers,
+                Ray ray = MushDesktopSeatedLook.GetDesktopPointerRay(hoverCamera);
+                float selectionDistance = IsWorldObject ? MushDesktopSeatedLook.DesktopInteractionDistance : 12f;
+                hovered = Physics.Raycast(ray, out RaycastHit hit, selectionDistance, Physics.DefaultRaycastLayers,
                     QueryTriggerInteraction.Collide) &&
                     hit.collider.GetComponentInParent<MushLobbyInteractable>() == this;
             }

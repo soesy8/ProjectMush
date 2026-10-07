@@ -78,7 +78,7 @@ namespace Mush.Lobby
 
             // Desktop preview hands follow the camera/mouse and are not physical
             // tracked hands. They must never trigger proximity petting.
-            if (!XRSettings.isDeviceActive)
+            if (!MushQuestTrackedInputRig.IsXrActive)
             {
                 handWasNear = false;
                 CaptureHandPositions();

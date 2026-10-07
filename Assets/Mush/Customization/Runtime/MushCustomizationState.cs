@@ -23,7 +23,8 @@ namespace Mush.Customization
     public static class MushCustomizationIds
     {
         public const string SledNatural = "sled_natural";
-        public const string SledRed = "sled_red";
+        // 기존 빨간 썰매의 구매·장착 저장값을 유지하면서 보라 썰매로 변경합니다.
+        public const string SledPurple = "sled_red";
         public const string SledBlue = "sled_blue";
         public const string SledBlack = "sled_black";
         public const string SledSanta = "sled_santa";
@@ -139,7 +140,7 @@ namespace Mush.Customization
         public static readonly MushCustomizationItemDefinition[] Items =
         {
             new(MushCustomizationIds.SledNatural, "기본 썰매", MushItemCategory.Sled, MushEquipmentSlot.SledBody, 0),
-            new(MushCustomizationIds.SledRed, "빨간 썰매", MushItemCategory.Sled, MushEquipmentSlot.SledBody, 100),
+            new(MushCustomizationIds.SledPurple, "보라 썰매", MushItemCategory.Sled, MushEquipmentSlot.SledBody, 100),
             new(MushCustomizationIds.SledBlue, "파란 썰매", MushItemCategory.Sled, MushEquipmentSlot.SledBody, 100),
             new(MushCustomizationIds.SledBlack, "검은 썰매", MushItemCategory.Sled, MushEquipmentSlot.SledBody, 150),
             new(MushCustomizationIds.SledSanta, "산타 썰매", MushItemCategory.Sled, MushEquipmentSlot.SledBody, 250),

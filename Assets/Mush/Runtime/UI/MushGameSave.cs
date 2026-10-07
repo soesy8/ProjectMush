@@ -241,9 +241,9 @@ public static class MushGameSave
         sceneName = sceneName == "Track_v2" ? "snow" : sceneName;
         return Array.IndexOf(Maps, sceneName) switch
         {
-            0 => 100,
-            1 => 150,
-            2 => 200,
+            0 => 500,
+            1 => 500,
+            2 => 500,
             _ => 0,
         };
     }
@@ -359,7 +359,8 @@ public static class MushGameSave
         if (dog == null)
             return;
         dog.stamina = Mathf.Clamp(Mathf.FloorToInt(dog.stamina) + amount, 0, 100);
-        if (dog.stamina >= 100f)
+        // Feeding preserves a good mood; a full recovery only clears the bad condition.
+        if (dog.stamina >= 100f && dog.condition == MushDogCondition.Bad)
             dog.condition = MushDogCondition.Normal;
     }
 

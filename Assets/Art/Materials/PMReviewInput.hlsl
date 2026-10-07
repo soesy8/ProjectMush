@@ -13,6 +13,7 @@
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
                 half4 _BaseColor;
+                half4 _SledAccentColor;
                 half _BaseMapStrength;
                 half _Metallic;
                 half _Smoothness;
@@ -40,6 +41,14 @@ void PMReadSurface(float2 uv, out SurfaceData s)
 {
     s = (SurfaceData)0;
     half4 tex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv);
+    [branch]
+    if (_SledAccentColor.a > 0.0h)
+    {
+        // Select the red atlas islands; wood, metal and rope keep their source colors.
+        half redDominance = (tex.r - max(tex.g, tex.b)) / max(tex.r, 0.0001h);
+        half accentMask = smoothstep(0.58h, 0.63h, redDominance);
+        tex.rgb = lerp(tex.rgb, _SledAccentColor.rgb, accentMask * saturate(_SledAccentColor.a));
+    }
     half4 base = half4(lerp(half3(1,1,1),tex.rgb,_BaseMapStrength),1) * _BaseColor;
     #if defined(_CURVATURE_MAP)
     // Grayscale convention: black = concave, 0.5 = flat, white = convex.

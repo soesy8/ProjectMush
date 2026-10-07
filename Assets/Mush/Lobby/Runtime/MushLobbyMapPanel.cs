@@ -1,3 +1,4 @@
+using Mush.Quest;
 using Mush.UI;
 using UnityEngine;
 using UnityEngine.UI;
@@ -44,9 +45,9 @@ namespace Mush.Lobby
             canvas = root.GetComponent<Canvas>();
             canvas.worldCamera = camera;
             canvas.sortingOrder = 150;
-            canvas.renderMode = XRSettings.isDeviceActive ? RenderMode.WorldSpace : RenderMode.ScreenSpaceOverlay;
+            canvas.renderMode = MushQuestTrackedInputRig.IsXrActive ? RenderMode.WorldSpace : RenderMode.ScreenSpaceOverlay;
             RectTransform rect = root.GetComponent<RectTransform>();
-            if (XRSettings.isDeviceActive)
+            if (MushQuestTrackedInputRig.IsXrActive)
             {
                 rect.sizeDelta = new Vector2(1920f, 1080f);
                 rect.localScale = Vector3.one * 0.00125f;

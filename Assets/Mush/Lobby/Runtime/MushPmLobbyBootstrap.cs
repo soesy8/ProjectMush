@@ -51,7 +51,7 @@ namespace Mush.Lobby
             font = Mush.UI.MushUiPanelSkin.ThemeFont;
 
             MushQuestTrackedInputRig questRig = FindInScene<MushQuestTrackedInputRig>(gameObject.scene);
-            if (questRig == null && XRSettings.isDeviceActive)
+            if (questRig == null && MushQuestTrackedInputRig.IsXrActive)
                 questRig = MushQuestTrackedInputRig.InstallForCamera(lobbyCamera);
             questRig?.SetRayEnabled(true);
 

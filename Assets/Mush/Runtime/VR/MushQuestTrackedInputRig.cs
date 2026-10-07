@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.XR;
 using UnityEngine.XR;
 
 namespace Mush.Quest
@@ -30,6 +32,19 @@ namespace Mush.Quest
         private Quaternion desiredCameraLocalRotation;
         private Vector3 calibrationPosition;
         private Quaternion calibrationRotation = Quaternion.identity;
+        private Transform headTrackingOrigin;
+        private TrackedPoseDriver headPoseDriver;
+        private bool ownsHeadPoseDriver;
+        private bool originalHeadDriverEnabled;
+        private InputActionProperty originalHeadPositionInput;
+        private InputActionProperty originalHeadRotationInput;
+        private InputActionProperty originalHeadTrackingStateInput;
+        private TrackedPoseDriver.TrackingType originalHeadTrackingType;
+        private TrackedPoseDriver.UpdateType originalHeadUpdateType;
+        private bool originalIgnoreTrackingState;
+        private InputAction headPositionAction;
+        private InputAction headRotationAction;
+        private InputAction headTrackingStateAction;
         private bool calibrated;
         private bool rayEnabled;
         private bool previousLeftTrigger;
@@ -46,9 +61,26 @@ namespace Mush.Quest
         private IMushQuestRayTarget leftHoveredTarget;
         private IMushQuestRayTarget rightHoveredTarget;
 
+        private static readonly List<XRDisplaySubsystem> ActiveDisplays = new();
+
+        public static bool IsXrActive
+        {
+            get
+            {
+                if (XRSettings.isDeviceActive)
+                    return true;
+                ActiveDisplays.Clear();
+                SubsystemManager.GetSubsystems(ActiveDisplays);
+                foreach (XRDisplaySubsystem display in ActiveDisplays)
+                    if (display != null && display.running)
+                        return true;
+                return false;
+            }
+        }
+
         public Transform LeftController => leftController;
         public Transform RightController => rightController;
-        public bool IsTracking => calibrated && XRSettings.isDeviceActive;
+        public bool IsTracking => calibrated && IsXrActive;
         public bool LeftGripHeld { get; private set; }
         public bool RightGripHeld { get; private set; }
         public bool LeftTriggerHeld { get; private set; }
@@ -67,6 +99,14 @@ namespace Mush.Quest
             Transform existingLeftController = null,
             Transform existingRightController = null)
         {
+            StopHeadTracking();
+            if (trackedCamera != newTrackedCamera)
+            {
+                if (ownsHeadPoseDriver && headPoseDriver != null)
+                    Destroy(headPoseDriver);
+                headPoseDriver = null;
+                ownsHeadPoseDriver = false;
+            }
             trackedCamera = newTrackedCamera;
             coordinateRoot = newCoordinateRoot;
             desiredCameraLocalPosition = newDesiredCameraLocalPosition;
@@ -120,8 +160,8 @@ namespace Mush.Quest
         public void SetRayEnabled(bool enabled)
         {
             rayEnabled = enabled;
-            SetRayVisible(leftRay, enabled && XRSettings.isDeviceActive);
-            SetRayVisible(rightRay, enabled && XRSettings.isDeviceActive);
+            SetRayVisible(leftRay, enabled && IsXrActive);
+            SetRayVisible(rightRay, enabled && IsXrActive);
             if (!enabled)
             {
                 SetHoveredTarget(ref leftHoveredTarget, null);
@@ -164,8 +204,10 @@ namespace Mush.Quest
             YButtonPressedThisFrame = false;
             BButtonPressedThisFrame = false;
 
-            if (!XRSettings.isDeviceActive)
+            if (!IsXrActive)
             {
+                if (calibrated)
+                    StopHeadTracking();
                 SetRayVisible(leftRay, false);
                 SetRayVisible(rightRay, false);
                 return;
@@ -189,14 +231,103 @@ namespace Mush.Quest
             {
                 calibrationRotation = desiredCameraLocalRotation * Quaternion.Inverse(headRotation);
                 calibrationPosition = desiredCameraLocalPosition - calibrationRotation * headPosition;
+                StartHeadTracking(headPosition, headRotation);
                 calibrated = true;
             }
 
-            ApplyPose(trackedCamera != null ? trackedCamera.transform : null, headPosition, headRotation);
             if (TryGetPose(XRNode.LeftHand, out Vector3 leftPosition, out Quaternion leftRotation))
                 ApplyPose(leftController, leftPosition, leftRotation);
             if (TryGetPose(XRNode.RightHand, out Vector3 rightPosition, out Quaternion rightRotation))
                 ApplyPose(rightController, rightPosition, rightRotation);
+        }
+
+        private void StartHeadTracking(Vector3 headPosition, Quaternion headRotation)
+        {
+            if (trackedCamera == null || coordinateRoot == null)
+                return;
+
+            // Keep the seated calibration on a parent; only the pose driver writes the camera pose.
+            headTrackingOrigin = new GameObject("Quest Head Calibration").transform;
+            headTrackingOrigin.SetParent(coordinateRoot, false);
+            headTrackingOrigin.SetLocalPositionAndRotation(calibrationPosition, calibrationRotation);
+            trackedCamera.transform.SetParent(headTrackingOrigin, false);
+            trackedCamera.transform.SetLocalPositionAndRotation(headPosition, headRotation);
+
+            if (headPoseDriver == null)
+            {
+                headPoseDriver = trackedCamera.GetComponent<TrackedPoseDriver>();
+                ownsHeadPoseDriver = headPoseDriver == null;
+                if (ownsHeadPoseDriver)
+                    headPoseDriver = trackedCamera.gameObject.AddComponent<TrackedPoseDriver>();
+                originalHeadDriverEnabled = !ownsHeadPoseDriver && headPoseDriver.enabled;
+                originalHeadPositionInput = headPoseDriver.positionInput;
+                originalHeadRotationInput = headPoseDriver.rotationInput;
+                originalHeadTrackingStateInput = headPoseDriver.trackingStateInput;
+                originalHeadTrackingType = headPoseDriver.trackingType;
+                originalHeadUpdateType = headPoseDriver.updateType;
+                originalIgnoreTrackingState = headPoseDriver.ignoreTrackingState;
+            }
+
+            headPoseDriver.enabled = false;
+            headPositionAction = new InputAction("Mush Head Position", InputActionType.Value,
+                "<XRHMD>/centerEyePosition", expectedControlType: "Vector3");
+            headRotationAction = new InputAction("Mush Head Rotation", InputActionType.Value,
+                "<XRHMD>/centerEyeRotation", expectedControlType: "Quaternion");
+            headTrackingStateAction = new InputAction("Mush Head Tracking State", InputActionType.Value,
+                "<XRHMD>/trackingState", expectedControlType: "Integer");
+            headPoseDriver.positionInput = new InputActionProperty(headPositionAction);
+            headPoseDriver.rotationInput = new InputActionProperty(headRotationAction);
+            headPoseDriver.trackingStateInput = new InputActionProperty(headTrackingStateAction);
+            headPoseDriver.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
+            headPoseDriver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
+            headPoseDriver.ignoreTrackingState = false;
+            headPoseDriver.enabled = true;
+        }
+
+        private void StopHeadTracking()
+        {
+            if (headTrackingOrigin == null && headPositionAction == null)
+            {
+                calibrated = false;
+                return;
+            }
+
+            if (headPoseDriver != null)
+            {
+                headPoseDriver.enabled = false;
+                headPoseDriver.positionInput = originalHeadPositionInput;
+                headPoseDriver.rotationInput = originalHeadRotationInput;
+                headPoseDriver.trackingStateInput = originalHeadTrackingStateInput;
+                headPoseDriver.trackingType = originalHeadTrackingType;
+                headPoseDriver.updateType = originalHeadUpdateType;
+                headPoseDriver.ignoreTrackingState = originalIgnoreTrackingState;
+            }
+            if (trackedCamera != null && headTrackingOrigin != null &&
+                trackedCamera.transform.parent == headTrackingOrigin)
+            {
+                trackedCamera.transform.SetParent(coordinateRoot, false);
+                trackedCamera.transform.SetLocalPositionAndRotation(
+                    desiredCameraLocalPosition, desiredCameraLocalRotation);
+            }
+            if (headTrackingOrigin != null)
+                Destroy(headTrackingOrigin.gameObject);
+            headTrackingOrigin = null;
+            headPositionAction?.Dispose();
+            headRotationAction?.Dispose();
+            headTrackingStateAction?.Dispose();
+            headPositionAction = null;
+            headRotationAction = null;
+            headTrackingStateAction = null;
+            if (headPoseDriver != null && !ownsHeadPoseDriver)
+                headPoseDriver.enabled = originalHeadDriverEnabled;
+            calibrated = false;
+        }
+
+        private void OnDisable()
+        {
+            StopHeadTracking();
+            SetRayVisible(leftRay, false);
+            SetRayVisible(rightRay, false);
         }
 
         private void UpdateButtons()
@@ -393,6 +524,28 @@ namespace Mush.Quest
 
         private static bool TryGetPose(XRNode node, out Vector3 position, out Quaternion rotation)
         {
+            TrackedDevice trackedDevice = node switch
+            {
+                XRNode.Head => InputSystem.GetDevice<XRHMD>(),
+                XRNode.LeftHand => XRController.leftHand,
+                XRNode.RightHand => XRController.rightHand,
+                _ => null,
+            };
+            if (trackedDevice != null && trackedDevice.isTracked.isPressed &&
+                (trackedDevice.trackingState.ReadValue() & 3) == 3)
+            {
+                if (trackedDevice is XRHMD hmd)
+                {
+                    position = hmd.centerEyePosition.ReadValue();
+                    rotation = hmd.centerEyeRotation.ReadValue();
+                }
+                else
+                {
+                    position = trackedDevice.devicePosition.ReadValue();
+                    rotation = trackedDevice.deviceRotation.ReadValue();
+                }
+                return true;
+            }
             UnityEngine.XR.InputDevice device = InputDevices.GetDeviceAtXRNode(node);
             position = Vector3.zero;
             rotation = Quaternion.identity;
@@ -409,6 +562,9 @@ namespace Mush.Quest
 
         private void OnDestroy()
         {
+            StopHeadTracking();
+            if (ownsHeadPoseDriver && headPoseDriver != null)
+                Destroy(headPoseDriver);
             SetHoveredTarget(ref leftHoveredTarget, null); // 현재 왼손 호버 강조를 해제한다.
             SetHoveredTarget(ref rightHoveredTarget, null); // 현재 오른손 호버 강조도 해제한다.
             leftPointerPositionAction?.Disable(); // 씬 종료 시 왼손 포인터 위치 입력 액션을 중지한다.

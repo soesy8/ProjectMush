@@ -207,6 +207,8 @@ namespace Mush.Prototype
                 ? effectiveAcceleration
                 : terrainSpeedLimited ? Mathf.Max(deceleration, terrainLimitDeceleration) : deceleration;
             currentSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, speedChangeRate * Time.deltaTime);
+            if (terrainSpeedLimited)
+                currentSpeed = Mathf.Min(currentSpeed, targetSpeed);
 
             float speedSteeringFactor = Mathf.InverseLerp(0f, firstLevelSpeed, currentSpeed);
             float activeTurnRate = maximumTurnRate;
@@ -275,8 +277,10 @@ namespace Mush.Prototype
 
         public void ApplyOffCourseImpact(float retainedSpeedRatio, float recoveryAccelerationMultiplier)
         {
-            terrainSpeedLimited = false;
-            currentSpeed *= Mathf.Clamp(retainedSpeedRatio, 0.05f, 1f);
+            terrainSpeedLimited = true;
+            currentSpeed = Mathf.Min(
+                currentSpeed * Mathf.Clamp(retainedSpeedRatio, 0.05f, 1f),
+                GetSpeedForLevel(speedLevel));
             offCourseRecoveryActive = true;
             offCourseRecoveryAccelerationMultiplier = Mathf.Clamp(
                 recoveryAccelerationMultiplier,
@@ -401,6 +405,8 @@ namespace Mush.Prototype
         private void MoveAlongGround(float distance)
         {
             Vector3 nextPosition = transform.position + transform.forward * distance;
+            if (courseSurface != null)
+                nextPosition = courseSurface.ConstrainRideMovement(transform.position, nextPosition);
             float currentHeight = transform.position.y;
 
             // Procedural maps can provide their exact surface.  This keeps the

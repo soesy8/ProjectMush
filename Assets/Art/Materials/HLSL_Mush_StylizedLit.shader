@@ -5,6 +5,7 @@ Shader "Project Mush/AI Review/Test_HLSL_Mush"
         [MainTexture] _BaseMap("Base Map", 2D) = "white" {}
         _BaseMapStrength("Base Texture Strength", Range(0,1)) = 1
         [MainColor] _BaseColor("Base Color", Color) = (1,1,1,1)
+        [HideInInspector] _SledAccentColor("Sled Accent Color (A: Strength)", Color) = (1,1,1,0)
 
         [Header(Surface)]
         _Metallic("Metallic", Range(0,1)) = 0

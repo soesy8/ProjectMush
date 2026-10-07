@@ -10,7 +10,7 @@ namespace Mush.Customization
         private const string GeneratedPrefix = "Mush Equipped - ";
         private const string HousingModelName = "Mush Housing Model";
         private static readonly int BaseColorProperty = Shader.PropertyToID("_BaseColor");
-        private static readonly int ColorProperty = Shader.PropertyToID("_Color");
+        private static readonly int SledAccentColorProperty = Shader.PropertyToID("_SledAccentColor");
         private static readonly Dictionary<string, Material> Materials = new(StringComparer.Ordinal);
 
         public static GameObject CreateFittedModel(
@@ -182,12 +182,12 @@ namespace Mush.Customization
         public static void ApplySledBodyColor(Transform body, string itemId)
         {
             if (body == null || itemId == MushCustomizationIds.SledSanta) return;
-            Color tint = itemId switch
+            Color accent = itemId switch
             {
-                MushCustomizationIds.SledRed => new Color(0.90f, 0.12f, 0.09f),
+                MushCustomizationIds.SledPurple => new Color(0.58f, 0.18f, 0.90f),
                 MushCustomizationIds.SledBlue => new Color(0.12f, 0.45f, 1f),
                 MushCustomizationIds.SledBlack => new Color(0.15f, 0.16f, 0.18f),
-                _ => Color.white,
+                _ => Color.clear,
             };
             var properties = new MaterialPropertyBlock();
             foreach (Renderer renderer in body.GetComponentsInChildren<Renderer>(true))
@@ -197,13 +197,13 @@ namespace Mush.Customization
                 for (int index = 0; index < materials.Length; index++)
                 {
                     Material material = materials[index];
-                    if (material == null) continue;
+                    if (material == null || !material.HasProperty(SledAccentColorProperty)) continue;
                     properties.Clear();
                     renderer.GetPropertyBlock(properties, index);
                     if (material.HasProperty(BaseColorProperty))
-                        properties.SetColor(BaseColorProperty, material.GetColor(BaseColorProperty) * tint);
-                    if (material.HasProperty(ColorProperty))
-                        properties.SetColor(ColorProperty, material.GetColor(ColorProperty) * tint);
+                        properties.SetColor(BaseColorProperty, material.GetColor(BaseColorProperty));
+                    // Alpha zero restores the default sled; only red texture points are recolored otherwise.
+                    properties.SetColor(SledAccentColorProperty, accent);
                     renderer.SetPropertyBlock(properties, index);
                 }
             }

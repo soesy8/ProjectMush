@@ -8513,8 +8513,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a8e38a34d62522b5069b03c688360b5e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MushCanvasQuestInput
-  canvas: {fileID: 0}
-  raycaster: {fileID: 0}
+  canvas: {fileID: 2111453308}
+  raycaster: {fileID: 2111453306}
 --- !u!1001 &91000000000003
 PrefabInstance:
   m_ObjectHideFlags: 0

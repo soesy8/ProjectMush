@@ -1,3 +1,4 @@
+using Mush.Quest;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR;
@@ -14,7 +15,7 @@ namespace Mush.Lobby
     public sealed class MushLobbyStationNavigator : MonoBehaviour
     {
         private const float LocomotionDeadzone = 0.20f;
-        private const float LobbyMoveSpeed = 1.20f;
+        private const float LobbyMoveSpeed = 1.80f;
         private const float SmoothLookSpeed = 72f;
         private const float SmoothLookDeadzone = 0.18f;
         private const float ChairUseDistance = 2.20f;
@@ -63,6 +64,7 @@ namespace Mush.Lobby
         private bool locomotionWasActive;
 
         public bool IsMenuOpen => menuRoot != null && menuRoot.gameObject.activeSelf;
+        public bool IsPointerMenuOpen => IsMenuOpen || (controller != null && controller.IsPanelOpen);
         public bool IsSeatedAtFireplace => seatedAtFireplace;
 
         public static MushLobbyStationNavigator Install(Camera camera, MushLobbyController owner, Transform lobbyRoot)
@@ -127,9 +129,9 @@ namespace Mush.Lobby
 
         private void Update()
         {
-            if (MushLobbyMapPanel.IsOpen ||
+            if (!Application.isFocused || MushSceneUI.ModalOpen || MushLobbyMapPanel.IsOpen ||
                 (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen)) return;
-            if (!XRSettings.isDeviceActive)
+            if (!MushQuestTrackedInputRig.IsXrActive)
             {
                 stickClickWasPressed = false;
                 triggerWasPressed = false;
@@ -177,7 +179,7 @@ namespace Mush.Lobby
 
         private void HandleDesktopLocomotion()
         {
-            if (IsMenuOpen || MushLobbyFeedDispenser.IsDesktopCanisterHeld)
+            if (IsMenuOpen)
             {
                 locomotionWasActive = false;
                 return;
@@ -226,7 +228,7 @@ namespace Mush.Lobby
             }
 
             input = Vector2.ClampMagnitude(input, 1f);
-            Vector3 forward = desktopLook != null && !XRSettings.isDeviceActive
+            Vector3 forward = desktopLook != null && !MushQuestTrackedInputRig.IsXrActive
                 ? desktopLook.CurrentWorldViewDirection
                 : lobbyCamera.transform.forward;
             forward = Vector3.ProjectOnPlane(forward, Vector3.up).normalized;

@@ -67,24 +67,20 @@ namespace Mush.Lobby
             if (desktopCamera == null)
                 return false;
 
-            // 사료통은 그릇 앞의 세로 평면에서 마우스를 따라간다. 카메라 방향이 조금 바뀌어도
-            // 깊이가 요동하지 않아 그릇 위에 정확히 가져다 놓고 기울일 수 있다.
-            Plane feedingPlane = new Plane(transform.forward, desktopHoldWorld);
-            Ray pointerRay = desktopCamera.ScreenPointToRay(screenPosition);
-            if (!feedingPlane.Raycast(pointerRay, out float distance))
-                return false;
-
-            Vector3 localPoint = transform.InverseTransformPoint(pointerRay.GetPoint(distance));
-            localPoint.x = Mathf.Clamp(localPoint.x, -1.05f, 1.05f);
-            localPoint.y = Mathf.Clamp(localPoint.y, 0.46f, 1.30f);
-            localPoint.z = 0.08f;
-            worldPosition = transform.TransformPoint(localPoint);
+            // 사료통은 급식대에 묶이지 않고 플레이어의 이동과 시점을 따라 손앞에 유지됩니다.
+            Ray pointerRay = MushDesktopSeatedLook.GetDesktopPointerRay(desktopCamera, screenPosition);
+            worldPosition = pointerRay.GetPoint(0.95f);
             return true;
         }
 
         public Quaternion GetDesktopCanisterRotation(float tiltDegrees)
         {
-            return transform.rotation * Quaternion.Euler(0f, 0f, tiltDegrees);
+            Vector3 forward = desktopCamera != null
+                ? Vector3.ProjectOnPlane(desktopCamera.transform.forward, Vector3.up).normalized
+                : transform.forward;
+            if (forward.sqrMagnitude < 0.0001f)
+                forward = transform.forward;
+            return Quaternion.LookRotation(forward, Vector3.up) * Quaternion.Euler(0f, 0f, tiltDegrees);
         }
 
         private void Update()
@@ -227,7 +223,7 @@ namespace Mush.Lobby
                     96);
             }
 
-            // PC에서는 좌우 방향키에 맞춰 낮아진 주둥이가 각각 왼쪽/오른쪽 그릇을 지나가도록
+            // PC에서는 마우스 휠로 기울여 낮아진 주둥이가 각각 왼쪽/오른쪽 그릇을 지나가도록
             // 사료통 중심을 두 그릇 사이 바로 위에 둔다.
             desktopHoldWorld = transform.TransformPoint(new Vector3(0f, 0.88f, 0.08f));
 

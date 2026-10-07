@@ -491,7 +491,7 @@ namespace Mush.Lobby
             if (mouse == null || lobbyCamera == null)
                 return;
 
-            Ray pointerRay = lobbyCamera.ScreenPointToRay(mouse.position.ReadValue());
+            Ray pointerRay = MushDesktopSeatedLook.GetDesktopPointerRay(lobbyCamera);
             if (!desktopHeld && mouse.leftButton.wasPressedThisFrame &&
                 PointerHitsBall(pointerRay))
             {
@@ -507,15 +507,9 @@ namespace Mush.Lobby
             if (!desktopHeld)
                 return;
 
-            // Tracked Pose Driver can reset the camera Transform during Update,
-            // while MushDesktopSeatedLook applies the visible desktop rotation in
-            // LateUpdate. Read the latter's stored yaw/pitch instead of the stale XR
-            // camera direction so the throw matches the direction shown on screen.
-            desktopAimDirection = desktopLook != null
-                ? desktopLook.CurrentWorldViewDirection
-                : lobbyCamera.transform.forward.normalized;
-            transform.position = lobbyCamera.transform.position
-                                 + desktopAimDirection * 0.70f;
+            // The same visible cursor ray positions the hand, held ball and desktop throw.
+            desktopAimDirection = pointerRay.direction.normalized;
+            transform.position = pointerRay.GetPoint(0.70f);
 
             // The click that picked up the ball must finish without also throwing
             // it. A separate second press is used to charge the desktop throw.
@@ -553,7 +547,7 @@ namespace Mush.Lobby
 
             RaycastHit[] hits = Physics.RaycastAll(
                 pointerRay,
-                12f,
+                MushDesktopSeatedLook.DesktopInteractionDistance,
                 Physics.DefaultRaycastLayers,
                 QueryTriggerInteraction.Ignore);
             foreach (RaycastHit hit in hits)
