@@ -15118,6 +15118,8 @@ MonoBehaviour:
   target: {fileID: 98000000000141}
   highlightedSprite: {fileID: 0}
   pressedSprite: {fileID: 0}
+  disabledSprite: {fileID: 0}
+  highlightOnFocus: 1
 --- !u!1001 &151256190
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -58800,6 +58802,8 @@ MonoBehaviour:
   target: {fileID: 98000000000167}
   highlightedSprite: {fileID: 0}
   pressedSprite: {fileID: 0}
+  disabledSprite: {fileID: 0}
+  highlightOnFocus: 1
 --- !u!1001 &568746322
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -158203,6 +158207,8 @@ MonoBehaviour:
   target: {fileID: 98000000000205}
   highlightedSprite: {fileID: 1098998537, guid: e100e06493be040458967f8b908022de, type: 3}
   pressedSprite: {fileID: -1970944043, guid: a180659f301b7404bbdd640496ba2653, type: 3}
+  disabledSprite: {fileID: 0}
+  highlightOnFocus: 1
 --- !u!1 &1533804251
 GameObject:
   m_ObjectHideFlags: 0
@@ -162584,6 +162590,8 @@ MonoBehaviour:
   target: {fileID: 98000000000209}
   highlightedSprite: {fileID: 1098998537, guid: e100e06493be040458967f8b908022de, type: 3}
   pressedSprite: {fileID: -1970944043, guid: a180659f301b7404bbdd640496ba2653, type: 3}
+  disabledSprite: {fileID: 0}
+  highlightOnFocus: 1
 --- !u!1001 &1589096083
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -175684,6 +175692,8 @@ MonoBehaviour:
   target: {fileID: 98000000000127}
   highlightedSprite: {fileID: 1098998537, guid: e100e06493be040458967f8b908022de, type: 3}
   pressedSprite: {fileID: -1970944043, guid: a180659f301b7404bbdd640496ba2653, type: 3}
+  disabledSprite: {fileID: 0}
+  highlightOnFocus: 1
 --- !u!1 &1729314813
 GameObject:
   m_ObjectHideFlags: 0
@@ -200921,6 +200931,8 @@ MonoBehaviour:
   target: {fileID: 98000000000130}
   highlightedSprite: {fileID: 1098998537, guid: e100e06493be040458967f8b908022de, type: 3}
   pressedSprite: {fileID: -1970944043, guid: a180659f301b7404bbdd640496ba2653, type: 3}
+  disabledSprite: {fileID: 0}
+  highlightOnFocus: 1
 --- !u!1001 &2007632255
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -215745,9 +215757,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -1818379609, guid: 47403ec197b1d8a42aa1440ebd268b22, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 11c5935b4d351d44697b405d358bb480, type: 3}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1

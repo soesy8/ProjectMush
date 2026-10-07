@@ -108,9 +108,13 @@ namespace Mush.Lobby
 
                 if (records[i] != null)
                     records[i].text = unlocked ? MushMapRecords.BestTimeLabel(Scenes[i]).Replace('\n', ' ') : "이전 맵 완료 후 입장";
-                if (startButton != null && courseButtons[i] != null)
+                if (courseButtons[i] != null)
                 {
-                    courseButtons[i].GetComponent<MushUiButtonFeedback>()?.SetChosen(i == selectedCourse);
+                    courseButtons[i].interactable = unlocked;
+                    MushUiButtonFeedback feedback = courseButtons[i].GetComponent<MushUiButtonFeedback>();
+                    // Keep the chosen course highlighted alongside the existing hover feedback.
+                    feedback?.SetHighlightOnFocus(false);
+                    feedback?.SetChosen(unlocked && i == selectedCourse);
                 }
             }
             RefreshDogStamina();
