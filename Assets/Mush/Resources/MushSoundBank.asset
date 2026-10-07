@@ -19,6 +19,8 @@ MonoBehaviour:
   fireplaceAmbience: {fileID: 8300000, guid: 7a81cbbdf516d064fa77f9f036a0b174, type: 3}
   fireplaceAmbienceVolume: 0.15
   click: {fileID: 8300000, guid: 6685c17a655ee22409c84ac5e71abdf5, type: 3}
+  canisterGrab: {fileID: 8300000, guid: 83e3ddd75ddd12849a0d1a3e5dc8987e, type: 3}
+  canisterSetDown: {fileID: 8300000, guid: 3c903994954b58948bd04bd7abd96783, type: 3}
   pawSnow:
   - {fileID: 8300000, guid: 1d91db5141f3f61428a6599801fc17f1, type: 3}
   - {fileID: 8300000, guid: 628109023c929f440b3ffd2b37bab1be, type: 3}

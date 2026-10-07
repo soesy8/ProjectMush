@@ -12,6 +12,7 @@ public sealed class MushRideHud : MonoBehaviour
     [SerializeField] private Image progress;
     [SerializeField, FormerlySerializedAs("staminaDepletion")] private Image staminaFill;
     [SerializeField] private Image secondStaminaFill;
+    [SerializeField] private bool useTeamStamina;
     [SerializeField] private TMP_Text staminaText;
     [SerializeField] private TMP_Text secondStaminaText;
     [SerializeField] private RectTransform progressIcon;
@@ -34,8 +35,13 @@ public sealed class MushRideHud : MonoBehaviour
         if (trackRoot != null && trackRoot.activeSelf != visible) trackRoot.SetActive(visible);
         if (progressRoot != null && progressRoot.activeSelf != visible) progressRoot.SetActive(visible);
         if (!visible) return;
-        RefreshStamina(staminaFill, staminaText, 0, ref previousFirstStamina);
-        RefreshStamina(secondStaminaFill, secondStaminaText, 1, ref previousSecondStamina);
+        if (useTeamStamina)
+            RefreshStaminaValue(staminaFill, staminaText, MushGameSave.TeamStamina, ref previousFirstStamina);
+        else
+        {
+            RefreshStamina(staminaFill, staminaText, 0, ref previousFirstStamina);
+            RefreshStamina(secondStaminaFill, secondStaminaText, 1, ref previousSecondStamina);
+        }
         int seconds = Mathf.CeilToInt(ride.RemainingSeconds);
         if (timer != null)
         {
@@ -79,7 +85,13 @@ public sealed class MushRideHud : MonoBehaviour
     private static void RefreshStamina(Image fill, TMP_Text label, int dogIndex,
         ref int previousValue)
     {
-        float value = Mathf.Clamp(MushGameSave.GetDogStamina(dogIndex), 0f, 100f);
+        RefreshStaminaValue(fill, label, MushGameSave.GetDogStamina(dogIndex), ref previousValue);
+    }
+
+    private static void RefreshStaminaValue(Image fill, TMP_Text label, float stamina,
+        ref int previousValue)
+    {
+        float value = Mathf.Clamp(stamina, 0f, 100f);
         if (fill != null) fill.fillAmount = value / 100f;
         int displayed = Mathf.FloorToInt(value);
         if (label != null && displayed != previousValue)

@@ -21,6 +21,8 @@ namespace Mush.Lobby
         private bool heldInVr;
         private bool heldOnDesktop;
         private float desktopTilt;
+        private AudioSource interactionAudio;
+        private MushSoundBank soundBank;
 
         public static bool IsDesktopCanisterHeld =>
             activeDesktopDispenser != null && activeDesktopDispenser.heldOnDesktop;
@@ -38,6 +40,13 @@ namespace Mush.Lobby
             originalParent = transform.parent;
             originalLocalPosition = transform.localPosition;
             originalLocalRotation = transform.localRotation;
+            soundBank = MushSoundBank.Load();
+            GameObject audioRoot = new("Canister Interaction SFX");
+            audioRoot.transform.SetParent(transform, false);
+            interactionAudio = audioRoot.AddComponent<AudioSource>();
+            interactionAudio.playOnAwake = false;
+            interactionAudio.spatialBlend = 0f;
+            audioRoot.AddComponent<MushAudioChannel>();
             interactable = GetComponent<XRGrabInteractable>();
             if (interactable == null)
                 return;
@@ -86,12 +95,13 @@ namespace Mush.Lobby
 
         public void Trigger()
         {
-            if (!isActiveAndEnabled || station == null || heldOnDesktop)
+            if (!isActiveAndEnabled || station == null || heldOnDesktop || heldInVr)
                 return;
 
             heldOnDesktop = true;
             activeDesktopDispenser = this;
             desktopTilt = 0f;
+            PlayInteraction(soundBank != null ? soundBank.canisterGrab : null);
         }
 
         private float CurrentTiltDegrees()
@@ -111,20 +121,24 @@ namespace Mush.Lobby
 
         private void OnSelected(SelectEnterEventArgs args)
         {
+            bool alreadyHeld = heldInVr || heldOnDesktop;
             heldInVr = true;
             heldOnDesktop = false;
+            if (!alreadyHeld) PlayInteraction(soundBank != null ? soundBank.canisterGrab : null);
             if (activeDesktopDispenser == this)
                 activeDesktopDispenser = null;
         }
 
         private void OnSelectExited(SelectExitEventArgs args)
         {
-            heldInVr = false;
+            if (!heldInVr || (interactable != null && interactable.isSelected)) return;
             ReturnToStand();
         }
 
         private void ReturnToStand()
         {
+            bool wasHeld = heldInVr || heldOnDesktop;
+            heldInVr = false;
             heldOnDesktop = false;
             if (activeDesktopDispenser == this)
                 activeDesktopDispenser = null;
@@ -132,11 +146,17 @@ namespace Mush.Lobby
             transform.SetParent(originalParent, false);
             transform.localPosition = originalLocalPosition;
             transform.localRotation = originalLocalRotation;
+            if (wasHeld) PlayInteraction(soundBank != null ? soundBank.canisterSetDown : null);
             Rigidbody body = GetComponent<Rigidbody>();
             if (body == null || body.isKinematic)
                 return;
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
+        }
+
+        private void PlayInteraction(AudioClip clip)
+        {
+            if (interactionAudio != null && clip != null) interactionAudio.PlayOneShot(clip);
         }
 
         private void OnHoverEntered(HoverEnterEventArgs args) => SetHighlighted(true);

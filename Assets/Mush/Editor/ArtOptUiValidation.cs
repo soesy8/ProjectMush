@@ -141,9 +141,13 @@ public static class ArtOptUiValidation
         {
             MushSceneUI ui = Components<MushSceneUI>(scene).Single();
             RequireReferences(ui, "titlePanel", "optionPanel", "master", "music", "effects", "masterCount", "musicCount", "effectsCount");
-            string[] controls = { "TitleUI_Start", "TitleUI_Continue", "TitleUI_Option", "TitleUI_Quit" };
+            string[] controls = { "TitleUI_Start", "TitleUI_Continue", "TitleUI_Credit", "TitleUI_Option", "TitleUI_Quit" };
             foreach (string control in controls)
                 Require(Components<Button>(scene).Any(b => b.name == control), "Missing title button: " + control);
+            MushTitleCredits credits = Components<MushTitleCredits>(scene).Single();
+            RequireReferences(credits, "creditButton", "viewport", "content");
+            TMP_Text creditText = (TMP_Text)new SerializedObject(credits).FindProperty("content").objectReferenceValue;
+            Require(!string.IsNullOrWhiteSpace(creditText.text), "Title credits content must not be empty.");
         }
         else if (scene.name == "PM_Lobby")
         {
@@ -178,7 +182,9 @@ public static class ArtOptUiValidation
             RequireReferences(ride, "resultPanel");
             MushRideHud hud = Components<MushRideHud>(scene).Single(h => h.enabled);
             RequireReferences(hud, "ride", "timer", "trackRoot", "progressRoot", "progress", "progressIcon",
-                "staminaFill", "secondStaminaFill", "staminaText", "secondStaminaText");
+                "staminaFill", "staminaText");
+            if (!new SerializedObject(hud).FindProperty("useTeamStamina").boolValue)
+                RequireReferences(hud, "secondStaminaFill", "secondStaminaText");
             ValidateRideHud(hud);
             TMP_Text timer = (TMP_Text)new SerializedObject(hud).FindProperty("timer").objectReferenceValue;
             Require(!string.IsNullOrWhiteSpace(timer.text), scene.name + ": timer value was not updated.");
@@ -196,6 +202,7 @@ public static class ArtOptUiValidation
     private static void ValidateRideHud(MushRideHud hud)
     {
         SerializedObject data = new(hud);
+        bool unified = data.FindProperty("useTeamStamina").boolValue;
         UnityEngine.UI.Image first = (UnityEngine.UI.Image)data.FindProperty("staminaFill").objectReferenceValue;
         UnityEngine.UI.Image second = (UnityEngine.UI.Image)data.FindProperty("secondStaminaFill").objectReferenceValue;
         UnityEngine.UI.Image progress = (UnityEngine.UI.Image)data.FindProperty("progress").objectReferenceValue;
@@ -206,7 +213,7 @@ public static class ArtOptUiValidation
         Vector2 panelSize = track.transform.Find("TrackUI_Panel").GetComponent<RectTransform>().sizeDelta;
         Require(Vector2.Distance(panelSize, new Vector2(272.58f, 156.672f)) < 0.001f,
             "Track HUD must match the authored size of 272.58 by 156.672.");
-        foreach (UnityEngine.UI.Image fill in new[] { first, second, progress })
+        foreach (UnityEngine.UI.Image fill in new[] { first, second, progress }.Where(fill => fill != null))
             Require(fill.type == UnityEngine.UI.Image.Type.Filled &&
                     fill.fillMethod == UnityEngine.UI.Image.FillMethod.Horizontal && fill.fillOrigin == 0,
                 "Track HUD gauges must fill horizontally from the left.");
@@ -225,15 +232,37 @@ public static class ArtOptUiValidation
                     sample.dogs[0].stamina = value;
                     sample.dogs[1].stamina = 100 - value;
                     Invoke(hud, "LateUpdate");
-                    Require(Mathf.Approximately(first.fillAmount, value / 100f) &&
-                            Mathf.Approximately(second.fillAmount, (100 - value) / 100f),
-                        "Track stamina bars must show each dog's actual stamina.");
-                    Require(firstText.text == $"{value} / 100" && secondText.text == $"{100 - value} / 100",
-                        "Track dog stamina labels are incorrect.");
+                    if (unified)
+                        Require(Mathf.Approximately(first.fillAmount, 0.5f) && firstText.text == "50 / 100",
+                            "The unified stamina gauge must show the team average.");
+                    else
+                    {
+                        Require(Mathf.Approximately(first.fillAmount, value / 100f) &&
+                                Mathf.Approximately(second.fillAmount, (100 - value) / 100f),
+                            "Track stamina bars must show each dog's actual stamina.");
+                        Require(firstText.text == $"{value} / 100" && secondText.text == $"{100 - value} / 100",
+                            "Track dog stamina labels are incorrect.");
+                    }
+                }
+                if (unified)
+                {
+                    Require(track.GetComponentsInChildren<UnityEngine.UI.Image>().Count(image =>
+                        image.type == UnityEngine.UI.Image.Type.Filled) == 1,
+                        "The unified track HUD must show only one stamina gauge.");
+                    foreach (int value in new[] { 0, 25, 50, 75, 100 })
+                    {
+                        sample.dogs[0].stamina = sample.dogs[1].stamina = value;
+                        Invoke(hud, "LateUpdate");
+                        Require(Mathf.Approximately(first.fillAmount, value / 100f) &&
+                                firstText.text == $"{value} / 100",
+                            "The unified gauge must cover the full stamina range.");
+                    }
                 }
                 sample.dogs[0].stamina = 33.75f;
+                sample.dogs[1].stamina = 0f;
                 Invoke(hud, "LateUpdate");
-                Require(Mathf.Approximately(first.fillAmount, 0.3375f), "Track health fill must update between whole numbers.");
+                Require(Mathf.Approximately(first.fillAmount, unified ? 0.16875f : 0.3375f),
+                    "Track health fill must update between whole numbers.");
             }, first, second);
 
             MethodInfo updateProgress = typeof(MushRideHud).GetMethod("RefreshProgress", BindingFlags.Instance | BindingFlags.NonPublic);

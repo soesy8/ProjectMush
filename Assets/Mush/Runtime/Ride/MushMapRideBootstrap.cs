@@ -1180,6 +1180,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         questRecalibrationFeedbackUntil = 0f;
         Time.timeScale = paused ? 0f : timeScaleBeforePause;
         AudioListener.pause = paused;
+        MushSounds.SetTrackMusicPaused(paused);
         if (paused)
             StopQuestHaptics();
         else

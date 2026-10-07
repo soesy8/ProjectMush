@@ -95581,7 +95581,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &918413695
 RectTransform:
   m_ObjectHideFlags: 0
@@ -104300,7 +104300,7 @@ GameObject:
   - component: {fileID: 1002309789}
   - component: {fileID: 1002309788}
   m_Layer: 5
-  m_Name: Kai Portrait
+  m_Name: Team Ride Icon
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -104322,8 +104322,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -103, y: 0.83360004}
-  m_SizeDelta: {x: 44, y: 44}
+  m_AnchoredPosition: {x: -83, y: -23}
+  m_SizeDelta: {x: 80, y: 56}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1002309788
 MonoBehaviour:
@@ -104345,7 +104345,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 1671606054, guid: 8bcf2f252eed76642bf808781f127697, type: 3}
+  m_Sprite: {fileID: -763677372, guid: 676e6c1ceabc9ec4a8df2d73cbf0c12e, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -116611,7 +116611,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1150258278
 RectTransform:
   m_ObjectHideFlags: 0
@@ -209785,7 +209785,7 @@ GameObject:
   - component: {fileID: 2106381806}
   - component: {fileID: 2106381805}
   m_Layer: 5
-  m_Name: Kai Stamina Text
+  m_Name: Team Stamina Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -209808,7 +209808,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 162, y: 30}
+  m_SizeDelta: {x: 140, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2106381805
 MonoBehaviour:
@@ -214311,9 +214311,10 @@ MonoBehaviour:
   timer: {fileID: 98000000000295}
   progress: {fileID: 98000000000114}
   staminaFill: {fileID: 98000000000297}
-  secondStaminaFill: {fileID: 250194020}
+  secondStaminaFill: {fileID: 0}
+  useTeamStamina: 1
   staminaText: {fileID: 2106381805}
-  secondStaminaText: {fileID: 1434099783}
+  secondStaminaText: {fileID: 0}
   progressIcon: {fileID: 98000000000048}
   progressRoot: {fileID: 98000000000020}
   trackRoot: {fileID: 98000000000265}
@@ -219734,8 +219735,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 26, y: 0.83360004}
-  m_SizeDelta: {x: 178, y: 33.6}
+  m_AnchoredPosition: {x: 40, y: -23}
+  m_SizeDelta: {x: 150, y: 33.6}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000272
 RectTransform:
@@ -219918,7 +219919,7 @@ GameObject:
   - component: {fileID: 98000000000292}
   - component: {fileID: 98000000000293}
   m_Layer: 5
-  m_Name: DogHealthBar
+  m_Name: Team Stamina Bar
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

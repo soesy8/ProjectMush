@@ -11,6 +11,7 @@ public sealed class MushSounds : MonoBehaviour
     private MushAudioChannel musicChannel;
     private Coroutine musicFade;
     private float musicVolume = 1f;
+    private bool trackMusicPaused;
     private int musicSceneHandle = -1;
     private const float TrackFadeInSeconds = 5f;
     private const float ClearFadeSeconds = 2f;
@@ -76,6 +77,8 @@ public sealed class MushSounds : MonoBehaviour
         // A retry starts a fresh fade, while duplicate scene callbacks leave playback alone.
         if (musicSource.clip == clip && (!isTrackMusic || musicSceneHandle == scene.handle)) return;
         musicSceneHandle = scene.handle;
+        trackMusicPaused = false;
+        musicSource.ignoreListenerPause = scene.name == "Track_v2";
         if (musicFade != null)
         {
             StopCoroutine(musicFade);
@@ -96,11 +99,18 @@ public sealed class MushSounds : MonoBehaviour
         instance.FadeMusicTo(0.4f, ClearFadeSeconds);
     }
 
+    public static void SetTrackMusicPaused(bool paused)
+    {
+        if (instance == null || SceneManager.GetActiveScene().name != "Track_v2") return;
+        instance.trackMusicPaused = paused;
+        instance.SetMusicVolume(instance.musicVolume);
+    }
+
     private void SetMusicVolume(float volume)
     {
         musicVolume = volume;
         // Keep the envelope separate from the player's music volume setting.
-        musicChannel.SetVolume(volume);
+        musicChannel.SetVolume(volume * (trackMusicPaused ? 0.4f : 1f));
     }
 
     private void FadeMusicTo(float target, float duration)
