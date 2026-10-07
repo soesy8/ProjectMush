@@ -117,6 +117,7 @@ namespace Mush.Lobby
                 optionPanel.SetActive(false);
             Time.timeScale = open ? 0f : 1f;
             AudioListener.pause = open;
+            MushSounds.SetLobbyMusicPaused(open);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
         }
@@ -126,6 +127,7 @@ namespace Mush.Lobby
             if (authoredPausePanel == null)
                 return;
             Bind("Button_Resume", () => SetOpen(false));
+            Bind("Image_Back", () => SetOpen(false));
             Bind("Button_Title", GoToTitle);
             Bind("Button_Lobby", GoToTitle);
             Bind("Button_Option", OpenOptions);
@@ -223,6 +225,7 @@ namespace Mush.Lobby
         {
             Time.timeScale = 1f;
             AudioListener.pause = false;
+            MushSounds.SetLobbyMusicPaused(false);
         }
 
     }

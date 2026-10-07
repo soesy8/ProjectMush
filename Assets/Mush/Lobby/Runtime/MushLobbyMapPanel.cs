@@ -117,7 +117,11 @@ namespace Mush.Lobby
                 }
                 if (startButton != null && courseButtons[i] != null)
                 {
-                    courseButtons[i].GetComponent<MushUiButtonFeedback>()?.SetChosen(i == selectedCourse);
+                    courseButtons[i].interactable = unlocked;
+                    MushUiButtonFeedback feedback = courseButtons[i].GetComponent<MushUiButtonFeedback>();
+                    // Keep the chosen course highlighted alongside the existing hover feedback.
+                    feedback?.SetHighlightOnFocus(false);
+                    feedback?.SetChosen(unlocked && i == selectedCourse);
                 }
             }
             RefreshDogStamina();
