@@ -23,11 +23,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     public const string TrackEdgeObjectsRootName = "GENERATED Track Edge Objects";
     public const string CourseBoundaryRootName = "Mush Invisible Course Walls";
     public const int CourseBoundaryLayer = 31;
-    private const float CourseBoundaryOffRoadMargin = 6f;
+    private const float CourseBoundaryOffRoadMargin = 5f;
     private const float CourseBoundaryThickness = 0.8f;
     private const float CourseBoundaryVerticalMargin = 10f;
-    private const float CourseBoundaryStartPadding = 8f;
-    private const float CourseBoundaryFinishPadding = 12f;
     private const float RideBoundaryClearance = 0.9f;
     private const string TerrainCollisionProxyRootName = "Mush Terrain Surface Collision Proxy";
     private const string CustomModelPreviewRootName = "Mush Custom Model Preview";
@@ -60,6 +58,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     private Transform terrainCollisionProxyRoot;
     private Transform rebuiltRoot;
     private Transform courseBoundaryRoot;
+    private Bounds courseBoundaryBounds;
     private Mesh pineMesh;
     private Mesh mountainMesh;
     private Renderer roadRenderer;
@@ -135,8 +134,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             activeAuthoring = MushTrackAuthoring.FindFor(transform);
             StartForward = Vector3.ProjectOnPlane(routePoints[1] - routePoints[0], Vector3.up).normalized;
             CacheBakedWorldReferences();
-            if (courseBoundaryRoot == null)
-                RebuildCourseBoundaryWalls();
+            RebuildCourseBoundaryWalls();
             built = true;
             ConfigureRuntimeEnvironmentControllers();
             return;
@@ -524,26 +522,8 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     }
 
     /// <summary>
-    /// Leaves an off-road shoulder inside invisible walls following the baked route.
+    /// Encloses the whole track in four straight walls with an off-road margin.
     /// </summary>
-    private float CourseBoundaryHalfWidth => Mathf.Min(
-        ActiveRoadHalfWidth + CourseBoundaryOffRoadMargin,
-        ActiveTerrainHalfWidth - 1f);
-
-    private Vector3 GetCourseBoundaryPoint(int index, float side)
-    {
-        int previous = Mathf.Max(0, index - 1);
-        int next = Mathf.Min(routePoints.Count - 1, index + 1);
-        Vector3 forward = Vector3.ProjectOnPlane(routePoints[next] - routePoints[previous], Vector3.up).normalized;
-        Vector3 right = Vector3.Cross(Vector3.up, forward);
-        Vector3 point = routePoints[index] + right * (CourseBoundaryHalfWidth * side);
-        if (index == 0)
-            point -= forward * CourseBoundaryStartPadding;
-        else if (index == routePoints.Count - 1)
-            point += forward * CourseBoundaryFinishPadding;
-        return point;
-    }
-
     private void RebuildCourseBoundaryWalls()
     {
         if (rebuiltRoot == null || routePoints.Count < 2)
@@ -560,16 +540,22 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         courseBoundaryRoot = root.transform;
         courseBoundaryRoot.SetParent(rebuiltRoot, false);
         root.layer = CourseBoundaryLayer;
-        for (int segment = 0; segment < routePoints.Count - 1; segment++)
-        {
-            CreateCourseBoundaryWall($"Left Wall {segment:000}",
-                GetCourseBoundaryPoint(segment, -1f), GetCourseBoundaryPoint(segment + 1, -1f));
-            CreateCourseBoundaryWall($"Right Wall {segment:000}",
-                GetCourseBoundaryPoint(segment, 1f), GetCourseBoundaryPoint(segment + 1, 1f));
-        }
-        CreateCourseBoundaryWall("Start Wall", GetCourseBoundaryPoint(0, -1f), GetCourseBoundaryPoint(0, 1f));
-        int last = routePoints.Count - 1;
-        CreateCourseBoundaryWall("Finish Wall", GetCourseBoundaryPoint(last, -1f), GetCourseBoundaryPoint(last, 1f));
+        courseBoundaryBounds = new Bounds(routePoints[0], Vector3.zero);
+        foreach (Vector3 point in routePoints)
+            courseBoundaryBounds.Encapsulate(point);
+        float padding = ActiveRoadHalfWidth + CourseBoundaryOffRoadMargin;
+        courseBoundaryBounds.Expand(new Vector3(padding * 2f, CourseBoundaryVerticalMargin * 2f, padding * 2f));
+        Vector3 min = courseBoundaryBounds.min;
+        Vector3 max = courseBoundaryBounds.max;
+        float height = courseBoundaryBounds.center.y;
+        Vector3 backLeft = new(min.x, height, min.z);
+        Vector3 backRight = new(max.x, height, min.z);
+        Vector3 frontLeft = new(min.x, height, max.z);
+        Vector3 frontRight = new(max.x, height, max.z);
+        CreateCourseBoundaryWall("Left Wall", backLeft, frontLeft);
+        CreateCourseBoundaryWall("Right Wall", backRight, frontRight);
+        CreateCourseBoundaryWall("Back Wall", backLeft, backRight);
+        CreateCourseBoundaryWall("Front Wall", frontLeft, frontRight);
     }
 
     private void CreateCourseBoundaryWall(string wallName, Vector3 start, Vector3 end)
@@ -584,7 +570,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         wall.transform.localRotation = Quaternion.LookRotation(delta.normalized, Vector3.up);
         BoxCollider collider = wall.AddComponent<BoxCollider>();
         collider.size = new Vector3(CourseBoundaryThickness,
-            Mathf.Abs(end.y - start.y) + CourseBoundaryVerticalMargin * 2f,
+            courseBoundaryBounds.size.y,
             delta.magnitude + CourseBoundaryThickness);
     }
 
@@ -594,21 +580,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         if (routePoints.Count < 2) return worldPosition;
 
         Vector3 local = transform.InverseTransformPoint(worldPosition);
-        MushRouteLookup.Result nearest = routeLookup.Find(new Vector2(local.x, local.z));
-        Vector3 start = routePoints[nearest.segment];
-        Vector3 end = routePoints[nearest.segment + 1];
-        Vector3 centre = Vector3.Lerp(start, end, nearest.t);
-        Vector3 forward = Vector3.ProjectOnPlane(end - start, Vector3.up).normalized;
-        Vector3 right = Vector3.Cross(Vector3.up, forward);
-        float lateral = Vector3.Dot(local - centre, right);
-        float limit = Mathf.Max(0.5f, CourseBoundaryHalfWidth - CourseBoundaryThickness * 0.5f - RideBoundaryClearance);
-        local += right * (Mathf.Clamp(lateral, -limit, limit) - lateral);
-
-        float longitudinal = Vector3.Dot(local - centre, forward);
-        if (nearest.segment == 0 && nearest.t <= 0f)
-            local += forward * (Mathf.Max(longitudinal, -CourseBoundaryStartPadding + RideBoundaryClearance) - longitudinal);
-        else if (nearest.segment == routePoints.Count - 2 && nearest.t >= 1f)
-            local += forward * (Mathf.Min(longitudinal, CourseBoundaryFinishPadding - RideBoundaryClearance) - longitudinal);
+        float clearance = CourseBoundaryThickness * 0.5f + RideBoundaryClearance;
+        local.x = Mathf.Clamp(local.x, courseBoundaryBounds.min.x + clearance, courseBoundaryBounds.max.x - clearance);
+        local.z = Mathf.Clamp(local.z, courseBoundaryBounds.min.z + clearance, courseBoundaryBounds.max.z - clearance);
         Vector3 constrained = transform.TransformPoint(local);
         constrained.y = worldPosition.y;
         return constrained;

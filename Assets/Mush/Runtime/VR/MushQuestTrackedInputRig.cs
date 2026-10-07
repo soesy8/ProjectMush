@@ -45,6 +45,8 @@ namespace Mush.Quest
         private InputAction headPositionAction;
         private InputAction headRotationAction;
         private InputAction headTrackingStateAction;
+        private InputAction leftTriggerAction;
+        private InputAction rightTriggerAction;
         private bool calibrated;
         private bool rayEnabled;
         private bool previousLeftTrigger;
@@ -247,7 +249,8 @@ namespace Mush.Quest
                 return;
 
             // Keep the seated calibration on a parent; only the pose driver writes the camera pose.
-            headTrackingOrigin = new GameObject("Quest Head Calibration").transform;
+            if (headTrackingOrigin == null)
+                headTrackingOrigin = new GameObject("Quest Head Calibration").transform;
             headTrackingOrigin.SetParent(coordinateRoot, false);
             headTrackingOrigin.SetLocalPositionAndRotation(calibrationPosition, calibrationRotation);
             trackedCamera.transform.SetParent(headTrackingOrigin, false);
@@ -284,7 +287,7 @@ namespace Mush.Quest
             headPoseDriver.enabled = true;
         }
 
-        private void StopHeadTracking()
+        private void StopHeadTracking(bool restoreCamera = true)
         {
             if (headTrackingOrigin == null && headPositionAction == null)
             {
@@ -302,16 +305,18 @@ namespace Mush.Quest
                 headPoseDriver.updateType = originalHeadUpdateType;
                 headPoseDriver.ignoreTrackingState = originalIgnoreTrackingState;
             }
-            if (trackedCamera != null && headTrackingOrigin != null &&
+            if (restoreCamera && trackedCamera != null && headTrackingOrigin != null &&
                 trackedCamera.transform.parent == headTrackingOrigin)
             {
                 trackedCamera.transform.SetParent(coordinateRoot, false);
                 trackedCamera.transform.SetLocalPositionAndRotation(
                     desiredCameraLocalPosition, desiredCameraLocalRotation);
             }
-            if (headTrackingOrigin != null)
+            if (restoreCamera && headTrackingOrigin != null)
+            {
                 Destroy(headTrackingOrigin.gameObject);
-            headTrackingOrigin = null;
+                headTrackingOrigin = null;
+            }
             headPositionAction?.Dispose();
             headRotationAction?.Dispose();
             headTrackingStateAction?.Dispose();
@@ -325,17 +330,21 @@ namespace Mush.Quest
 
         private void OnDisable()
         {
-            StopHeadTracking();
+            StopHeadTracking(false);
             SetRayVisible(leftRay, false);
             SetRayVisible(rightRay, false);
+            MushCanvasQuestInput.Release(XRNode.LeftHand);
+            MushCanvasQuestInput.Release(XRNode.RightHand);
         }
 
         private void UpdateButtons()
         {
             LeftGripHeld = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.gripButton);
             RightGripHeld = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.gripButton);
-            LeftTriggerHeld = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.triggerButton);
-            RightTriggerHeld = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.triggerButton);
+            LeftTriggerHeld = leftTriggerAction?.activeControl != null ? leftTriggerAction.IsPressed() :
+                ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.triggerButton);
+            RightTriggerHeld = rightTriggerAction?.activeControl != null ? rightTriggerAction.IsPressed() :
+                ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.triggerButton);
             bool leftPrimary = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.primaryButton);
             bool leftSecondary = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.secondaryButton);
             bool rightSecondary = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.secondaryButton);
@@ -401,6 +410,16 @@ namespace Mush.Quest
 
         private void ConfigurePointerRotationActions()
         {
+            leftTriggerAction?.Dispose();
+            rightTriggerAction?.Dispose();
+            leftTriggerAction = new InputAction("Mush Left UI Trigger", InputActionType.Button);
+            leftTriggerAction.AddBinding("<XRController>{LeftHand}/triggerPressed");
+            leftTriggerAction.AddBinding("<XRController>{LeftHand}/trigger");
+            rightTriggerAction = new InputAction("Mush Right UI Trigger", InputActionType.Button);
+            rightTriggerAction.AddBinding("<XRController>{RightHand}/triggerPressed");
+            rightTriggerAction.AddBinding("<XRController>{RightHand}/trigger");
+            leftTriggerAction.Enable();
+            rightTriggerAction.Enable();
             leftPointerPositionAction?.Dispose(); // 재설정 시 이전 왼손 포인터 위치 액션을 폐기해 중복 바인딩을 남기지 않는다.
             rightPointerPositionAction?.Dispose(); // 재설정 시 이전 오른손 포인터 위치 액션도 같은 이유로 폐기한다.
             leftPointerRotationAction?.Dispose(); // 재설정 시 이전 왼손 포인터 회전 액션을 폐기한다.
@@ -567,7 +586,9 @@ namespace Mush.Quest
 
         private void OnDestroy()
         {
-            StopHeadTracking();
+            StopHeadTracking(false);
+            leftTriggerAction?.Dispose();
+            rightTriggerAction?.Dispose();
             if (ownsHeadPoseDriver && headPoseDriver != null)
                 Destroy(headPoseDriver);
             SetHoveredTarget(ref leftHoveredTarget, null); // 현재 왼손 호버 강조를 해제한다.

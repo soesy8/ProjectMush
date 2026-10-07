@@ -44,7 +44,12 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, Min(10f)] private float deliveryTimeLimitSeconds = 120f;
     [SerializeField, Range(0.1f, 1f)] private float threeStarTimeRatio = 0.80f;
     [SerializeField, Min(0.1f)] private float resultStarFlightSeconds = 0.62f;
-    [SerializeField, Min(0f)] private float resultStarIntervalSeconds = 0.42f;
+    [SerializeField, Min(0f)] private float resultStarIntervalSeconds = 0.75f;
+
+    [Header("썰매견 애니메이션 재생 속도")]
+    [SerializeField, Min(0.1f)] private float dogNormalAnimationSpeed = 1f;
+    [SerializeField, Min(0.1f)] private float dogBoostAnimationSpeed = 1.15f;
+    [SerializeField, Min(0.1f)] private float dogSlowedAnimationSpeed = 0.8f;
 
     [SerializeField, Range(0.05f, 1f)] private float offCourseImpactRetainedSpeed = 0.5f;
     [SerializeField, Range(0.1f, 1f)] private float offCourseAccelerationMultiplier = 0.72f;
@@ -1728,6 +1733,9 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             rideController.CurrentSpeed);
         UpdateRidePresentation(running, boost01);
         UpdateSledSurfacePose(running);
+        float dogAnimationSpeed = !running ? 1f :
+            offCourse || rideController.ActiveDogEffect == MushDogRideEffect.Penalty ? dogSlowedAnimationSpeed :
+            rideController.IsBoosting ? dogBoostAnimationSpeed : dogNormalAnimationSpeed;
 
         foreach (DogRuntime dog in dogs)
         {
@@ -1735,7 +1743,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
                 continue;
 
             if (dog.animator != null)
-                dog.animator.SetFloat(DogMoveSpeed, running ? speed01 : 0f);
+            {
+                dog.animator.SetFloat(DogMoveSpeed, running ? 1f : 0f);
+                dog.animator.speed = dogAnimationSpeed;
+            }
 
             if (!running && rideCamera != null)
             {
@@ -1770,7 +1781,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
                 dog.visual.localRotation,
                 dog.forwardLocalRotation,
                 forwardBlend);
-            float cadence = Mathf.Lerp(6.5f, 13.5f, speed01);
+            float cadence = 10f * dogAnimationSpeed;
             float strideAngle = Mathf.Lerp(10f, 24f, speed01);
             dog.gaitClock += cadence * Time.deltaTime;
             if (dog.animator == null)
@@ -2061,6 +2072,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         {
             if (dog?.animator == null) continue;
             dog.animator.SetFloat(DogMoveSpeed, 0f);
+            dog.animator.speed = 1f;
             dog.animator.Update(0f);
         }
         StopRideEffectsForResult();
@@ -2208,7 +2220,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         AudioListener.pause = false;
         MushGameSave.EnterLobby();
-        SceneManager.LoadSceneAsync(lobbySceneName);
+        MushSceneTransition.Load(lobbySceneName);
     }
 
     private void RetryCurrentMap()
@@ -2225,7 +2237,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             Debug.LogError("[Mush] 다시 시작할 현재 맵 씬을 찾을 수 없습니다.", this);
             return;
         }
-        SceneManager.LoadScene(activeScene.name);
+        MushSceneTransition.Load(activeScene.name);
     }
 
     private static void AnimateDogLegs(DogRuntime dog, float strideAngle, float blendSpeed)

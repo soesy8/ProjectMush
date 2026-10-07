@@ -15,6 +15,7 @@ namespace Mush.Lobby
         private static readonly Vector2 FallbackLobbyZBounds = new(-5.52f, 2.28f);
         private readonly Collider[] collisionBuffer = new Collider[32];
         private readonly Collider[] currentCollisionBuffer = new Collider[32];
+        private readonly RaycastHit[] sweepBuffer = new RaycastHit[32];
 
         private Vector3 lockedPosition;
         private Quaternion lockedRotation;
@@ -124,6 +125,26 @@ namespace Mush.Lobby
             }
 
             int currentCount = OverlapPlayerCapsule(currentCameraWorldPosition, currentCollisionBuffer);
+            Vector3 displacement = targetCameraWorldPosition - currentCameraWorldPosition;
+            float distance = displacement.magnitude;
+            if (distance > 0.0001f)
+            {
+                Vector3 lower = new(currentCameraWorldPosition.x, lockedFloorHeight + 0.31f, currentCameraWorldPosition.z);
+                Vector3 upper = new(currentCameraWorldPosition.x, lockedFloorHeight + 1.55f, currentCameraWorldPosition.z);
+                int hits = Physics.CapsuleCastNonAlloc(lower, upper, PlayerRadius,
+                    displacement / distance, sweepBuffer, distance, Physics.DefaultRaycastLayers,
+                    QueryTriggerInteraction.Ignore);
+                for (int index = 0; index < hits; index++)
+                {
+                    Collider candidate = sweepBuffer[index].collider;
+                    if (candidate == null || candidate.transform.IsChildOf(transform) ||
+                        (candidate.GetComponentInParent<MushLobbyFeedDispenser>() is MushLobbyFeedDispenser dispenser && dispenser.IsHeld) ||
+                        ContainsCollider(currentCollisionBuffer, currentCount, candidate) ||
+                        IsWalkableFloorCollider(candidate))
+                        continue;
+                    return false;
+                }
+            }
             int count = OverlapPlayerCapsule(targetCameraWorldPosition, collisionBuffer);
             for (int index = 0; index < count; index++)
             {

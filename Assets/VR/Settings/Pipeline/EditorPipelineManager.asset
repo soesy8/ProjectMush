@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: EditorPipelineManager
   m_EditorClassIdentifier: Unity.Pipeline.Editor::Unity.Pipeline.Editor.EditorPipelineManager
   m_Port: 0
-  m_AutoStart: 1
+  m_AutoStart: 0
   m_WatchdogEnabled: 1
   m_WatchdogIntervalSeconds: 5
   m_LogRequestsResponses: 0

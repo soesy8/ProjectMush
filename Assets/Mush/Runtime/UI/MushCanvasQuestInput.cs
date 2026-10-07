@@ -23,11 +23,13 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
     private readonly List<RaycastResult> hits = new();
     private readonly PointerEventData[] pointers = new PointerEventData[2];
     private readonly GameObject[] hovered = new GameObject[2];
+    private Graphic[] graphics;
 
     private void OnEnable()
     {
         canvas ??= GetComponent<Canvas>();
         raycaster ??= GetComponent<GraphicRaycaster>();
+        graphics = GetComponentsInChildren<Graphic>(true);
         if (!ActiveCanvases.Contains(this)) ActiveCanvases.Add(this);
     }
     private void OnDisable()
@@ -81,11 +83,13 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         MushQuestTrackedInputRig.ConfigureWorldCanvas(canvas, uiCamera, TitleCanvasDistance);
         canvas.overrideSorting = true;
         canvas.sortingOrder = 100;
-        rect.SetParent(camera.transform, false);
+        // Keep the authored screen at its initial world pose, independent of head tracking.
+        rect.SetParent(null, true);
         rect.anchorMin = Vector2.one * 0.5f;
         rect.anchorMax = Vector2.one * 0.5f;
         rect.pivot = Vector2.one * 0.5f;
-        rect.SetLocalPositionAndRotation(Vector3.forward * TitleCanvasDistance, Quaternion.identity);
+        rect.SetPositionAndRotation(camera.transform.position + camera.transform.forward * TitleCanvasDistance,
+            camera.transform.rotation);
         Canvas.ForceUpdateCanvases();
         rig.SetRayEnabled(true);
         titleRigInstalled = true;
@@ -163,12 +167,13 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
 
     private bool Process(int hand, Ray ray, bool pressed, bool held)
     {
-        if (canvas == null || raycaster == null || canvas.worldCamera == null || EventSystem.current == null) return false;
+        if (canvas == null || raycaster == null || !raycaster.isActiveAndEnabled ||
+            canvas.worldCamera == null || EventSystem.current == null) return false;
         Plane plane = new(canvas.transform.forward, canvas.transform.position);
         bool intersects = plane.Raycast(ray, out float distance) && distance <= 4.5f;
         PointerEventData pointer = pointers[hand] ??= new PointerEventData(EventSystem.current)
         {
-            pointerId = -100 - hand, button = PointerEventData.InputButton.Left,
+            pointerId = -100 - hand, button = PointerEventData.InputButton.Left, useDragThreshold = false,
         };
         if (intersects)
         {
@@ -177,9 +182,14 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             pointer.position = position;
         }
         hits.Clear();
-        if (intersects) raycaster.Raycast(pointer, hits);
+        if (intersects) RaycastWorldGraphics(ray);
         GameObject target = hits.Count > 0 ? hits[0].gameObject : null;
         pointer.pointerCurrentRaycast = hits.Count > 0 ? hits[0] : default;
+        if (hits.Count > 0)
+        {
+            pointer.delta += hits[0].screenPosition - pointer.position;
+            pointer.position = hits[0].screenPosition;
+        }
         if (hovered[hand] != target)
         {
             if (hovered[hand] != null) ExecuteEvents.ExecuteHierarchy(hovered[hand], pointer, ExecuteEvents.pointerExitHandler);
@@ -191,6 +201,8 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             Mush.Art.Test.ScreenClickVfx.PlayWorld(ray.GetPoint(distance), canvas.worldCamera);
             pointer.pressPosition = pointer.position;
             pointer.pointerPressRaycast = pointer.pointerCurrentRaycast;
+            pointer.eligibleForClick = true;
+            pointer.rawPointerPress = target;
             pointer.pointerPress = ExecuteEvents.ExecuteHierarchy(target, pointer, ExecuteEvents.pointerDownHandler)
                 ?? ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
             pointer.pointerDrag = ExecuteEvents.GetEventHandler<IDragHandler>(target);
@@ -198,6 +210,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             {
                 ExecuteEvents.Execute(pointer.pointerDrag, pointer, ExecuteEvents.initializePotentialDrag);
                 ExecuteEvents.Execute(pointer.pointerDrag, pointer, ExecuteEvents.beginDragHandler);
+                pointer.dragging = true;
             }
         }
         bool captured = pointer.pointerPress != null || pointer.pointerDrag != null;
@@ -211,7 +224,44 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             if (pointer.pointerDrag != null) ExecuteEvents.Execute(pointer.pointerDrag, pointer, ExecuteEvents.endDragHandler);
             pointer.pointerPress = null;
             pointer.pointerDrag = null;
+            pointer.rawPointerPress = null;
+            pointer.eligibleForClick = false;
+            pointer.dragging = false;
         }
         return target != null || captured;
+    }
+
+    private void RaycastWorldGraphics(Ray ray)
+    {
+        // Intersect the controller ray with the actual UI, without a headset-eye screen ray.
+        foreach (Graphic graphic in graphics)
+        {
+            if (graphic == null || !graphic.isActiveAndEnabled || !graphic.raycastTarget ||
+                graphic.canvasRenderer.cull || graphic.depth < 0) continue;
+            RectTransform rect = graphic.rectTransform;
+            Plane plane = new(rect.forward, rect.position);
+            if (!plane.Raycast(ray, out float distance) || distance < 0f || distance > 4.5f) continue;
+            Vector3 worldPoint = ray.GetPoint(distance);
+            Vector3 local = rect.InverseTransformPoint(worldPoint);
+            if (!rect.rect.Contains(new Vector2(local.x, local.y))) continue;
+            Vector2 screenPoint = canvas.worldCamera.WorldToScreenPoint(worldPoint);
+            if (!graphic.Raycast(screenPoint, canvas.worldCamera)) continue;
+            // Decorative art must not consume a ray aimed at the actual button or slider.
+            if (ExecuteEvents.GetEventHandler<IPointerDownHandler>(graphic.gameObject) == null &&
+                ExecuteEvents.GetEventHandler<IPointerClickHandler>(graphic.gameObject) == null &&
+                ExecuteEvents.GetEventHandler<IDragHandler>(graphic.gameObject) == null) continue;
+            hits.Add(new RaycastResult
+            {
+                gameObject = graphic.gameObject, module = raycaster, distance = distance,
+                worldPosition = worldPoint, worldNormal = rect.forward, screenPosition = screenPoint,
+                depth = graphic.depth, sortingLayer = graphic.canvas.sortingLayerID,
+                sortingOrder = graphic.canvas.sortingOrder,
+            });
+        }
+        hits.Sort((left, right) =>
+        {
+            int order = right.sortingOrder.CompareTo(left.sortingOrder);
+            return order != 0 ? order : right.depth.CompareTo(left.depth);
+        });
     }
 }

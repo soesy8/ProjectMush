@@ -108,6 +108,13 @@ namespace Mush.Lobby
 
                 if (records[i] != null)
                     records[i].text = unlocked ? MushMapRecords.BestTimeLabel(Scenes[i]).Replace('\n', ' ') : "이전 맵 완료 후 입장";
+                int earnedStars = MushMapRecords.GetBestStars(Scenes[i]);
+                for (int star = 0; star < 3; star++)
+                {
+                    int starIndex = i * 3 + star;
+                    if (starIndex < stars.Length && stars[starIndex] != null)
+                        stars[starIndex].SetEarned(star < earnedStars);
+                }
                 if (startButton != null && courseButtons[i] != null)
                 {
                     courseButtons[i].GetComponent<MushUiButtonFeedback>()?.SetChosen(i == selectedCourse);

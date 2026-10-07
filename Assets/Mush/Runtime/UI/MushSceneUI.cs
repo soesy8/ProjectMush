@@ -234,6 +234,7 @@ public sealed class MushSceneUI : MonoBehaviour
     public void OpenOptions()
     {
         if (optionPanel == null) return;
+        if (titlePanel != null) titlePanel.SetActive(false);
         optionPanel.SetActive(true);
         optionPanel.transform.SetAsLastSibling();
         SelectFirst(optionPanel);
@@ -241,6 +242,7 @@ public sealed class MushSceneUI : MonoBehaviour
     private void CloseOptions()
     {
         if (optionPanel != null) optionPanel.SetActive(false);
+        if (titlePanel != null) titlePanel.SetActive(true);
         MushAudioSettings.Flush();
         SelectFirst(ride != null && ride.IsPaused ? pausePanel : titlePanel);
     }
@@ -287,7 +289,7 @@ public sealed class MushSceneUI : MonoBehaviour
         leaving = true;
         Time.timeScale = 1f;
         AudioListener.pause = false;
-        SceneManager.LoadSceneAsync(scene);
+        MushSceneTransition.Load(scene);
     }
     private void OnApplicationPause(bool paused) { if (paused) { SaveCurrent(); MushAudioSettings.Flush(); } }
     private void OnApplicationQuit() { if (!leaving) SaveCurrent(); MushAudioSettings.Flush(); }

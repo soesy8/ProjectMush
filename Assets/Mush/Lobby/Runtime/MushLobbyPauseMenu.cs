@@ -204,7 +204,7 @@ namespace Mush.Lobby
         {
             MushGameSave.EnterLobby();
             RestoreTime();
-            SceneManager.LoadScene("Title");
+            MushSceneTransition.Load("Title");
         }
 
         private static void Quit()

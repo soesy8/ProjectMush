@@ -21325,7 +21325,7 @@ MonoBehaviour:
   deliveryTimeLimitSeconds: 150
   threeStarTimeRatio: 0.8
   resultStarFlightSeconds: 0.62
-  resultStarIntervalSeconds: 0.42
+  resultStarIntervalSeconds: 0.75
   offCourseImpactRetainedSpeed: 0.5
   offCourseAccelerationMultiplier: 0.72
   sharpCurveOffCourseTimePenalty: 4
