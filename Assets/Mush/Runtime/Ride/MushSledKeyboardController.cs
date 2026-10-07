@@ -20,41 +20,81 @@ namespace Mush.Prototype
     {
         private static readonly int GripParameter = Animator.StringToHash("Grip");
 
-        [Header("Prototype References")]
-        [SerializeField] private MushReinsVisual reinsVisual;
-        [SerializeField] private Transform leftHandVisual;
-        [SerializeField] private Transform rightHandVisual;
-        [SerializeField] private Animator leftHandAnimator;
-        [SerializeField] private Animator rightHandAnimator;
+        [Header("참조 오브젝트")]
+        [SerializeField, InspectorName("고삐 시각 효과")] private MushReinsVisual reinsVisual;
+        [SerializeField, InspectorName("왼손 오브젝트")] private Transform leftHandVisual;
+        [SerializeField, InspectorName("오른손 오브젝트")] private Transform rightHandVisual;
+        [SerializeField, InspectorName("왼손 애니메이터")] private Animator leftHandAnimator;
+        [SerializeField, InspectorName("오른손 애니메이터")] private Animator rightHandAnimator;
 
-        [Header("Two-stage Speed")]
-        [SerializeField, Min(0.1f)] private float firstLevelSpeed = 8f;
-        [SerializeField, Min(0.1f)] private float secondLevelSpeed = 15f;
-        [SerializeField, Min(0.1f)] private float acceleration = 3.5f;
-        [SerializeField, Min(0.1f)] private float deceleration = 2.2f;
+        // Fixed ranges use the saved Track_v2 values as their baseline (+200% = 3x).
+        // Retain the original lower limits to avoid negative motion rates.
+        [Header("주행 속도 및 가감속")]
+        [InspectorName("기본 주행 속도 (m/s)")]
+        [Tooltip("가속 입력을 누르지 않을 때의 목표 속도입니다.\n기준값: 8. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 24f)] private float firstLevelSpeed = 8f;
+        [InspectorName("가속 주행 속도 (m/s)")]
+        [Tooltip("가속 입력을 유지할 때의 목표 속도입니다.\n기준값: 15. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 45f)] private float secondLevelSpeed = 15f;
+        [InspectorName("가속력 (m/s²)")]
+        [Tooltip("목표 속도까지 초당 증가하는 속도입니다. 물리 힘이 아닌 가속률입니다.\n기준값: 3.5. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 10.5f)] private float acceleration = 3.5f;
+        [InspectorName("감속력 (m/s²)")]
+        [Tooltip("목표 속도가 낮아졌을 때 초당 감소하는 속도입니다.\n기준값: 2.2. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 6.6f)] private float deceleration = 2.2f;
 
-        [Header("Terrain Speed Limit")]
-        [SerializeField, Min(0.1f)] private float terrainLimitedFirstLevelSpeed = 3f;
-        [SerializeField, Min(0.1f)] private float terrainLimitedSecondLevelSpeed = 5f;
-        [SerializeField, Min(0.1f)] private float terrainLimitDeceleration = 4.5f;
+        [Header("지형 속도 제한")]
+        [InspectorName("지형 제한 기본 속도 (m/s)")]
+        [Tooltip("지형 속도 제한이 활성화됐을 때의 기본 목표 속도입니다. 기존 SetTerrainSpeedLimit 호출이 실행 중 이 값을 덮어쓸 수 있습니다.\n기준값: 3. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 9f)] private float terrainLimitedFirstLevelSpeed = 3f;
+        [InspectorName("지형 제한 가속 속도 (m/s)")]
+        [Tooltip("지형 속도 제한이 활성화됐을 때의 가속 목표 속도입니다. 기존 SetTerrainSpeedLimit 호출이 실행 중 이 값을 덮어쓸 수 있습니다.\n기준값: 5. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 15f)] private float terrainLimitedSecondLevelSpeed = 5f;
+        [InspectorName("지형 제한 감속력 (m/s²)")]
+        [Tooltip("지형 제한 시 적용할 감속률입니다. 일반 감속력과 비교해 큰 값을 사용합니다.\n기준값: 4.5. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 13.5f)] private float terrainLimitDeceleration = 4.5f;
 
-        [Header("Steering")]
-        [SerializeField, Min(1f)] private float maximumTurnRate = 34f;
-        [SerializeField, Min(0.1f)] private float steeringBuildRate = 2.4f;
-        [SerializeField, Min(0.1f)] private float steeringReleaseRate = 4.5f;
-        [SerializeField, Range(0f, 0.5f)] private float maximumHandPull = 0.24f;
-        [SerializeField, Min(1f)] private float sharpCurveMaximumTurnRate = 48f;
-        [SerializeField, Range(0.1f, 1f)] private float sharpCurveBoostTurnRateMultiplier = 0.42f;
+        [Header("회전 및 조향")]
+        [InspectorName("최대 회전 속도 (도/초)")]
+        [Tooltip("일반 코스에서 조향을 끝까지 입력했을 때의 최대 회전 속도입니다. 낮은 주행 속도에서는 회전이 줄어듭니다.\n기준값: 34. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(1f, 102f)] private float maximumTurnRate = 34f;
+        [InspectorName("조향 반응 속도 (초당)")]
+        [Tooltip("조향 입력에 도달하는 속도입니다. 클수록 회전 입력에 빠르게 반응합니다.\n기준값: 2.4. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 7.2f)] private float steeringBuildRate = 2.4f;
+        [InspectorName("조향 복귀 속도 (초당)")]
+        [Tooltip("조향 입력을 놓았을 때 직진 상태로 복귀하는 속도입니다.\n기준값: 4.5. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 13.5f)] private float steeringReleaseRate = 4.5f;
+        [InspectorName("손 최대 당김 거리 (m)")]
+        [Tooltip("키보드 조향 시 손과 고삐를 당기는 시각적 거리입니다. VR 조향 감도를 변경하지 않습니다.\n기준값: 0.24. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0f, 0.72f)] private float maximumHandPull = 0.24f;
+        [InspectorName("급커브 최대 회전 속도 (도/초)")]
+        [Tooltip("급커브 코스에서 사용하는 별도의 최대 회전 속도입니다.\n기준값: 48. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(1f, 144f)] private float sharpCurveMaximumTurnRate = 48f;
+        [InspectorName("급커브 가속 시 회전 배율")]
+        [Tooltip("급커브 코스에서 가속 주행 속도에 도달했을 때의 회전 배율입니다. 1보다 작으면 회전이 약해지고, 크면 강해집니다.\n기준값: 0.42. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 1.26f)] private float sharpCurveBoostTurnRateMultiplier = 0.42f;
 
-        [Header("Dog Condition Effects")]
-        [SerializeField, Min(0f)] private float dogEffectSpeedChange = 5f;
-        [SerializeField, Min(1f)] private float buffSteeringResponseMultiplier = 1.2f;
-        [SerializeField, Range(0.1f, 1f)] private float penaltyAccelerationMultiplier = 0.8f;
+        [Header("개 상태 효과")]
+        [InspectorName("개 상태에 따른 속도 변화 (m/s)")]
+        [Tooltip("개 상태가 좋으면 목표 속도에 더하고, 나쁘면 빼는 값입니다.\n기준값: 5. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0f, 15f)] private float dogEffectSpeedChange = 5f;
+        [InspectorName("좋은 개 상태 조향 반응 배율")]
+        [Tooltip("개 상태가 좋을 때 조향 반응 및 복귀 속도에 곱하는 배율입니다.\n기준값: 1.2. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(1f, 3.6f)] private float buffSteeringResponseMultiplier = 1.2f;
+        [InspectorName("나쁜 개 상태 가속력 배율")]
+        [Tooltip("개 상태가 나쁠 때 가속력에 곱하는 배율입니다. 1보다 작으면 가속이 약해지고, 크면 강해집니다.\n기준값: 0.8. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 2.4f)] private float penaltyAccelerationMultiplier = 0.8f;
 
-        [Header("Ground Following")]
-        [SerializeField, Min(0.1f)] private float groundProbeHeight = 2.5f;
-        [SerializeField, Min(0.1f)] private float groundProbeDistance = 6f;
-        [SerializeField, Min(0f)] private float rideHeight = 0.06f;
+        [Header("지면 추종")]
+        [InspectorName("지면 탐색 시작 높이 (m)")]
+        [Tooltip("지면 탐색 광선의 시작 높이입니다. 기존 복구 로직에 따라 실제 탐색에는 최소 8m를 사용합니다.\n기준값: 2.5. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 7.5f)] private float groundProbeHeight = 2.5f;
+        [InspectorName("지면 탐색 거리 (m)")]
+        [Tooltip("지면 탐색 광선 길이 계산에 더하는 거리입니다. 기존 복구 로직에 따라 실제 광선 길이는 최소 160m입니다.\n기준값: 6. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0.1f, 18f)] private float groundProbeDistance = 6f;
+        [InspectorName("지면 위 주행 높이 (m)")]
+        [Tooltip("탐색한 지면 위에 썰매 이동 루트를 띄우는 높이입니다.\n기준값: 0.06. 슬라이더는 기준값의 ±200% 범위에서 기존 최소값을 유지합니다.")]
+        [SerializeField, Range(0f, 0.18f)] private float rideHeight = 0.06f;
 
         private bool rideStarted;
         private int speedLevel;
@@ -550,3 +590,60 @@ namespace Mush.Prototype
         }
     }
 }
+
+#if UNITY_EDITOR
+namespace Mush.Prototype
+{
+    [UnityEditor.CustomEditor(typeof(MushSledKeyboardController))]
+    [UnityEditor.CanEditMultipleObjects]
+    internal sealed class MushSledKeyboardControllerEditor : UnityEditor.Editor
+    {
+        private readonly System.Collections.Generic.List<UnityEditor.SerializedProperty> properties = new();
+        private readonly System.Collections.Generic.List<GUIContent> labels = new();
+
+        private void OnEnable()
+        {
+            properties.Clear();
+            labels.Clear();
+            var iterator = serializedObject.GetIterator();
+            bool enterChildren = true;
+            while (iterator.NextVisible(enterChildren))
+            {
+                enterChildren = false;
+                var field = typeof(MushSledKeyboardController).GetField(
+                    iterator.name,
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var name = field == null ? null : System.Attribute.GetCustomAttribute(
+                    field, typeof(InspectorNameAttribute)) as InspectorNameAttribute;
+                var tooltip = field == null ? null : System.Attribute.GetCustomAttribute(
+                    field, typeof(TooltipAttribute)) as TooltipAttribute;
+                properties.Add(iterator.Copy());
+                labels.Add(new GUIContent(
+                    iterator.name == "m_Script" ? "스크립트" : name?.displayName ?? iterator.displayName,
+                    tooltip?.tooltip ?? iterator.tooltip));
+            }
+        }
+
+        public override void OnInspectorGUI()
+        {
+            serializedObject.Update();
+            float previousLabelWidth = UnityEditor.EditorGUIUtility.labelWidth;
+            UnityEditor.EditorGUIUtility.labelWidth = Mathf.Max(
+                previousLabelWidth, Mathf.Min(240f, UnityEditor.EditorGUIUtility.currentViewWidth * 0.55f));
+            try
+            {
+                for (int i = 0; i < properties.Count; i++)
+                {
+                    using (new UnityEditor.EditorGUI.DisabledScope(properties[i].name == "m_Script"))
+                        UnityEditor.EditorGUILayout.PropertyField(properties[i], labels[i], true);
+                }
+            }
+            finally
+            {
+                UnityEditor.EditorGUIUtility.labelWidth = previousLabelWidth;
+            }
+            serializedObject.ApplyModifiedProperties();
+        }
+    }
+}
+#endif
