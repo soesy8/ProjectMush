@@ -86,11 +86,7 @@ namespace Mush.Lobby
             if (!vrCanvasConfigured && authoredCanvas != null &&
                 MushQuestTrackedInputRig.IsXrActive && viewCamera != null)
             {
-                authoredCanvas.transform.SetParent(viewCamera.transform, false);
-                MushQuestTrackedInputRig.ConfigureWorldCanvas(authoredCanvas, viewCamera, 2.05f);
-                RectTransform rect = authoredCanvas.GetComponent<RectTransform>();
-                rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * 0.5f;
-                rect.SetLocalPositionAndRotation(Vector3.forward * 2.05f, Quaternion.identity);
+                MushVrUiLayout.PlaceFixed(authoredCanvas, viewCamera, 2.35f, 0.00125f, 0.12f);
                 vrCanvasConfigured = true;
             }
         }
@@ -112,6 +108,8 @@ namespace Mush.Lobby
 
         public void SetOpen(bool open)
         {
+            if (open && MushQuestTrackedInputRig.IsXrActive)
+                MushVrUiLayout.PlaceFixed(authoredCanvas, viewCamera, 2.35f, 0.00125f, 0.12f);
             pausePanel.SetActive(open);
             if (!open && optionPanel != null)
                 optionPanel.SetActive(false);

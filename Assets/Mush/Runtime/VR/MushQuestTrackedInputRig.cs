@@ -54,6 +54,7 @@ namespace Mush.Quest
         private bool previousLeftPrimary;
         private bool previousLeftSecondary;
         private bool previousRightSecondary;
+        private bool previousRightPrimary;
         private LineRenderer leftRay;
         private LineRenderer rightRay;
         private InputAction leftPointerPositionAction; // 왼손 컨트롤러의 실제 포인터 조준 시작 위치를 읽는 새 입력 시스템 액션이다.
@@ -92,6 +93,7 @@ namespace Mush.Quest
         public bool XButtonPressedThisFrame { get; private set; }
         public bool YButtonPressedThisFrame { get; private set; }
         public bool BButtonPressedThisFrame { get; private set; }
+        public bool AButtonPressedThisFrame { get; private set; }
 
         public void Configure(
             Camera newTrackedCamera,
@@ -205,6 +207,7 @@ namespace Mush.Quest
             XButtonPressedThisFrame = false;
             YButtonPressedThisFrame = false;
             BButtonPressedThisFrame = false;
+            AButtonPressedThisFrame = false;
 
             if (!IsXrActive)
             {
@@ -348,17 +351,20 @@ namespace Mush.Quest
             bool leftPrimary = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.primaryButton);
             bool leftSecondary = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.secondaryButton);
             bool rightSecondary = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.secondaryButton);
+            bool rightPrimary = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.primaryButton);
 
             LeftTriggerPressedThisFrame = LeftTriggerHeld && !previousLeftTrigger;
             RightTriggerPressedThisFrame = RightTriggerHeld && !previousRightTrigger;
             XButtonPressedThisFrame = leftPrimary && !previousLeftPrimary;
             YButtonPressedThisFrame = leftSecondary && !previousLeftSecondary;
             BButtonPressedThisFrame = rightSecondary && !previousRightSecondary;
+            AButtonPressedThisFrame = rightPrimary && !previousRightPrimary;
             previousLeftTrigger = LeftTriggerHeld;
             previousRightTrigger = RightTriggerHeld;
             previousLeftPrimary = leftPrimary;
             previousLeftSecondary = leftSecondary;
             previousRightSecondary = rightSecondary;
+            previousRightPrimary = rightPrimary;
         }
 
         private void ApplyPose(Transform target, Vector3 devicePosition, Quaternion deviceRotation)
@@ -389,16 +395,21 @@ namespace Mush.Quest
             IMushQuestRayTarget target = null;
             Vector3 clickPosition = start + direction * 2f;
             bool canvasHit = MushCanvasQuestInput.Handle(node, new Ray(start, direction), selectPressed,
-                node == XRNode.LeftHand ? LeftTriggerHeld : RightTriggerHeld);
+                node == XRNode.LeftHand ? LeftTriggerHeld : RightTriggerHeld, out Vector3 uiHitPosition);
+            if (canvasHit)
+            {
+                end = uiHitPosition;
+                clickPosition = uiHitPosition;
+            }
             if (!canvasHit && Physics.Raycast(start, direction, out RaycastHit hit, RayLength, Physics.DefaultRaycastLayers,
                     QueryTriggerInteraction.Collide))
             {
                 target = FindRayTarget(hit.collider); // 클릭 판정만 충돌 지점을 사용하고 LineRenderer의 끝점은 줄이지 않는다.
                 clickPosition = hit.point;
+                end = hit.point;
             }
 
-            line.SetPosition(0, start);
-            line.SetPosition(1, end);
+            MushVrPointerVisual.Update(line, start, end, true, canvasHit || target != null);
             SetHoveredTarget(ref hoveredTarget, target);
             if (selectPressed)
             {
@@ -542,6 +553,7 @@ namespace Mush.Quest
 
         private static void SetRayVisible(LineRenderer line, bool visible)
         {
+            if (!visible) MushVrPointerVisual.Hide(line);
             if (line != null)
                 line.enabled = visible;
         }

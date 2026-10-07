@@ -11,6 +11,8 @@ using UnityEngine.XR;
 public sealed class MushCanvasQuestInput : MonoBehaviour
 {
     private const float TitleCanvasDistance = 2.35f;
+    [SerializeField] private float vrTitleHeightOffset = 0.30f;
+    [SerializeField] private float vrTitleScale = 0.00135f;
 
     [SerializeField] private Canvas canvas;
     [SerializeField] private GraphicRaycaster raycaster;
@@ -24,6 +26,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
     private readonly PointerEventData[] pointers = new PointerEventData[2];
     private readonly GameObject[] hovered = new GameObject[2];
     private Graphic[] graphics;
+    private Vector3 lastHitPosition;
 
     private void OnEnable()
     {
@@ -59,7 +62,13 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
 
     private void Start() => TryConfigureTitleVrCanvas();
 
-    private void Update() => TryConfigureTitleVrCanvas();
+    private void Update()
+    {
+        TryConfigureTitleVrCanvas();
+        if (gameObject.scene.name == "PM_Lobby" && canvas != null &&
+            canvas.renderMode != RenderMode.WorldSpace && MushQuestTrackedInputRig.IsXrActive)
+            MushVrUiLayout.PlaceFixed(canvas, Camera.main);
+    }
 
     private void TryConfigureTitleVrCanvas()
     {
@@ -76,20 +85,14 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             rig = MushQuestTrackedInputRig.InstallForCamera(camera);
         if (rig == null)
             return;
+        if (!rig.IsTracking) return;
 
         // Render the complete authored title canvas in both headset eyes, including the logo and options.
         // Configure it even when a camera is already assigned: an overlay does not become VR UI by itself.
         Camera uiCamera = CreateTitleUiCamera(camera);
-        MushQuestTrackedInputRig.ConfigureWorldCanvas(canvas, uiCamera, TitleCanvasDistance);
+        MushVrUiLayout.PlaceFixed(canvas, uiCamera, TitleCanvasDistance, vrTitleScale, vrTitleHeightOffset);
         canvas.overrideSorting = true;
         canvas.sortingOrder = 100;
-        // Keep the authored screen at its initial world pose, independent of head tracking.
-        rect.SetParent(null, true);
-        rect.anchorMin = Vector2.one * 0.5f;
-        rect.anchorMax = Vector2.one * 0.5f;
-        rect.pivot = Vector2.one * 0.5f;
-        rect.SetPositionAndRotation(camera.transform.position + camera.transform.forward * TitleCanvasDistance,
-            camera.transform.rotation);
         Canvas.ForceUpdateCanvases();
         rig.SetRayEnabled(true);
         titleRigInstalled = true;
@@ -147,20 +150,33 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
     }
 
     public static bool Handle(XRNode hand, Ray ray, bool pressed, bool held)
+        => Handle(hand, ray, pressed, held, out _);
+
+    public static bool Handle(XRNode hand, Ray ray, bool pressed, bool held, out Vector3 hitPosition)
     {
+        hitPosition = ray.GetPoint(4.5f);
+        if (!MushQuestTrackedInputRig.IsXrActive) return false;
         int handIndex = hand == XRNode.LeftHand ? 0 : 1;
         foreach (MushCanvasQuestInput input in ActiveCanvases)
         {
             if (input == null || !input.isActiveAndEnabled) continue;
             PointerEventData pointer = input.pointers[handIndex];
             if (pointer != null && (pointer.pointerPress != null || pointer.pointerDrag != null))
-                return input.Process(handIndex, ray, pressed, held);
+            {
+                bool handled = input.Process(handIndex, ray, pressed, held);
+                hitPosition = input.lastHitPosition;
+                return handled;
+            }
         }
         for (int i = ActiveCanvases.Count - 1; i >= 0; i--)
         {
             MushCanvasQuestInput input = ActiveCanvases[i];
             if (input != null && input.isActiveAndEnabled &&
-                input.Process(hand == XRNode.LeftHand ? 0 : 1, ray, pressed, held)) return true;
+                input.Process(handIndex, ray, pressed, held))
+            {
+                hitPosition = input.lastHitPosition;
+                return true;
+            }
         }
         return false;
     }
@@ -170,7 +186,8 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         if (canvas == null || raycaster == null || !raycaster.isActiveAndEnabled ||
             canvas.worldCamera == null || EventSystem.current == null) return false;
         Plane plane = new(canvas.transform.forward, canvas.transform.position);
-        bool intersects = plane.Raycast(ray, out float distance) && distance <= 4.5f;
+        bool intersects = plane.Raycast(ray, out float distance) && distance >= 0f && distance <= 4.5f;
+        lastHitPosition = intersects ? ray.GetPoint(distance) : ray.GetPoint(4.5f);
         PointerEventData pointer = pointers[hand] ??= new PointerEventData(EventSystem.current)
         {
             pointerId = -100 - hand, button = PointerEventData.InputButton.Left, useDragThreshold = false,
@@ -187,6 +204,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         pointer.pointerCurrentRaycast = hits.Count > 0 ? hits[0] : default;
         if (hits.Count > 0)
         {
+            lastHitPosition = hits[0].worldPosition;
             pointer.delta += hits[0].screenPosition - pointer.position;
             pointer.position = hits[0].screenPosition;
         }
@@ -215,7 +233,11 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         }
         bool captured = pointer.pointerPress != null || pointer.pointerDrag != null;
         if (held && pointer.pointerDrag != null && intersects)
-            ExecuteEvents.Execute(pointer.pointerDrag, pointer, ExecuteEvents.dragHandler);
+        {
+            Slider slider = pointer.pointerDrag.GetComponent<Slider>();
+            if (slider != null) SetSliderFromWorldRay(slider, ray);
+            else ExecuteEvents.Execute(pointer.pointerDrag, pointer, ExecuteEvents.dragHandler);
+        }
         if (!held && captured)
         {
             ExecuteEvents.Execute(pointer.pointerPress, pointer, ExecuteEvents.pointerUpHandler);
@@ -236,8 +258,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         // Intersect the controller ray with the actual UI, without a headset-eye screen ray.
         foreach (Graphic graphic in graphics)
         {
-            if (graphic == null || !graphic.isActiveAndEnabled || !graphic.raycastTarget ||
-                graphic.canvasRenderer.cull || graphic.depth < 0) continue;
+            if (graphic == null || !graphic.isActiveAndEnabled || !graphic.raycastTarget) continue;
             RectTransform rect = graphic.rectTransform;
             Plane plane = new(rect.forward, rect.position);
             if (!plane.Raycast(ray, out float distance) || distance < 0f || distance > 4.5f) continue;
@@ -263,5 +284,20 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             int order = right.sortingOrder.CompareTo(left.sortingOrder);
             return order != 0 ? order : right.depth.CompareTo(left.depth);
         });
+    }
+
+    private static void SetSliderFromWorldRay(Slider slider, Ray ray)
+    {
+        if (!slider.IsInteractable()) return;
+        RectTransform area = slider.handleRect != null ? slider.handleRect.parent as RectTransform :
+            slider.fillRect != null ? slider.fillRect.parent as RectTransform : slider.GetComponent<RectTransform>();
+        if (area == null || !new Plane(area.forward, area.position).Raycast(ray, out float distance)) return;
+        Vector3 local = area.InverseTransformPoint(ray.GetPoint(distance));
+        Rect bounds = area.rect;
+        bool horizontal = slider.direction is Slider.Direction.LeftToRight or Slider.Direction.RightToLeft;
+        float value = horizontal ? Mathf.InverseLerp(bounds.xMin, bounds.xMax, local.x) :
+            Mathf.InverseLerp(bounds.yMin, bounds.yMax, local.y);
+        if (slider.direction is Slider.Direction.RightToLeft or Slider.Direction.TopToBottom) value = 1f - value;
+        slider.normalizedValue = value;
     }
 }

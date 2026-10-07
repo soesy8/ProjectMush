@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Mush.Quest;
 using UnityEngine.InputSystem;
 using UnityEngine.XR.Interaction.Toolkit.Inputs.Readers;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
@@ -69,7 +70,7 @@ namespace Mush.Lobby
         {
             if (!Application.isPlaying)
                 return; // 편집 모드에서는 레이 위치 갱신을 하지 않는다.
-            bool visible = HasDirectXrInput();
+            bool visible = MushQuestTrackedInputRig.IsXrActive;
             int count = Mathf.Min(rayOrigins.Count,
                 Mathf.Min(fixedLines.Count, Mathf.Min(rayInteractors.Count, rayIsLeftHand.Count)));
             for (int index = 0; index < count; index++)
@@ -82,13 +83,17 @@ namespace Mush.Lobby
 
                 UnityEngine.XR.XRNode hand = rayIsLeftHand[index] ? UnityEngine.XR.XRNode.LeftHand : UnityEngine.XR.XRNode.RightHand;
                 UnityEngine.XR.InputDevice device = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(hand);
-                bool tracked = visible && device.isValid && device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked, out bool isTracked) && isTracked;
+                InputAction pointerPosition = rayIsLeftHand[index] ? leftPointerPosition : rightPointerPosition;
+                InputAction pointerRotation = rayIsLeftHand[index] ? leftPointerRotation : rightPointerRotation;
+                bool tracked = visible && (pointerPosition?.activeControl != null || pointerRotation?.activeControl != null ||
+                    (device.isValid && device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked, out bool isTracked) && isTracked));
                 bool modal = MushLobbyMapPanel.IsOpen || (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen);
                 interactor.enableNearCasting = tracked && !modal;
                 interactor.enableFarCasting = tracked && !modal;
                 line.enabled = tracked;
                 if (!tracked)
                 {
+                    MushVrPointerVisual.Hide(line);
                     SetDirectHover(index, null);
                     MushCanvasQuestInput.Release(hand);
                     continue;
@@ -96,19 +101,24 @@ namespace Mush.Lobby
 
                 GetPointerRay(rayIsLeftHand[index], interactor.curveOrigin != null ? interactor.curveOrigin : origin,
                     out Vector3 start, out Vector3 direction);
-                line.SetPosition(0, start); // 레이 시작점을 현재 컨트롤러 조준 원점으로 갱신한다.
-                line.SetPosition(1, start + direction * rayLength); // 충돌 여부와 관계없이 매 프레임 항상 같은 길이로 끝점을 유지한다.
-
                 InputAction trigger = rayIsLeftHand[index] ? leftTrigger : rightTrigger;
                 Ray pointerRay = new(start, direction);
-                if (MushCanvasQuestInput.Handle(hand, pointerRay, trigger != null && trigger.WasPressedThisFrame(), trigger != null && trigger.IsPressed()) || modal)
+                bool uiHit = MushCanvasQuestInput.Handle(hand, pointerRay, trigger != null && trigger.WasPressedThisFrame(),
+                    trigger != null && trigger.IsPressed(), out Vector3 uiHitPoint);
+                Vector3 end = uiHit ? uiHitPoint : start + direction * rayLength;
+                if (uiHit || modal)
                 {
+                    MushVrPointerVisual.Update(line, start, end, true, uiHit);
                     SetDirectHover(index, null);
                     continue;
                 }
                 MushLobbyInteractable hovered = null;
-                if (Physics.Raycast(pointerRay, out RaycastHit hoverHit, rayLength, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide))
+                if (Physics.Raycast(pointerRay, out RaycastHit hoverHit, 8f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide))
+                {
                     hovered = hoverHit.collider.GetComponentInParent<MushLobbyInteractable>();
+                    end = hoverHit.point;
+                }
+                MushVrPointerVisual.Update(line, start, end, true, hovered != null);
                 SetDirectHover(index, hovered);
                 if (!interactor.hasSelection && trigger != null && trigger.WasPressedThisFrame() &&
                     lastSelectionFrame != Time.frameCount)
@@ -176,6 +186,8 @@ namespace Mush.Lobby
                 "<XRController>{LeftHand}/triggerPressed");
             rightTrigger = CreateAction("Lobby Right Trigger", InputActionType.Button,
                 "<XRController>{RightHand}/triggerPressed");
+            leftTrigger.AddBinding("<XRController>{LeftHand}/trigger");
+            rightTrigger.AddBinding("<XRController>{RightHand}/trigger");
             SetDirectInputEnabled(true);
         }
 
@@ -243,7 +255,7 @@ namespace Mush.Lobby
         {
             RaycastHit[] hits = Physics.RaycastAll(
                 ray,
-                rayLength,
+                8f,
                 Physics.DefaultRaycastLayers,
                 QueryTriggerInteraction.Collide);
             Array.Sort(hits, static (left, right) => left.distance.CompareTo(right.distance));

@@ -1,4 +1,5 @@
 using TMPro;
+using Mush.Quest;
 using Mush.UI;
 using UnityEngine;
 using UnityEngine.UI;
@@ -31,20 +32,18 @@ namespace Mush.Lobby
         {
             controller = owner;
             if (canvas == null || camera == null) return;
-            transform.SetParent(camera.transform, false);
-            transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-            transform.localScale = Vector3.one;
-            canvas.worldCamera = camera;
-            RectTransform rect = canvas.GetComponent<RectTransform>();
-            canvas.renderMode = XRSettings.isDeviceActive ? RenderMode.WorldSpace : RenderMode.ScreenSpaceOverlay;
-            if (XRSettings.isDeviceActive)
+            if (MushQuestTrackedInputRig.IsXrActive)
             {
-                rect.sizeDelta = new Vector2(1920f, 1080f);
-                rect.localScale = Vector3.one * 0.00125f;
-                rect.localPosition = new Vector3(0f, 0f, 2.35f);
+                MushVrUiLayout.PlaceFixed(canvas, camera, 2.35f, 0.00125f, 0.12f);
             }
             else
             {
+                transform.SetParent(camera.transform, false);
+                transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+                transform.localScale = Vector3.one;
+                canvas.worldCamera = camera;
+                RectTransform rect = canvas.GetComponent<RectTransform>();
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
                 rect.localScale = Vector3.one;
                 rect.localPosition = Vector3.zero;
             }

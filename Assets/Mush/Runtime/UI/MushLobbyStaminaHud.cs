@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Mush.Quest;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -66,10 +67,7 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         canvas.worldCamera = vrCamera;
         canvas.overrideSorting = true;
         canvas.sortingOrder = 250;
-        canvasRect.SetParent(vrCamera.transform, false);
-        canvasRect.sizeDelta = new Vector2(1920f, 1080f);
-        canvasRect.localScale = Vector3.one * VrCanvasScale;
-        canvasRect.SetLocalPositionAndRotation(Vector3.forward * VrCanvasDistance, Quaternion.identity);
+        MushVrUiLayout.PlaceFixed(canvas, vrCamera, VrCanvasDistance, VrCanvasScale, 0.12f);
         Canvas.ForceUpdateCanvases();
         vrCanvasConfigured = true;
     }
