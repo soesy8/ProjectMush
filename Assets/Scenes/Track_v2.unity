@@ -5451,7 +5451,7 @@ GameObject:
   - component: {fileID: 54934981}
   - component: {fileID: 54934983}
   - component: {fileID: 54934982}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_06
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8834,7 +8834,7 @@ GameObject:
   - component: {fileID: 88253366}
   - component: {fileID: 88253368}
   - component: {fileID: 88253367}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_05
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19765,7 +19765,7 @@ GameObject:
   - component: {fileID: 197758070}
   - component: {fileID: 197758072}
   - component: {fileID: 197758071}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: First Person Handle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -21328,6 +21328,9 @@ MonoBehaviour:
   threeStarTimeRatio: 0.8
   resultStarFlightSeconds: 0.62
   resultStarIntervalSeconds: 0.75
+  dogNormalAnimationSpeed: 1
+  dogBoostAnimationSpeed: 1.15
+  dogSlowedAnimationSpeed: 0.8
   offCourseImpactRetainedSpeed: 0.5
   offCourseAccelerationMultiplier: 0.72
   sharpCurveOffCourseTimePenalty: 4
@@ -23197,7 +23200,7 @@ GameObject:
   - component: {fileID: 226813484}
   - component: {fileID: 226813486}
   - component: {fileID: 226813485}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Right Handle Upright
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -27984,7 +27987,7 @@ GameObject:
   - component: {fileID: 275236478}
   - component: {fileID: 275236480}
   - component: {fileID: 275236479}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Runner_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -32030,6 +32033,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Mush_Sledge
       objectReference: {fileID: 0}
+    - target: {fileID: 753232516895525819, guid: 3d71f9250050ce2478c7513cf7eba316, type: 3}
+      propertyPath: m_Layer
+      value: 8
+      objectReference: {fileID: 0}
     - target: {fileID: 766777742047731997, guid: 3d71f9250050ce2478c7513cf7eba316, type: 3}
       propertyPath: m_CastShadows
       value: 0
@@ -34446,7 +34453,7 @@ GameObject:
   - component: {fileID: 329425942}
   - component: {fileID: 329425944}
   - component: {fileID: 329425943}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_HandleGrip
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -37518,7 +37525,7 @@ GameObject:
   - component: {fileID: 360719435}
   - component: {fileID: 360719437}
   - component: {fileID: 360719436}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -44145,7 +44152,7 @@ GameObject:
   - component: {fileID: 422719910}
   - component: {fileID: 422719912}
   - component: {fileID: 422719911}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Left Handle Upright
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -44415,7 +44422,7 @@ GameObject:
   - component: {fileID: 425883374}
   - component: {fileID: 425883376}
   - component: {fileID: 425883375}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_SideRail_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -48025,7 +48032,7 @@ GameObject:
   - component: {fileID: 458360445}
   - component: {fileID: 458360447}
   - component: {fileID: 458360446}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_CargoBack
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -61197,7 +61204,7 @@ GameObject:
   - component: {fileID: 596522532}
   - component: {fileID: 596522534}
   - component: {fileID: 596522533}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Cross_-0.88
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -62940,7 +62947,7 @@ GameObject:
   - component: {fileID: 611929958}
   - component: {fileID: 611929960}
   - component: {fileID: 611929959}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Cross_0.18
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -63737,7 +63744,7 @@ GameObject:
   - component: {fileID: 619838412}
   - component: {fileID: 619838414}
   - component: {fileID: 619838413}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -65604,7 +65611,7 @@ GameObject:
   - component: {fileID: 634651010}
   - component: {fileID: 634651012}
   - component: {fileID: 634651011}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_SideRail_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -65900,7 +65907,7 @@ GameObject:
   - component: {fileID: 637566596}
   - component: {fileID: 637566598}
   - component: {fileID: 637566597}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Front Cross Bar
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -75112,7 +75119,7 @@ GameObject:
   - component: {fileID: 733073428}
   - component: {fileID: 733073430}
   - component: {fileID: 733073429}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 5
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -83300,7 +83307,7 @@ GameObject:
   - component: {fileID: 806641570}
   - component: {fileID: 806641572}
   - component: {fileID: 806641571}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -85600,7 +85607,7 @@ GameObject:
   - component: {fileID: 827110368}
   - component: {fileID: 827110370}
   - component: {fileID: 827110369}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Cross_-0.38
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -88626,7 +88633,7 @@ GameObject:
   - component: {fileID: 853197614}
   - component: {fileID: 853197616}
   - component: {fileID: 853197615}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Runner_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97046,7 +97053,7 @@ GameObject:
   - component: {fileID: 931595519}
   - component: {fileID: 931595521}
   - component: {fileID: 931595520}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_HandleSide_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -107440,7 +107447,7 @@ GameObject:
   - component: {fileID: 1037617662}
   - component: {fileID: 1037617664}
   - component: {fileID: 1037617663}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_HandleSide_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -114197,7 +114204,7 @@ GameObject:
   - component: {fileID: 1121313185}
   - component: {fileID: 1121313187}
   - component: {fileID: 1121313186}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_02
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -114493,7 +114500,7 @@ GameObject:
   - component: {fileID: 1122671894}
   - component: {fileID: 1122671896}
   - component: {fileID: 1122671895}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -116120,7 +116127,7 @@ GameObject:
   - component: {fileID: 1138372957}
   - component: {fileID: 1138372959}
   - component: {fileID: 1138372958}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_00
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -130025,7 +130032,7 @@ GameObject:
   - component: {fileID: 1238138654}
   - component: {fileID: 1238138656}
   - component: {fileID: 1238138655}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Cross_0.72
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -142581,7 +142588,7 @@ GameObject:
   - component: {fileID: 1385868613}
   - component: {fileID: 1385868615}
   - component: {fileID: 1385868614}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_01
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -146003,7 +146010,7 @@ GameObject:
   - component: {fileID: 1419557765}
   - component: {fileID: 1419557767}
   - component: {fileID: 1419557766}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Left Visible Runner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -159479,7 +159486,7 @@ GameObject:
   - component: {fileID: 1550432029}
   - component: {fileID: 1550432031}
   - component: {fileID: 1550432030}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_04
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -181203,7 +181210,7 @@ GameObject:
   - component: {fileID: 1793168273}
   - component: {fileID: 1793168275}
   - component: {fileID: 1793168274}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Right Visible Runner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -190712,7 +190719,7 @@ GameObject:
   - component: {fileID: 1892637281}
   - component: {fileID: 1892637283}
   - component: {fileID: 1892637282}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_03
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -199403,7 +199410,7 @@ GameObject:
   - component: {fileID: 1996873448}
   - component: {fileID: 1996873450}
   - component: {fileID: 1996873449}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_FrontHoop
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -202126,7 +202133,7 @@ GameObject:
   - component: {fileID: 2024444942}
   - component: {fileID: 2024444944}
   - component: {fileID: 2024444943}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_07
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -214182,6 +214189,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a8e38a34d62522b5069b03c688360b5e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MushCanvasQuestInput
+  vrTitleHeightOffset: 0.3
+  vrTitleScale: 0.00135
   canvas: {fileID: 98000000000039}
   raycaster: {fileID: 98000000000041}
 --- !u!114 &98000000000043

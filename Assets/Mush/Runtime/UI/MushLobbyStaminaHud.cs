@@ -107,6 +107,7 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         if (firstStamina != displayedFirstStamina)
         {
             displayedFirstStamina = firstStamina;
+            conditionIcon?.SetStamina(firstStamina);
             if (staminaFill != null)
                 staminaFill.fillAmount = firstStamina / 100f;
             if (staminaText != null)
@@ -117,6 +118,7 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         if (secondStamina != displayedSecondStamina)
         {
             displayedSecondStamina = secondStamina;
+            secondConditionIcon?.SetStamina(secondStamina);
             if (secondStaminaFill != null)
                 secondStaminaFill.fillAmount = secondStamina / 100f;
             if (secondStaminaText != null)

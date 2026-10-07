@@ -533,6 +533,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (!suppliedSled.IsChildOf(sledHolder)) sledHolder.gameObject.SetActive(false);
         equippedSledVisual = MushCustomizationVisuals.ApplyEquippedSled(suppliedSled, customization);
         MushCustomizationVisuals.ApplySledDecoration(equippedSledVisual, customization, 1.25f);
+        MushSledFogMask.ApplyToSled(equippedSledVisual);
     }
 
     private DogRuntime CreateSavedDogRuntime(
@@ -721,6 +722,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (decoration != null && customization?.equippedSledDecoration == MushCustomizationIds.SledLantern)
             BuildVisibleRideLantern(decoration.transform);
         if (!suppliedSled) BuildSledCockpit(holder);
+        MushSledFogMask.ApplyToSled(holder);
     }
 
     private DogRuntime BuildDog(
@@ -2237,6 +2239,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             Debug.LogError("[Mush] 다시 시작할 현재 맵 씬을 찾을 수 없습니다.", this);
             return;
         }
+        MushGameSave.RestoreStamina(100);
         MushSceneTransition.Load(activeScene.name);
     }
 

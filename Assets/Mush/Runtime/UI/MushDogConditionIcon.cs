@@ -13,8 +13,28 @@ public sealed class MushDogConditionIcon : MaskableGraphic
 
     public void SetCondition(MushDogCondition value)
     {
-        // Track the condition without replacing the scene-authored artwork.
         condition = value;
+        if (conditionArtwork != null)
+        {
+            Sprite artwork = value switch
+            {
+                MushDogCondition.Good => goodArtwork,
+                MushDogCondition.Bad => badArtwork,
+                _ => normalArtwork,
+            };
+            if (artwork != null && conditionArtwork.sprite != artwork)
+                conditionArtwork.sprite = artwork;
+        }
+        else
+        {
+            SetVerticesDirty();
+        }
+    }
+
+    public void SetStamina(float stamina)
+    {
+        SetCondition(stamina >= 70f ? MushDogCondition.Good :
+            stamina >= 30f ? MushDogCondition.Normal : MushDogCondition.Bad);
     }
 
     protected override void OnPopulateMesh(VertexHelper mesh)
