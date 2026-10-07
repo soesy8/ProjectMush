@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
+using Mush.DogAnimation;
 
 namespace Mush.Lobby
 {
@@ -39,6 +40,10 @@ namespace Mush.Lobby
         [SerializeField] private float socialCooldownDuration = 10f; // 같은 장난 행동이 너무 자주 반복되지 않게 막는 시간이다.
         [Header("Character")]
         [SerializeField] private Animator animator;
+        [SerializeField, HideInInspector] private float riggedPawBottomOffset;
+        private MushDogAnimationDriver stateAnimationDriver;
+        private DogAnimationState ambientAnimationState;
+        private float ambientAnimationUntil;
         [SerializeField] private Transform callTarget;
         [SerializeField] private float callSideOffset;
         [SerializeField] private float callDistance = 1.25f;
@@ -246,6 +251,18 @@ namespace Mush.Lobby
 
             animator.applyRootMotion = false; // 실제 위치 이동은 이 스크립트가 담당하므로 애니메이션 루트 이동은 끈다.
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate; // 시야 밖에서도 생활 행동 시간이 정상적으로 흐르게 한다.
+            // The imported lobby controllers use State (Idle/Walk/Sit/Eat/Bark).
+            // Keep their driver as the sole owner of that parameter.
+            foreach (AnimatorControllerParameter parameter in animator.parameters)
+            {
+                if (parameter.name == "State" && parameter.type == AnimatorControllerParameterType.Int)
+                {
+                    stateAnimationDriver = animator.GetComponent<MushDogAnimationDriver>();
+                    if (stateAnimationDriver == null)
+                        stateAnimationDriver = animator.gameObject.AddComponent<MushDogAnimationDriver>();
+                    break;
+                }
+            }
         }
 
         private void NormalizeVisualBounds()
@@ -467,7 +484,10 @@ namespace Mush.Lobby
                 return;
 
             animator.Rebind();
-            animator.Play("Locomotion", 0, 0f);
+            if (stateAnimationDriver != null)
+                stateAnimationDriver.ResetToIdle();
+            else
+                animator.Play("Locomotion", 0, 0f);
             animator.Update(0f);
         }
 
@@ -775,7 +795,7 @@ namespace Mush.Lobby
 
         private void HoldSleepingPoseWhenReady()
         {
-            if (sleepPoseFrozen || animator == null || animator.runtimeAnimatorController == null) return;
+            if (stateAnimationDriver != null || sleepPoseFrozen || animator == null || animator.runtimeAnimatorController == null) return;
             AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
             if (!state.IsName("LieDown") || state.normalizedTime < 0.82f) return;
             animator.speed = 0f; // 눕기 클립이 거의 끝난 자세에서 전체 Animator를 멈춰 수면 자세를 유지한다.
@@ -788,7 +808,12 @@ namespace Mush.Lobby
             sleepPoseFrozen = false;
             if (animator == null) return;
             animator.speed = 1f; // 호출되거나 시간이 끝나면 즉시 다시 애니메이션이 진행되게 한다.
-            if (animator.runtimeAnimatorController != null)
+            if (stateAnimationDriver != null)
+            {
+                ambientAnimationUntil = 0f;
+                stateAnimationDriver.ResetToIdle();
+            }
+            else if (animator.runtimeAnimatorController != null)
                 animator.Play("Locomotion", 0, 0f);
         }
 
@@ -890,7 +915,7 @@ namespace Mush.Lobby
                 ApplyHeldBallAttentionVisuals(); // 몸/Animator 보정이 끝난 뒤 폴짝과 고개 추적을 적용해야 모자 추적기가 같은 최종 자세를 따라간다.
             if (sittingOnLap)
                 ApplyLapHeadLook(); // 몸은 무릎을 가로질러 그대로 둔 채 머리만 가끔 플레이어 쪽으로 돌린다.
-            else if (eatingFood)
+            else if (eatingFood && stateAnimationDriver == null)
                 ApplyFeedingHeadPose(); // 임시 모델도 사료를 먹을 때 머리를 그릇 쪽으로 숙여 서 있기만 하는 모습이 되지 않게 한다.
         }
 
@@ -1711,6 +1736,9 @@ namespace Mush.Lobby
                 visualRoot.localRotation = Quaternion.Slerp(visualRoot.localRotation, visualRestRotation, Time.deltaTime * 7f);
             }
 
+            if (stateAnimationDriver != null)
+                UpdateStateAnimation(walking);
+
             if (animatorReady)
                 return; // 실제 Animator가 준비된 모델은 여기까지의 침대 높이 보정만 받고 다리 절차 애니메이션은 건드리지 않는다.
 
@@ -1916,6 +1944,20 @@ namespace Mush.Lobby
                 float pawBottom = renderer != null ? renderer.bounds.min.y : paw.position.y; // Renderer가 있으면 메시의 실제 최저점, 없으면 Transform 위치를 대신 사용한다.
                 lowestPaw = Mathf.Min(lowestPaw, pawBottom); // 네 발 중 가장 아래에 있는 발바닥 높이를 누적한다.
                 foundPaw = true; // 최소 하나의 발 위치를 정상적으로 읽었다.
+            }
+
+            if (!foundPaw && animator != null && animator.runtimeAnimatorController != null)
+            {
+                // A skinned dog has toe bones instead of separate paw renderers.
+                // The authored offset converts the lowest toe to the mesh sole.
+                string[] toeNames = { "front_toe.L", "front_toe.R", "toe.L", "toe.R" };
+                foreach (string toeName in toeNames)
+                {
+                    Transform toe = FindExactChild(visualRoot, toeName);
+                    if (toe == null) continue;
+                    lowestPaw = Mathf.Min(lowestPaw, toe.position.y + riggedPawBottomOffset);
+                    foundPaw = true;
+                }
             }
 
             if (!foundPaw)
@@ -2307,12 +2349,49 @@ namespace Mush.Lobby
         private void SetAnimatorSpeed(float speed)
         {
             fallbackLocomotionSpeed = speed; // Animator가 없어도 절차식 다리 애니메이션에서 같은 이동 단계를 사용한다.
-            if (animator != null && animator.runtimeAnimatorController != null)
+            if (stateAnimationDriver == null && animator != null && animator.runtimeAnimatorController != null)
                 animator.SetFloat("Speed", speed, 0.10f, Time.deltaTime);
+        }
+
+        private void UpdateStateAnimation(bool walking)
+        {
+            if (!stateAnimationDriver.IsReady)
+                return;
+
+            DogAnimationState state = eatingFood ? DogAnimationState.Eat
+                : sleepTimer > 0f || sittingOnLap ? DogAnimationState.Sit
+                : walking ? DogAnimationState.Walk
+                : Time.time < ambientAnimationUntil ? ambientAnimationState
+                : DogAnimationState.Idle;
+            stateAnimationDriver.Request(state);
+            // The package has a Walk clip; accelerate its cadence for roaming runs.
+            animator.speed = stateAnimationDriver.CurrentState == DogAnimationState.Walk
+                ? Mathf.Lerp(1f, 1.65f, Mathf.InverseLerp(0.48f, 1f, fallbackLocomotionSpeed))
+                : 1f;
         }
 
         private void TriggerAnimation(string parameter)
         {
+            if (stateAnimationDriver != null)
+            {
+                if (parameter == "Happy")
+                    stateAnimationDriver.Bark();
+                else if (parameter == "Eat")
+                {
+                    ambientAnimationState = DogAnimationState.Eat;
+                    ambientAnimationUntil = Time.time + 1.5f;
+                    stateAnimationDriver.Eat();
+                }
+                else if (parameter == "Pet" || parameter == "HeadTilt" ||
+                         parameter == "Sit" || parameter == "LieDown")
+                {
+                    // The package has no LieDown clip. Rest and petting use SitHold.
+                    ambientAnimationState = DogAnimationState.Sit;
+                    ambientAnimationUntil = Time.time + 1.15f;
+                    stateAnimationDriver.Sit();
+                }
+                return;
+            }
             if (animator != null && animator.runtimeAnimatorController != null)
                 animator.SetTrigger(parameter);
         }

@@ -43747,8 +43747,16 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5814033650166492381, guid: 9c305a011d3fe744f9c26893fedefaa9, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 11c5935b4d351d44697b405d358bb480, type: 3}
+    - target: {fileID: 5814033650166492381, guid: 9c305a011d3fe744f9c26893fedefaa9, type: 3}
       propertyPath: m_RaycastTarget
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5814033650166492381, guid: 9c305a011d3fe744f9c26893fedefaa9, type: 3}
+      propertyPath: m_PreserveAspect
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5837368667524638747, guid: 9c305a011d3fe744f9c26893fedefaa9, type: 3}
       propertyPath: m_FillAmount
@@ -143799,7 +143807,7 @@ MonoBehaviour:
       m_Calls: []
   m_Sprite: {fileID: 863628519, guid: 7c6fea1fb0df8af48840392e58313439, type: 3}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1

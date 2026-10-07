@@ -12,6 +12,7 @@ public sealed class MushSounds : MonoBehaviour
     private Coroutine musicFade;
     private float musicVolume = 1f;
     private bool trackMusicPaused;
+    private bool lobbyMusicPaused;
     private int musicSceneHandle = -1;
     private const float TrackFadeInSeconds = 5f;
     private const float ClearFadeSeconds = 2f;
@@ -74,11 +75,18 @@ public sealed class MushSounds : MonoBehaviour
     {
         AudioClip clip = MusicForScene(scene);
         bool isTrackMusic = clip != null && bank != null && clip == bank.drivingMusic;
+        bool isLobby = scene.name is "PM_Lobby" or "MushLobby";
+        musicSource.ignoreListenerPause = scene.name == "Track_v2" || isLobby;
+        if (!isLobby && lobbyMusicPaused)
+        {
+            lobbyMusicPaused = false;
+            SetMusicVolume(musicVolume);
+        }
         // A retry starts a fresh fade, while duplicate scene callbacks leave playback alone.
         if (musicSource.clip == clip && (!isTrackMusic || musicSceneHandle == scene.handle)) return;
         musicSceneHandle = scene.handle;
         trackMusicPaused = false;
-        musicSource.ignoreListenerPause = scene.name == "Track_v2";
+        lobbyMusicPaused = false;
         if (musicFade != null)
         {
             StopCoroutine(musicFade);
@@ -106,11 +114,19 @@ public sealed class MushSounds : MonoBehaviour
         instance.SetMusicVolume(instance.musicVolume);
     }
 
+    public static void SetLobbyMusicPaused(bool paused)
+    {
+        if (instance == null) return;
+        if (paused && SceneManager.GetActiveScene().name is not ("PM_Lobby" or "MushLobby")) return;
+        instance.lobbyMusicPaused = paused;
+        instance.SetMusicVolume(instance.musicVolume);
+    }
+
     private void SetMusicVolume(float volume)
     {
         musicVolume = volume;
         // Keep the envelope separate from the player's music volume setting.
-        musicChannel.SetVolume(volume * (trackMusicPaused ? 0.4f : 1f));
+        musicChannel.SetVolume(volume * (trackMusicPaused || lobbyMusicPaused ? 0.4f : 1f));
     }
 
     private void FadeMusicTo(float target, float duration)

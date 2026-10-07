@@ -13,6 +13,8 @@ namespace Mush.UI
         [SerializeField] private Image target;
         [SerializeField] private Sprite highlightedSprite;
         [SerializeField] private Sprite pressedSprite;
+        [SerializeField] private Sprite disabledSprite;
+        [SerializeField] private bool highlightOnFocus = true;
         private readonly HashSet<int> hoverPointers = new();
         private readonly HashSet<int> pressedPointers = new();
         private Button button;
@@ -88,6 +90,7 @@ namespace Mush.UI
             target.color = normalColor;
         }
 
+        public void SetHighlightOnFocus(bool value) { highlightOnFocus = value; Refresh(); }
         public void SetChosen(bool value) { chosen = value; Refresh(); }
         public void SetHovered(bool value) { externalHovered = value; sounds?.SetHovered(value); Refresh(); }
         public void PulsePressed() { pressedUntil = Time.unscaledTime + 0.12f; Refresh(); }
@@ -109,10 +112,11 @@ namespace Mush.UI
             if (!initialized || target == null) return;
             int state = button != null && !button.IsInteractable() ? 3 :
                 pressedPointers.Count > 0 || Time.unscaledTime < pressedUntil ? 1 :
-                chosen || focused || externalHovered || hoverPointers.Count > 0 ? 2 : 0;
+                chosen || (highlightOnFocus && focused) || externalHovered || hoverPointers.Count > 0 ? 2 : 0;
             if (previousState == state) return;
             previousState = state;
-            Sprite stateSprite = state == 2 ? highlightedSprite : state == 1 ? pressedSprite : null;
+            Sprite stateSprite = state == 3 ? disabledSprite : state == 2 ? highlightedSprite :
+                state == 1 ? pressedSprite : null;
             target.overrideSprite = stateSprite;
             target.color = stateSprite != null || state == 0 ? normalColor : state == 3
                 ? new Color(normalColor.r * 0.5f, normalColor.g * 0.5f, normalColor.b * 0.5f, normalColor.a * 0.6f)
