@@ -25,48 +25,86 @@ public static class ArtOptUiValidation
         Require(!Application.isPlaying, "Run stamina validation in Edit Mode.");
         Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/PM_Lobby.unity", OpenSceneMode.Single);
         ValidateLobbyStamina(Components<MushLobbyStaminaHud>(scene).Single());
-        ValidateRetryRecovery();
-        Debug.Log("[Mush Stamina] PASS: both portraits, 30/70 boundaries, repeated recovery and saved stamina.");
+        ValidateSceneStartStamina();
+        Debug.Log("[Mush Stamina] PASS: both portraits, 30/70 boundaries and saved scene entry stamina.");
     }
 
-    private static void ValidateRetryRecovery()
+    [MenuItem("Mush/ArtOpt/Validate Track Stamina")]
+    public static void ValidateTrackStamina()
     {
+        Require(!Application.isPlaying, "Run track stamina validation in Edit Mode.");
+        Scene scene = SceneManager.GetActiveScene();
+        Require(scene.name == "Track_v2", "Open Track_v2 before running track stamina validation.");
+        ValidateRideHud(Components<MushRideHud>(scene).Single(h => h.enabled));
+        Debug.Log("[Mush Track Stamina] PASS: individual bars, both portraits, 30/70 boundaries and authored layout.");
+    }
+
+    [MenuItem("Mush/ArtOpt/Validate Scene Start Stamina")]
+    public static void ValidateSceneStartStamina()
+    {
+        Require(!Application.isPlaying, "Run scene start stamina validation in Edit Mode.");
         FieldInfo current = typeof(MushGameSave).GetField("current", BindingFlags.NonPublic | BindingFlags.Static);
         object original = current.GetValue(null);
-        string savePath = Path.Combine(Application.persistentDataPath, "mush-save.json");
-        string[] paths = { savePath, savePath + ".bak", savePath + ".tmp" };
-        byte[][] originals = paths.Select(path => File.Exists(path) ? File.ReadAllBytes(path) : null).ToArray();
         try
         {
             MushGameSave.Data sample = new() { gold = 1234 };
-            sample.dogs[0].stamina = 0f;
-            sample.dogs[0].condition = MushDogCondition.Bad;
-            sample.dogs[1].stamina = 29.5f;
-            sample.dogs[1].condition = MushDogCondition.Good;
+            sample.dogs[0].stamina = 83.25f;
+            sample.dogs[0].condition = MushDogCondition.Good;
+            sample.dogs[1].stamina = 47.5f;
             current.SetValue(null, sample);
+            MushGameSave.CaptureSceneStartStamina();
             for (int attempt = 0; attempt < 2; attempt++)
             {
-                MushGameSave.RestoreStamina(100);
-                Require(MushGameSave.GetDogStamina(0) == 100f && MushGameSave.GetDogStamina(1) == 100f &&
-                        MushGameSave.TeamStamina == 100f && sample.stamina == 100f,
-                    "Retry must fully recover both dogs and the legacy team stamina.");
-                Require(MushGameSave.GetDogCondition(0) == MushDogCondition.Normal &&
-                        MushGameSave.GetDogCondition(1) == MushDogCondition.Good && sample.gold == 1234,
-                    "Full recovery must clear exhaustion while preserving a good mood and gold.");
-                MushGameSave.Data saved = JsonUtility.FromJson<MushGameSave.Data>(File.ReadAllText(savePath));
-                Require(saved.dogs.All(dog => dog.stamina == 100f) && saved.stamina == 100f,
-                    "Recovered stamina must survive saving and reloading.");
-                MushGameSave.ConsumeStamina(86.25f);
+                MushGameSave.ConsumeStamina(90f);
+                // Exercise the save payload round trip without touching the user's save files.
+                sample = JsonUtility.FromJson<MushGameSave.Data>(JsonUtility.ToJson(MushGameSave.Current));
+                current.SetValue(null, sample);
+                Require(MushGameSave.RestoreSceneStartStamina(), "A serialized scene start snapshot must restore.");
+                Require(MushGameSave.GetDogStamina(0) == 83.25f && MushGameSave.GetDogStamina(1) == 47.5f &&
+                        sample.stamina == 65.375f && sample.gold == 1234,
+                    "Retries must restore each dog's exact entry stamina and preserve gold.");
+                Require(MushGameSave.GetDogCondition(0) == MushDogCondition.Good &&
+                        MushGameSave.GetDogCondition(1) == MushDogCondition.Normal,
+                    "Restoring entry stamina must also clear the exhaustion acquired during the ride.");
             }
+
+            // Entering the next lobby/track replaces the snapshot with that scene's starting state.
+            MushGameSave.ConsumeStamina(12.5f);
+            MushGameSave.CaptureSceneStartStamina();
+            MushGameSave.ConsumeStamina(10f);
+            Require(MushGameSave.RestoreSceneStartStamina() && MushGameSave.GetDogStamina(0) == 70.75f &&
+                    MushGameSave.GetDogStamina(1) == 35f,
+                "The next scene must capture its own entry stamina instead of reusing the previous scene.");
+
+            // Feeding changes live values, but cannot change a previously captured entry snapshot.
+            sample.dogs[0].stamina = 100f;
+            sample.dogs[1].stamina = 100f;
+            Require(MushGameSave.RestoreSceneStartStamina() && MushGameSave.GetDogStamina(0) == 70.75f &&
+                    MushGameSave.GetDogStamina(1) == 35f,
+                "Live stamina changes must not mutate the scene entry snapshot.");
+
+            sample.sceneStartDogs = null;
+            Require(!MushGameSave.RestoreSceneStartStamina() && MushGameSave.GetDogStamina(0) == 70.75f &&
+                    MushGameSave.GetDogStamina(1) == 35f,
+                "Legacy saves without a snapshot must retain their saved stamina.");
+            MushGameSave.CaptureSceneStartStamina();
+            sample.sceneStartDogs[1].stamina = float.NaN;
+            sample.dogs[0].stamina = 15f;
+            Require(!MushGameSave.RestoreSceneStartStamina() && MushGameSave.GetDogStamina(0) == 15f,
+                "An invalid snapshot must not partially overwrite live stamina.");
+
+            sample = new MushGameSave.Data();
+            current.SetValue(null, sample);
+            MushGameSave.CaptureSceneStartStamina();
+            MushGameSave.ConsumeStamina(30f);
+            Require(MushGameSave.RestoreSceneStartStamina() && MushGameSave.GetDogStamina(0) == 100f &&
+                    MushGameSave.GetDogStamina(1) == 100f,
+                "A new game's default entry stamina must remain 100 for both dogs.");
+            Debug.Log("[Mush Stamina] PASS: scene entry snapshots, repeated retry, serialization, legacy saves and new game defaults.");
         }
         finally
         {
             current.SetValue(null, original);
-            for (int index = 0; index < paths.Length; index++)
-            {
-                if (originals[index] != null) File.WriteAllBytes(paths[index], originals[index]);
-                else if (File.Exists(paths[index])) File.Delete(paths[index]);
-            }
         }
     }
 
@@ -260,6 +298,14 @@ public static class ArtOptUiValidation
         RectTransform marker = (RectTransform)data.FindProperty("progressIcon").objectReferenceValue;
         TMP_Text firstText = (TMP_Text)data.FindProperty("staminaText").objectReferenceValue;
         TMP_Text secondText = (TMP_Text)data.FindProperty("secondStaminaText").objectReferenceValue;
+        UnityEngine.UI.Image firstPortrait = (UnityEngine.UI.Image)data.FindProperty("firstPortrait").objectReferenceValue;
+        UnityEngine.UI.Image secondPortrait = (UnityEngine.UI.Image)data.FindProperty("secondPortrait").objectReferenceValue;
+        if (hud.gameObject.scene.name == "Track_v2")
+        {
+            Require(!unified, "Track_v2 must show individual dog stamina.");
+            RequireReferences(hud, "firstPortrait", "firstNormalPortrait", "firstGoodPortrait", "firstBadPortrait",
+                "secondPortrait", "secondNormalPortrait", "secondGoodPortrait", "secondBadPortrait");
+        }
         GameObject track = (GameObject)data.FindProperty("trackRoot").objectReferenceValue;
         Vector2 panelSize = track.transform.Find("TrackUI_Panel").GetComponent<RectTransform>().sizeDelta;
         Require(Vector2.Distance(panelSize, new Vector2(272.58f, 156.672f)) < 0.001f,
@@ -314,7 +360,32 @@ public static class ArtOptUiValidation
                 Invoke(hud, "LateUpdate");
                 Require(Mathf.Approximately(first.fillAmount, unified ? 0.16875f : 0.3375f),
                     "Track health fill must update between whole numbers.");
-            }, first, second);
+                if (!unified && firstPortrait != null && secondPortrait != null)
+                {
+                    foreach (var (value, firstState, secondState) in new[]
+                    {
+                        (0f, "Low", "High"), (29.99f, "Low", "High"),
+                        (30f, "Normal", "High"), (69.99f, "Normal", "Normal"),
+                        (70f, "High", "Normal"), (100f, "High", "Low"),
+                        (70f, "High", "Normal"), (30f, "Normal", "High"), (0f, "Low", "High")
+                    })
+                    {
+                        sample.dogs[0].stamina = value;
+                        sample.dogs[1].stamina = 100 - value;
+                        Invoke(hud, "LateUpdate");
+                        Require(Mathf.Approximately(first.fillAmount, value / 100f) &&
+                                Mathf.Approximately(second.fillAmount, (100 - value) / 100f) &&
+                                firstText.text == $"{Mathf.FloorToInt(value)} / 100" &&
+                                secondText.text == $"{Mathf.FloorToInt(100 - value)} / 100",
+                            "Track gauges and labels must follow each dog's stamina at condition boundaries.");
+                        Require(AssetDatabase.GetAssetPath(firstPortrait.sprite) == $"Assets/Art/Textures/UI/T_KAI_{firstState}.png" &&
+                                AssetDatabase.GetAssetPath(secondPortrait.sprite) == $"Assets/Art/Textures/UI/T_LUMI_{secondState}.png",
+                            "Track portraits must use each dog's own stamina and the shared 30/70 thresholds.");
+                        Require(sample.dogs.All(dog => dog.condition == MushDogCondition.Normal),
+                            "Track portrait updates must not change gameplay mood.");
+                    }
+                }
+            }, new[] { first, second }, new[] { firstPortrait, secondPortrait });
 
             MethodInfo updateProgress = typeof(MushRideHud).GetMethod("RefreshProgress", BindingFlags.Instance | BindingFlags.NonPublic);
             foreach (float value in new[] { -1f, 0f, 0.25f, 0.5f, 0.75f, 1f, 2f })
@@ -343,6 +414,10 @@ public static class ArtOptUiValidation
         UnityEngine.UI.Image secondFill = (UnityEngine.UI.Image)data.FindProperty("secondStaminaFill").objectReferenceValue;
         TMP_Text firstText = (TMP_Text)data.FindProperty("staminaText").objectReferenceValue;
         TMP_Text secondText = (TMP_Text)data.FindProperty("secondStaminaText").objectReferenceValue;
+        TMP_Text firstConditionText = (TMP_Text)data.FindProperty("conditionText").objectReferenceValue;
+        TMP_Text secondConditionText = (TMP_Text)data.FindProperty("secondConditionText").objectReferenceValue;
+        Require(firstConditionText != null && secondConditionText != null,
+            "Both lobby condition labels must be bound.");
         MushDogConditionIcon firstIcon = (MushDogConditionIcon)data.FindProperty("conditionIcon").objectReferenceValue;
         MushDogConditionIcon secondIcon = (MushDogConditionIcon)data.FindProperty("secondConditionIcon").objectReferenceValue;
         foreach (UnityEngine.UI.Image fill in new[] { firstFill, secondFill })
@@ -379,6 +454,11 @@ public static class ArtOptUiValidation
                         "Lobby dog names or stamina values are incorrect.");
                     RequireStaminaPortrait(firstIcon, "T_KAI_", firstState);
                     RequireStaminaPortrait(secondIcon, "T_LUMI_", secondState);
+                    Require(firstConditionText.text == (firstState switch
+                            { "High" => "좋음", "Low" => "나쁨", _ => "평범" }) &&
+                            secondConditionText.text == (secondState switch
+                            { "High" => "좋음", "Low" => "나쁨", _ => "평범" }),
+                        "Lobby condition labels must match the stamina portraits.");
                     Require(sample.dogs.All(dog => dog.condition == MushDogCondition.Normal),
                         "Portrait updates must not change the dogs' gameplay mood.");
                 }
@@ -393,10 +473,16 @@ public static class ArtOptUiValidation
 
     private static void RequireArtworkUnchanged(GameObject root, Action updateValues, params UnityEngine.UI.Image[] changingFills)
     {
+        RequireArtworkUnchanged(root, updateValues, changingFills, Array.Empty<UnityEngine.UI.Image>());
+    }
+
+    private static void RequireArtworkUnchanged(GameObject root, Action updateValues,
+        UnityEngine.UI.Image[] changingFills, UnityEngine.UI.Image[] changingPortraits)
+    {
         UnityEngine.UI.Image[] images = root.GetComponentsInChildren<UnityEngine.UI.Image>(true);
         UnityEngine.UI.Image[] portraits = root.GetComponentsInChildren<MushDogConditionIcon>(true)
             .Select(icon => (UnityEngine.UI.Image)new SerializedObject(icon).FindProperty("conditionArtwork").objectReferenceValue)
-            .Where(image => image != null).ToArray();
+            .Concat(changingPortraits).Where(image => image != null).ToArray();
         string[] before = images.Select(image => ImageAppearance(image, changingFills.Contains(image), portraits.Contains(image))).ToArray();
         updateValues();
         Require(before.SequenceEqual(images.Select(image => ImageAppearance(image, changingFills.Contains(image), portraits.Contains(image)))),

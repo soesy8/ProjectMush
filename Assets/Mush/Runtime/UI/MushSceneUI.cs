@@ -21,6 +21,7 @@ public sealed class MushSceneUI : MonoBehaviour
     [SerializeField] private GameObject titlePanel;
     [SerializeField] private GameObject pausePanel;
     [SerializeField] private GameObject optionPanel;
+    [SerializeField] private MushRideControlGuide controlGuide;
     [SerializeField] private TMP_Text message;
     [SerializeField] private Slider master;
     [SerializeField] private Slider music;
@@ -117,11 +118,13 @@ public sealed class MushSceneUI : MonoBehaviour
 
     private IEnumerator Start()
     {
+        bool lobbyScene = gameObject.scene.name is "PM_Lobby" or "MushLobby";
+        if (lobbyScene) MushGameSave.EnterLobby();
+        if (lobbyScene || ride != null) MushGameSave.CaptureSceneStartStamina();
         // Ride construction binds its authored sled in Start; restore only after that binding.
         yield return null;
         TryConfigureVrRideCanvas();
         if (ride != null && MushGameSave.ConsumeRideRestore(gameObject.scene.name)) ride.RestoreSavedRide(MushGameSave.Current);
-        else if (gameObject.scene.name is "PM_Lobby" or "MushLobby") MushGameSave.EnterLobby();
         foreach (GameObject root in gameObject.scene.GetRootGameObjects())
             foreach (AudioSource source in root.GetComponentsInChildren<AudioSource>(true))
                 if (!source.TryGetComponent<MushAudioChannel>(out _)) source.gameObject.AddComponent<MushAudioChannel>();
@@ -168,6 +171,7 @@ public sealed class MushSceneUI : MonoBehaviour
             Cursor.visible = previousCursorVisible;
         }
         pausePanel.SetActive(paused);
+        controlGuide?.SetPaused(paused);
         SelectFirst(paused ? pausePanel : null);
     }
 

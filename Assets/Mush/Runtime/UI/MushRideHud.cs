@@ -15,6 +15,14 @@ public sealed class MushRideHud : MonoBehaviour
     [SerializeField] private bool useTeamStamina;
     [SerializeField] private TMP_Text staminaText;
     [SerializeField] private TMP_Text secondStaminaText;
+    [SerializeField] private Image firstPortrait;
+    [SerializeField] private Sprite firstNormalPortrait;
+    [SerializeField] private Sprite firstGoodPortrait;
+    [SerializeField] private Sprite firstBadPortrait;
+    [SerializeField] private Image secondPortrait;
+    [SerializeField] private Sprite secondNormalPortrait;
+    [SerializeField] private Sprite secondGoodPortrait;
+    [SerializeField] private Sprite secondBadPortrait;
     [SerializeField] private RectTransform progressIcon;
     [SerializeField] private GameObject progressRoot;
     [SerializeField] private GameObject trackRoot;
@@ -41,6 +49,10 @@ public sealed class MushRideHud : MonoBehaviour
         {
             RefreshStamina(staminaFill, staminaText, 0, ref previousFirstStamina);
             RefreshStamina(secondStaminaFill, secondStaminaText, 1, ref previousSecondStamina);
+            RefreshPortrait(firstPortrait, MushGameSave.GetDogStamina(0),
+                firstNormalPortrait, firstGoodPortrait, firstBadPortrait);
+            RefreshPortrait(secondPortrait, MushGameSave.GetDogStamina(1),
+                secondNormalPortrait, secondGoodPortrait, secondBadPortrait);
         }
         int seconds = Mathf.CeilToInt(ride.RemainingSeconds);
         if (timer != null)
@@ -80,6 +92,19 @@ public sealed class MushRideHud : MonoBehaviour
         Vector3 position = progressIcon.localPosition;
         position.x = local.x;
         progressIcon.localPosition = position;
+    }
+
+    private static void RefreshPortrait(Image portrait, float stamina, Sprite normal, Sprite good, Sprite bad)
+    {
+        if (portrait == null) return;
+        Sprite artwork = MushDogConditionIcon.GetConditionForStamina(stamina) switch
+        {
+            MushDogCondition.Good => good,
+            MushDogCondition.Bad => bad,
+            _ => normal,
+        };
+        if (artwork != null && portrait.sprite != artwork)
+            portrait.sprite = artwork;
     }
 
     private static void RefreshStamina(Image fill, TMP_Text label, int dogIndex,

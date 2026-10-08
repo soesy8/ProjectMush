@@ -145,6 +145,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private bool resultVisible;
     public bool HasFinished => resultVisible;
     public bool IsPaused => ridePaused;
+    public bool HasRideStarted => rideController != null && rideController.RideStarted;
     public bool IsOffCourse => offCourse;
     public Camera RideCamera => rideCamera;
     public Transform RideViewAnchor => rideSeatAnchor;
@@ -2239,7 +2240,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             Debug.LogError("[Mush] 다시 시작할 현재 맵 씬을 찾을 수 없습니다.", this);
             return;
         }
-        MushGameSave.RestoreStamina(100);
+        MushGameSave.RestoreSceneStartStamina();
         MushSceneTransition.Load(activeScene.name);
     }
 

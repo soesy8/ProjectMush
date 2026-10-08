@@ -33,8 +33,13 @@ public sealed class MushDogConditionIcon : MaskableGraphic
 
     public void SetStamina(float stamina)
     {
-        SetCondition(stamina >= 70f ? MushDogCondition.Good :
-            stamina >= 30f ? MushDogCondition.Normal : MushDogCondition.Bad);
+        SetCondition(GetConditionForStamina(stamina));
+    }
+
+    public static MushDogCondition GetConditionForStamina(float stamina)
+    {
+        return stamina >= 70f ? MushDogCondition.Good :
+            stamina >= 30f ? MushDogCondition.Normal : MushDogCondition.Bad;
     }
 
     protected override void OnPopulateMesh(VertexHelper mesh)

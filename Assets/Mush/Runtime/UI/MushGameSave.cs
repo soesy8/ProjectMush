@@ -40,6 +40,8 @@ public static class MushGameSave
         public MushDogCondition dogCondition = MushDogCondition.Normal;
         public int dogStaminaVersion = 1;
         public List<DogState> dogs = new() { new DogState("dog_1"), new DogState("dog_2") };
+        // Separate from live stamina so autosaves and feeding do not overwrite the scene entry state.
+        public List<DogState> sceneStartDogs;
         public int gold = 150;
         public int unlockedStageCount = 1;
         public bool riding;
@@ -304,6 +306,7 @@ public static class MushGameSave
         Data saved = Read();
         if (saved == null) return null;
         current = saved;
+        RestoreSceneStartStamina();
         if (saved.customization != null) MushCustomizationSave.Save(saved.customization);
         for (int i = 0; i < Maps.Length; i++)
         {
@@ -336,6 +339,47 @@ public static class MushGameSave
         data.riding = false;
         data.scene = "PM_Lobby";
         Save();
+    }
+
+    public static void CaptureSceneStartStamina()
+    {
+        Data data = Current;
+        EnsureDogStates(data);
+        data.sceneStartDogs = new List<DogState>(TeamDogCount);
+        for (int index = 0; index < TeamDogCount; index++)
+        {
+            DogState dog = GetDogState(data, index);
+            data.sceneStartDogs.Add(new DogState(dog.dogId)
+            {
+                stamina = dog.stamina,
+                condition = dog.condition,
+            });
+        }
+    }
+
+    public static bool RestoreSceneStartStamina()
+    {
+        Data data = Current;
+        // Old saves have no snapshot: keep their saved stamina instead of inventing a full recovery.
+        if (data.sceneStartDogs == null)
+            return false;
+        for (int index = 0; index < TeamDogCount; index++)
+        {
+            DogState snapshot = data.sceneStartDogs.Find(dog => dog != null && dog.dogId == DogId(index));
+            if (snapshot == null || !float.IsFinite(snapshot.stamina) || snapshot.stamina < 0f || snapshot.stamina > 100f ||
+                snapshot.condition is not (MushDogCondition.Normal or MushDogCondition.Bad or MushDogCondition.Good))
+                return false;
+        }
+        EnsureDogStates(data);
+        for (int index = 0; index < TeamDogCount; index++)
+        {
+            DogState snapshot = data.sceneStartDogs.Find(dog => dog != null && dog.dogId == DogId(index));
+            DogState dog = GetDogState(data, index);
+            dog.stamina = snapshot.stamina;
+            dog.condition = snapshot.stamina <= 0f ? MushDogCondition.Bad : snapshot.condition;
+        }
+        SyncLegacyTeamState(data);
+        return true;
     }
 
     public static void RestoreStamina(int amount)

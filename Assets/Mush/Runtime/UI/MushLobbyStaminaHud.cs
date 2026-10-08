@@ -89,36 +89,37 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         if (!individualUiReady)
             BindAuthoredDogUi();
 
-        MushDogCondition firstCondition = MushGameSave.GetDogCondition(0);
+        // The portraits and labels share the same stamina-based display condition.
+        int firstStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(0)), 0, 100);
+        MushDogCondition firstCondition = MushDogConditionIcon.GetConditionForStamina(firstStamina);
         if (firstCondition != displayedFirstCondition)
         {
             displayedFirstCondition = firstCondition;
+            conditionIcon?.SetCondition(firstCondition);
             if (conditionText != null)
                 conditionText.text = ConditionLabel(firstCondition);
         }
-        MushDogCondition secondCondition = MushGameSave.GetDogCondition(1);
+        int secondStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(1)), 0, 100);
+        MushDogCondition secondCondition = MushDogConditionIcon.GetConditionForStamina(secondStamina);
         if (secondCondition != displayedSecondCondition)
         {
             displayedSecondCondition = secondCondition;
+            secondConditionIcon?.SetCondition(secondCondition);
             if (secondConditionText != null)
                 secondConditionText.text = ConditionLabel(secondCondition);
         }
-        int firstStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(0)), 0, 100);
         if (firstStamina != displayedFirstStamina)
         {
             displayedFirstStamina = firstStamina;
-            conditionIcon?.SetStamina(firstStamina);
             if (staminaFill != null)
                 staminaFill.fillAmount = firstStamina / 100f;
             if (staminaText != null)
                 staminaText.SetText("카이  {0} / 100", firstStamina);
         }
 
-        int secondStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(1)), 0, 100);
         if (secondStamina != displayedSecondStamina)
         {
             displayedSecondStamina = secondStamina;
-            secondConditionIcon?.SetStamina(secondStamina);
             if (secondStaminaFill != null)
                 secondStaminaFill.fillAmount = secondStamina / 100f;
             if (secondStaminaText != null)
