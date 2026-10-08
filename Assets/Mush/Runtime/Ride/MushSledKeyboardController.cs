@@ -115,6 +115,7 @@ namespace Mush.Prototype
         private float externalReinTension;
         private float reinTension;
         public event System.Action AccelerationEntered;
+        public event System.Action MotionReset;
 
         [System.Serializable]
         public sealed class SavedMotion
@@ -156,6 +157,7 @@ namespace Mush.Prototype
             currentSpeed = Mathf.Min(currentSpeed, GetSpeedForLevel(speedLevel));
             reinsVisual?.SetHeld(rideStarted);
             SetGripPose(rideStarted ? 1f : 0f);
+            MotionReset?.Invoke();
         }
 
         public bool RideStarted => rideStarted;
@@ -387,6 +389,7 @@ namespace Mush.Prototype
             terrainSpeedLimited = false;
             ClearOffCourseImpactRecovery();
             UpdateSteeringVisuals(0f, 0f);
+            MotionReset?.Invoke();
         }
 
         private static MushDogRideEffect EffectForDogCondition() => MushGameSave.DogCondition switch
