@@ -7,7 +7,8 @@ namespace Mush.Prototype
     /// creating collision meshes or querying the dogs and sled for contacts.
     /// </summary>
     [ExecuteAlways]
-    [DefaultExecutionOrder(1500)]
+    // Draw after the desktop view driver restores the hands (order 10000).
+    [DefaultExecutionOrder(11000)]
     [DisallowMultipleComponent]
     public sealed class MushReinsVisual : MonoBehaviour
     {
@@ -27,6 +28,29 @@ namespace Mush.Prototype
         private float leftPullDistance;
         private float rightPullDistance;
         private bool reinsHeld;
+        private Vector3 leftTurnBend;
+        private Vector3 rightTurnBend;
+        private float leftTurnSlack;
+        private float rightTurnSlack;
+
+        /// <summary>Optional world-space turn curve supplied by a ride pose driver.</summary>
+        public void SetTurnPresentation(Vector3 leftBend, Vector3 rightBend,
+            float leftSlack, float rightSlack)
+        {
+            leftTurnBend = leftBend;
+            rightTurnBend = rightBend;
+            leftTurnSlack = Mathf.Max(0f, leftSlack);
+            rightTurnSlack = Mathf.Max(0f, rightSlack);
+        }
+
+        public void ClearTurnPresentation()
+        {
+            leftTurnBend = rightTurnBend = Vector3.zero;
+            leftTurnSlack = rightTurnSlack = 0f;
+            leftState.Reset();
+            rightState.Reset();
+            UpdateReins();
+        }
 
         public void Configure(
             Transform newLeftGrip,
@@ -79,8 +103,10 @@ namespace Mush.Prototype
         private void UpdateReins()
         {
             float slack = reinsHeld ? 0.035f : 0.07f;
-            UpdateRein(leftRein, leftGrip, leftHarness, leftState, slack / (1f + leftPullDistance));
-            UpdateRein(rightRein, rightGrip, rightHarness, rightState, slack / (1f + rightPullDistance));
+            UpdateRein(leftRein, leftGrip, leftHarness, leftState,
+                (slack + leftTurnSlack) / (1f + leftPullDistance), leftTurnBend);
+            UpdateRein(rightRein, rightGrip, rightHarness, rightState,
+                (slack + rightTurnSlack) / (1f + rightPullDistance), rightTurnBend);
         }
 
         private void UpdateRein(
@@ -88,7 +114,8 @@ namespace Mush.Prototype
             Transform grip,
             Transform harness,
             ReinState state,
-            float slack)
+            float slack,
+            Vector3 turnBend)
         {
             if (rein == null || grip == null || harness == null)
             {
@@ -115,7 +142,7 @@ namespace Mush.Prototype
             {
                 float t = index / (PositionCount - 1f);
                 positions[index] = Vector3.Lerp(start, end, t) +
-                    Vector3.down * (state.slack * 4f * t * (1f - t));
+                    (Vector3.down * state.slack + turnBend) * (4f * t * (1f - t));
             }
             rein.useWorldSpace = true;
             rein.positionCount = PositionCount;

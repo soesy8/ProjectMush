@@ -66054,10 +66054,18 @@ MonoBehaviour:
   - {fileID: 2019699212}
   - {fileID: 51354537}
   delaySeconds: 0.2
-  enableDogRetreat: 1
-  maximumDogRetreat: 0.3
+  surfaceRotationResponse: 8
+  turnRateForFullEffect: 34
   dogRetreatSeconds: 0.18
   dogReturnSeconds: 0.28
+  enableDogRetreat: 1
+  maximumDogRetreat: 0.2
+  enableDogTurn: 1
+  maximumDogYaw: 5
+  maximumDogLateralShift: 0.08
+  enableReinTurn: 1
+  maximumReinBend: 0.08
+  maximumReinSlack: 0.06
 --- !u!4 &634791791
 Transform:
   m_ObjectHideFlags: 0
