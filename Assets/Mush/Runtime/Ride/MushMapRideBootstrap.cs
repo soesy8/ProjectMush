@@ -34,8 +34,9 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField] private Vector3 cameraPosition = new(0f, 1.87f, -2.52f);
     [SerializeField] private Vector3 cameraLookTarget = new(0f, 1.87f, 8f);
 
-    [SerializeField, Range(70f, 100f)] private float normalFieldOfView = 82f;
-    [SerializeField, Range(75f, 110f)] private float boostFieldOfView = 90f;
+    [SerializeField, Range(70f, 100f)] private float normalFieldOfView = 85f;
+    [SerializeField, Range(75f, 110f)] private float boostFieldOfView = 95f;
+    [SerializeField, Range(60f, 100f)] private float decelerationFieldOfView = 80f;
 
     [SerializeField] private string lobbySceneName = "PM_Lobby";
     [SerializeField, Min(1f)] private float finishDistanceTolerance = 11f;
@@ -76,6 +77,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, Tooltip("씬의 Mush Ride Dog 컴포넌트를 자동으로 수집합니다. 개 수와 배치는 Hierarchy에서 편집합니다.")]
     private Transform dogTeamRoot;
     private Quaternion seatRestLocalRotation;
+    private Behaviour rideViewPoseDriver;
     private readonly List<DogRuntime> dogs = new();
     private static readonly int DogMoveSpeed = Animator.StringToHash("MoveSpeed");
     private readonly Dictionary<string, Material> runtimeMaterials = new(StringComparer.Ordinal);
@@ -107,6 +109,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, HideInInspector] private GameObject questPauseMenu;
     private Vector3 cameraBaseLocalPosition;
     private Quaternion cameraRestLocalRotation;
+    private float lastPresentationSpeed;
+    private bool presentationSpeedInitialized;
     [SerializeField, HideInInspector] private ParticleSystem speedParticles;
     private MushSnowfieldBlizzardController snowController;
     private readonly Transform[] resultFilledStars = new Transform[3];
@@ -151,6 +155,19 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     public Transform RideViewAnchor => rideSeatAnchor;
     public Vector3 RideViewLocalPosition => cameraBaseLocalPosition;
     public Quaternion RideViewLocalRotation => cameraRestLocalRotation;
+    public bool TryClaimRideViewPose(Behaviour driver)
+    {
+        if (driver == null || (rideViewPoseDriver != null && rideViewPoseDriver != driver))
+            return false;
+        rideViewPoseDriver = driver;
+        return true;
+    }
+
+    public void ReleaseRideViewPose(Behaviour driver)
+    {
+        if (rideViewPoseDriver == driver)
+            rideViewPoseDriver = null;
+    }
     public bool IsBoosting => rideController != null && rideController.IsBoosting;
     public float RemainingSeconds => Mathf.Max(0f, deliveryTimeLimitSeconds - missionElapsedSeconds);
     public bool ShowingOffCourseTimePenalty => Time.unscaledTime < sharpOffCoursePenaltyFeedbackUntil;
@@ -185,6 +202,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         public float gaitClock;
         public Animator animator;
         public Renderer[] groundRenderers;
+        public MushDogGroundContact groundContact;
     }
 
     private void Awake()
@@ -504,7 +522,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             curvedWorld?.ConfigureSceneryCamera(rideCamera);
             cameraBaseLocalPosition = savedSeat.InverseTransformPoint(rideCamera.transform.position);
             cameraRestLocalRotation = Quaternion.Inverse(savedSeat.rotation) * rideCamera.transform.rotation;
-            normalFieldOfView = rideCamera.fieldOfView;
+            if (!IsVrRideActive())
+                rideCamera.fieldOfView = normalFieldOfView;
         }
         ConfigureQuestRide(savedSeat, leftGrip, rightGrip);
         if (speedParticles == null)
@@ -568,6 +587,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             visual.localPosition += Vector3.up * (0.008f - dogBounds.min.y);
             dog.restLocalPosition = visual.localPosition;
         }
+
+        dog.groundContact = MushDogGroundContact.Create(holder, visual);
+        GroundDogPose(dog);
+        dog.restLocalPosition = visual.localPosition;
 
         dog.legPivots = new Transform[4];
         dog.legRestRotations = new Quaternion[4];
@@ -955,7 +978,12 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
                 continue;
             Bounds localBounds = renderer.localBounds;
-            Matrix4x4 toHolder = relativeTo.worldToLocalMatrix * renderer.localToWorldMatrix;
+            // Skinned local bounds are expressed in the root bone's space,
+            // which can differ from the imported mesh's coordinate system.
+            Matrix4x4 boundsToWorld = renderer is SkinnedMeshRenderer skinned && skinned.rootBone != null
+                ? skinned.rootBone.localToWorldMatrix
+                : renderer.localToWorldMatrix;
+            Matrix4x4 toHolder = relativeTo.worldToLocalMatrix * boundsToWorld;
             for (int x = 0; x <= 1; x++)
             for (int y = 0; y <= 1; y++)
             for (int z = 0; z <= 1; z++)
@@ -1008,7 +1036,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         {
             cameraBaseLocalPosition = rideCamera.transform.localPosition;
             cameraPosition = cameraBaseLocalPosition;
-            normalFieldOfView = rideCamera.fieldOfView;
         }
         else
         {
@@ -1508,12 +1535,23 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     {
         float smoothedBoost = Mathf.SmoothStep(0f, 1f, boost01);
         float blend = 1f - Mathf.Exp(-5f * Time.deltaTime);
+        float currentSpeed = rideController.CurrentSpeed;
+        bool decelerating = running &&
+            (rideController.TerrainSpeedLimited ||
+             (presentationSpeedInitialized && currentSpeed < lastPresentationSpeed - 0.01f * Time.deltaTime));
+        lastPresentationSpeed = currentSpeed;
+        presentationSpeedInitialized = running;
 
         if (rideCamera != null)
         {
             if (!IsVrRideActive())
             {
-                float targetFov = Mathf.Lerp(normalFieldOfView, boostFieldOfView, smoothedBoost);
+                // Match the effective speeds so dog-condition and downhill modifiers
+                // still reach the same FOV at normal and maximum boost speed.
+                float fovBoost = running ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(
+                    rideController.NormalTargetSpeed, rideController.BoostTargetSpeed, currentSpeed)) : 0f;
+                float targetFov = decelerating ? decelerationFieldOfView :
+                    Mathf.Lerp(normalFieldOfView, boostFieldOfView, fovBoost);
                 rideCamera.fieldOfView = Mathf.Lerp(rideCamera.fieldOfView, targetFov, blend);
             }
 
@@ -1753,6 +1791,9 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
             if (!running && rideCamera != null)
             {
+                // The authored team height may differ from the baked road.
+                // Ground stationary dogs too, while preserving their look direction.
+                UpdateDogSurfacePose(dog, 0f);
                 Vector3 lookDirection = Vector3.ProjectOnPlane(
                     rideCamera.transform.position - dog.holder.position,
                     Vector3.up);
@@ -1775,6 +1816,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
                     dog.restLocalPosition,
                     1f - Mathf.Exp(-8f * Time.deltaTime));
                 if (dog.animator == null) AnimateDogLegs(dog, 0f, 12f);
+                GroundDogPose(dog);
                 continue;
             }
 
@@ -1793,11 +1835,20 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             float gait = Mathf.Abs(Mathf.Sin(dog.gaitClock + dog.gaitPhase));
             Vector3 targetPosition = dog.restLocalPosition + Vector3.up * (gait * 0.055f * speed01);
             dog.visual.localPosition = Vector3.Lerp(dog.visual.localPosition, targetPosition, forwardBlend);
-            if (TryGetLocalRendererBounds(dog.holder, dog.groundRenderers, out Bounds animatedBounds))
-            {
-                // Ground this frame's pose in both directions without accumulating height in the rest pose.
-                dog.visual.localPosition += Vector3.up * (0.008f - animatedBounds.min.y);
-            }
+            GroundDogPose(dog);
+        }
+    }
+
+    private static void GroundDogPose(DogRuntime dog)
+    {
+        float minimumHeight;
+        if (dog.groundContact != null && dog.groundContact.TryGetMinimumHeight(out minimumHeight))
+        {
+            dog.visual.localPosition += Vector3.up * (0.008f - minimumHeight);
+        }
+        else if (TryGetLocalRendererBounds(dog.holder, dog.groundRenderers, out Bounds bounds))
+        {
+            dog.visual.localPosition += Vector3.up * (0.008f - bounds.min.y);
         }
     }
 
@@ -2134,6 +2185,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
     private void UpdateSledSurfacePose(bool running)
     {
+        // A follower owns the shared sled/camera pivot while it is active.
+        // Do not feed a second surface rotation into its next frame.
+        if (rideViewPoseDriver != null && rideViewPoseDriver.isActiveAndEnabled)
+            return;
         if (rideSeatAnchor == null || sledHolder == null)
             return;
 

@@ -168,6 +168,8 @@ namespace Mush.Prototype
         public bool IsBoosting => rideStarted && speedLevel == 2;
         public float FirstLevelSpeed => firstLevelSpeed;
         public float SecondLevelSpeed => secondLevelSpeed;
+        public float NormalTargetSpeed => GetSpeedForLevel(1);
+        public float BoostTargetSpeed => GetSpeedForLevel(2);
         public float RideHeight => rideHeight;
         public bool TerrainSpeedLimited => terrainSpeedLimited;
         public float CourseSpeedMultiplier => courseSpeedMultiplier;

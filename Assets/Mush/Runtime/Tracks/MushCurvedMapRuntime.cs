@@ -62,6 +62,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
     private Mesh pineMesh;
     private Mesh mountainMesh;
     private Renderer roadRenderer;
+    private MeshCollider roadSurfaceCollider;
     private Renderer terrainRenderer;
     private Transform sharpProgressTarget;
     private float sharpProgress;
@@ -441,6 +442,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         courseBoundaryRoot = rebuiltRoot != null ? rebuiltRoot.Find(CourseBoundaryRootName) : null;
         roadRenderer = FindGeneratedComponent<Renderer>("VISIBLE Curved Packed-Snow Road");
         terrainRenderer = FindGeneratedComponent<Renderer>("VISIBLE Snow Terrain");
+        roadSurfaceCollider = roadRenderer != null ? roadRenderer.GetComponent<MeshCollider>() : null;
         ApplyRoadPresentation();
         AmbientSnowTransform = FindGeneratedTransform("FX_AmbientSnow_Rebuilt");
 
@@ -724,7 +726,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         surfacePoint = transform.TransformPoint(new Vector3(localPosition.x, surfaceHeight, localPosition.z));
         surfaceNormal = transform.TransformDirection(localNormal).normalized;
         surfaceForward = transform.TransformDirection(localForward).normalized;
-        if (Application.isPlaying && TrySampleBakedSurface(worldPosition, out RaycastHit savedHit))
+        if (Application.isPlaying && TrySampleBakedSurface(worldPosition, onRoad, out RaycastHit savedHit))
         {
             surfacePoint = savedHit.point;
             surfaceNormal = savedHit.normal;
@@ -733,19 +735,32 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         return true;
     }
 
-    private bool TrySampleBakedSurface(Vector3 worldPosition, out RaycastHit result)
+    private bool TrySampleBakedSurface(Vector3 worldPosition, bool onRoad, out RaycastHit result)
     {
         result = default;
         Ray ray = new(worldPosition + transform.up * 100f, -transform.up);
-        float closest = float.PositiveInfinity;
+        // Dogs probe ahead of the sled using the sled's height. On an uphill,
+        // choosing the hit closest to that height selects terrain under the road.
+        if (onRoad && roadSurfaceCollider != null && roadSurfaceCollider.enabled &&
+            roadSurfaceCollider.gameObject.activeInHierarchy && !roadSurfaceCollider.isTrigger &&
+            roadSurfaceCollider.Raycast(ray, out RaycastHit roadHit, 250f) &&
+            Vector3.Dot(roadHit.normal, transform.up) > 0f)
+        {
+            result = roadHit;
+            return true;
+        }
+
+        float highest = float.NegativeInfinity;
         bool found = false;
         foreach (Collider surface in bakedSurfaceColliders)
         {
             if (surface == null || !surface.enabled || !surface.gameObject.activeInHierarchy || surface.isTrigger) continue;
+            if (!onRoad && surface == roadSurfaceCollider) continue;
             if (!surface.Raycast(ray, out RaycastHit hit, 250f)) continue;
-            float distance = (hit.point - worldPosition).sqrMagnitude;
-            if (distance >= closest) continue;
-            closest = distance;
+            if (Vector3.Dot(hit.normal, transform.up) <= 0f) continue;
+            float height = Vector3.Dot(hit.point, transform.up);
+            if (height <= highest) continue;
+            highest = height;
             result = hit;
             found = true;
         }
@@ -993,6 +1008,7 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
             road,
             true);
         roadRenderer = roadObject.GetComponent<Renderer>();
+        roadSurfaceCollider = roadObject.GetComponent<MeshCollider>();
 
         CreateMeshObject("Left Sled Track", rebuiltRoot, BuildRibbonMesh(0.10f, -1.75f, 0.145f), track, false);
         CreateMeshObject("Right Sled Track", rebuiltRoot, BuildRibbonMesh(0.10f, 1.75f, 0.145f), track, false);
