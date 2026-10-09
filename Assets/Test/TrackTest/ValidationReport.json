@@ -1,0 +1,75 @@
+{
+  "scene": "Assets/Test/TrackTest/Track_v2_TrackTest.unity",
+  "validationUtc": "2026-10-09T15:31:06Z",
+  "unityVersion": "6000.3.18f1",
+  "compilation": "Passed; no new console errors since test start.",
+  "structuralValidation": {
+    "copiedPrefabAssets": 23,
+    "prefabInstances": 1434,
+    "instancesUsingOriginalPrefabAssets": 0,
+    "queryOnlyTreeAndRockInstances": 1159,
+    "missingScripts": 0,
+    "originalFollowAndMouseComponentsInCopy": 0,
+    "sceneDirty": false
+  },
+  "integrationConditions": "Three six-second runs in the copied scene. Neutral steering, initial normal speed 8 m/s or boost speed 15 m/s. Existing terrain speed limits remain active. Clearances are sampled horizontal gaps to the first demo tree's capsule, using a 1.25 m team sphere and a 0.85 m sled sphere. Positive means clear; negative means overlap. These results cover the first demo obstacle, not a complete track run.",
+  "integrationResults": [
+    {
+      "phase": "normal_off",
+      "sampledFrames": 342,
+      "elapsedGameSeconds": 6.014532,
+      "minRootClearanceMeters": -1.71613264,
+      "minSledClearanceMeters": -1.282985,
+      "peakAppliedYawDegreesPerSecond": 0,
+      "peakSpeedMetersPerSecond": 8,
+      "peakCandidates": 0,
+      "safetyCorrections": 0,
+      "averageSampleMicroseconds": 0,
+      "endSpeedMetersPerSecond": 3
+    },
+    {
+      "phase": "normal_on",
+      "sampledFrames": 361,
+      "elapsedGameSeconds": 6.01075,
+      "minRootClearanceMeters": 0.671238363,
+      "minSledClearanceMeters": 1.07057285,
+      "peakAppliedYawDegreesPerSecond": 38.719902,
+      "peakSpeedMetersPerSecond": 8,
+      "peakCandidates": 1,
+      "safetyCorrections": 0,
+      "averageSampleMicroseconds": 8.674417707994895,
+      "endSpeedMetersPerSecond": 3
+    },
+    {
+      "phase": "boost_on",
+      "sampledFrames": 361,
+      "elapsedGameSeconds": 6.000225,
+      "minRootClearanceMeters": 0.795201957,
+      "minSledClearanceMeters": 1.162364,
+      "peakAppliedYawDegreesPerSecond": 21.7868423,
+      "peakSpeedMetersPerSecond": 15,
+      "peakCandidates": 3,
+      "safetyCorrections": 0,
+      "averageSampleMicroseconds": 7.446802413004593,
+      "endSpeedMetersPerSecond": 5
+    }
+  ],
+  "performanceLimit": "averageSampleMicroseconds averages an exponentially smoothed per-call Stopwatch measurement in the Editor. Update, root sweep, and follower sweep call the marker separately. This is not total frame time, a controlled ON/OFF benchmark, or a Quest measurement.",
+  "scopeVerification": {
+    "inspectedOutsideSourceFiles": 2714,
+    "outsideFilesWithChangedSizeOrTimestamp": [
+      "ProjectSettings/TimeManager.asset",
+      "Assets/XR/AndroidXR/AndroidXRSettingsInitializer"
+    ],
+    "automaticRewrites": "Both files have no Git content diff and their Git blob hashes match the existing index. All other inspected outside files have unchanged sizes and modification times.",
+    "gameSaveAndBackupHashesUnchanged": true,
+    "authoredAssets": "Assets/Test/TrackTest plus its required Assets/Test/TrackTest.meta folder sidecar."
+  },
+  "manualChecksRemaining": [
+    "Full track and consecutive obstacles",
+    "Sustained player input toward an obstacle",
+    "Spawn or teleport inside a detection body",
+    "Low frame rate and cramped gaps",
+    "VR comfort and device CPU/frame cost"
+  ]
+}

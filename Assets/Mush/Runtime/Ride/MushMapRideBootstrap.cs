@@ -168,6 +168,17 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (rideViewPoseDriver == driver)
             rideViewPoseDriver = null;
     }
+
+    public void RefreshRideCourseContact(Behaviour driver)
+    {
+        if (driver == null || driver != rideViewPoseDriver || !driver.isActiveAndEnabled ||
+            !built || rideController == null || ridePaused || resultVisible)
+            return;
+
+        // A follower must finish positioning the sled before its road contact is judged.
+        UpdateOffCourseSpeedLimit();
+    }
+
     public bool IsBoosting => rideController != null && rideController.IsBoosting;
     public float RemainingSeconds => Mathf.Max(0f, deliveryTimeLimitSeconds - missionElapsedSeconds);
     public bool ShowingOffCourseTimePenalty => Time.unscaledTime < sharpOffCoursePenaltyFeedbackUntil;
@@ -1761,7 +1772,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             return;
 
         UpdateCourseSpeedMultiplier();
-        UpdateOffCourseSpeedLimit();
+        if (rideViewPoseDriver == null || !rideViewPoseDriver.isActiveAndEnabled)
+            UpdateOffCourseSpeedLimit();
 
         bool running = rideController.RideStarted;
         UpdateCourseRecoveryCheckpoint(running);
@@ -1854,8 +1866,12 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
     private void UpdateOffCourseSpeedLimit()
     {
-        if (curvedWorld == null || rideTeam == null || rideController == null || !rideController.RideStarted ||
-            !curvedWorld.TryGetRoadLateralDistance(rideTeam.position, out float lateralDistance))
+        if (curvedWorld == null || rideTeam == null || rideController == null || !rideController.RideStarted)
+            return;
+
+        // The movement root can be at the lead dogs; the seat pivot stays on the sled.
+        Vector3 sledPosition = rideSeatAnchor != null ? rideSeatAnchor.position : rideTeam.position;
+        if (!curvedWorld.TryGetRoadLateralDistance(sledPosition, out float lateralDistance))
             return;
 
         float roadEdge = curvedWorld.RoadHalfWidthMeters;

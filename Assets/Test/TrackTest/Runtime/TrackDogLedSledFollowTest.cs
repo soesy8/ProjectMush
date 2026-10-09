@@ -2,7 +2,7 @@ using System;
 using Mush.Prototype;
 using UnityEngine;
 
-namespace Mush.Testing
+namespace Mush.Testing.TrackTest
 {
     /// <summary>
     /// Track_v2-only experiment. The existing movement/route authority is moved
@@ -15,7 +15,7 @@ namespace Mush.Testing
     [AddComponentMenu("Mush/Test/Track Dog Led Sled Follow")]
     public sealed class TrackDogLedSledFollowTest : MonoBehaviour
     {
-        private const string TrackScenePath = "Assets/Scenes/Track_v2.unity";
+        private const string TrackScenePath = "Assets/Test/TrackTest/Track_v2_TrackTest.unity";
 
         [Header("주행 연결")]
         [SerializeField, InspectorName("주행 관리")]
@@ -86,6 +86,7 @@ namespace Mush.Testing
         private Transform motionRoot;
         private Transform seat;
         private MushCurvedMapRuntime course;
+        private TrackTestAvoidance avoidance;
         private Vector3 seatOffset;
         private Vector3 lastLeaderPosition;
         private Quaternion lastLeaderRotation;
@@ -152,6 +153,7 @@ namespace Mush.Testing
                 if (!ride.TryClaimRideViewPose(this))
                     throw new InvalidOperationException("Another component already controls the ride view pose.");
                 motionRoot = controller.transform;
+                avoidance = motionRoot.GetComponent<TrackTestAvoidance>();
                 seat = ride.RideViewAnchor;
                 reinsVisual = seat.GetComponent<MushReinsVisual>();
                 course = ride.GetComponent<MushCurvedMapRuntime>();
@@ -223,6 +225,7 @@ namespace Mush.Testing
             effectiveDelay = Mathf.MoveTowards(effectiveDelay, delaySeconds, Time.deltaTime);
             Pose delayed = history.Evaluate(Time.timeAsDouble - effectiveDelay);
             Vector3 targetPosition = motionRoot.position + delayed.rotation * Vector3.Scale(seatOffset, motionRoot.lossyScale);
+            if (avoidance != null) targetPosition = avoidance.ConstrainFollowerPosition(seat.position, targetPosition);
             Quaternion targetRotation = delayed.rotation;
             Vector3 targetNormal = Vector3.up;
             if (course != null && course.TryGetCourseSurface(targetPosition, out Vector3 surface,

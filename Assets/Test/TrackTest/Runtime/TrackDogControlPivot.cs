@@ -5,7 +5,7 @@ using System.Reflection;
 using Mush.Prototype;
 using UnityEngine;
 
-namespace Mush.Testing
+namespace Mush.Testing.TrackTest
 {
     /// <summary>
     /// Temporary adapter to the ride's private pose caches. Moving the existing

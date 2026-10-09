@@ -15,6 +15,13 @@ public sealed class MushTitleCredits : MonoBehaviour
 
     private void Awake()
     {
+        if (content != null && !content.text.Contains("Inventory Sound Effects"))
+            content.text += "\n\n<size=34>SFX / SOUND EFFECTS</size>\n\n" +
+                "<size=28>Leather / Inventory Sound Effects\nartisticdude\n(submitted by Ogrebane)</size>\n" +
+                "<size=20>Source: https://opengameart.org/content/inventory-sound-effects\n" +
+                "License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)\n" +
+                "https://creativecommons.org/licenses/by/3.0/\n" +
+                "Audio modifications: None. Original WAV used without audio editing.</size>";
         if (creditButton != null) creditButton.onClick.AddListener(PlayCredits);
         if (skipButton != null) skipButton.onClick.AddListener(SkipCredits);
         StopCredits();

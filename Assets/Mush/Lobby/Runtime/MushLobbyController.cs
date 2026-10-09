@@ -336,7 +336,7 @@ namespace Mush.Lobby
             transientMessage = displayName + " 출발 중";
             RefreshAllText();
             MushSceneUI.Active?.SaveCurrent();
-            MushSceneTransition.Load(sceneName);
+            MushSceneTransition.Load(sceneName, lobbyTrackDeparture: true);
         }
 
         public void SetKoreanFont(Font font)

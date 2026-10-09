@@ -1,0 +1,25 @@
+Source verification — 2026-10-08
+Asset collection: Inventory Sound Effects
+Selected item: Leather
+Original filename: inventory_sound_effects/leather_inventory.wav
+Author: artisticdude
+Uploader: Ogrebane
+Source page: https://opengameart.org/content/inventory-sound-effects
+Source ZIP: https://opengameart.org/sites/default/files/inventory_sound_effects.zip
+License selected: CC BY 3.0 Unported
+License: https://creativecommons.org/licenses/by/3.0/
+Legal code: https://creativecommons.org/licenses/by/3.0/legalcode.en
+The source page lists CC BY 3.0 among alternative licenses.
+The downloaded source archive passed ZIP CRC validation.
+The WAV bytes were extracted directly without audio processing.
+
+Audio format and integrity:
+{
+  "channels": 2,
+  "sample_rate": 44100,
+  "sample_width_bytes": 2,
+  "frames": 51840,
+  "duration_seconds": 1.1755102040816328,
+  "bytes": 207406,
+  "sha256": "31d75251d96aaa767efc6aa326e40c1b52e05f1832a751f49744551a2f916e28"
+}

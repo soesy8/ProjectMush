@@ -11,6 +11,7 @@ public sealed class MushSounds : MonoBehaviour
     private MushAudioChannel musicChannel;
     private Coroutine musicFade;
     private float musicVolume = 1f;
+    private float lobbyDepartureStartVolume;
     private bool trackMusicPaused;
     private bool lobbyMusicPaused;
     private int musicSceneHandle = -1;
@@ -120,6 +121,25 @@ public sealed class MushSounds : MonoBehaviour
         if (paused && SceneManager.GetActiveScene().name is not ("PM_Lobby" or "MushLobby")) return;
         instance.lobbyMusicPaused = paused;
         instance.SetMusicVolume(instance.musicVolume);
+    }
+
+    public static void BeginLobbyTrackDeparture()
+    {
+        if (instance == null) return;
+        if (instance.musicFade != null)
+        {
+            instance.StopCoroutine(instance.musicFade);
+            instance.musicFade = null;
+        }
+        instance.lobbyDepartureStartVolume = instance.musicVolume;
+        instance.Play(instance.bank != null ? instance.bank.lobbyTrackDeparture : null);
+    }
+
+    public static void SetLobbyDepartureFade(float progress)
+    {
+        if (instance == null) return;
+        // Use the screen fade's unscaled progress, keeping the player's BGM setting intact.
+        instance.SetMusicVolume(Mathf.Lerp(instance.lobbyDepartureStartVolume, 0f, Mathf.Clamp01(progress)));
     }
 
     private void SetMusicVolume(float volume)
