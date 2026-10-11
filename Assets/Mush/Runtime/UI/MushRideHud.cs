@@ -49,9 +49,9 @@ public sealed class MushRideHud : MonoBehaviour
         {
             RefreshStamina(staminaFill, staminaText, 0, ref previousFirstStamina);
             RefreshStamina(secondStaminaFill, secondStaminaText, 1, ref previousSecondStamina);
-            RefreshPortrait(firstPortrait, MushGameSave.GetDogStamina(0),
+            RefreshPortrait(firstPortrait, MushGameSave.GetDogCondition(0),
                 firstNormalPortrait, firstGoodPortrait, firstBadPortrait);
-            RefreshPortrait(secondPortrait, MushGameSave.GetDogStamina(1),
+            RefreshPortrait(secondPortrait, MushGameSave.GetDogCondition(1),
                 secondNormalPortrait, secondGoodPortrait, secondBadPortrait);
         }
         int seconds = Mathf.CeilToInt(ride.RemainingSeconds);
@@ -94,10 +94,10 @@ public sealed class MushRideHud : MonoBehaviour
         progressIcon.localPosition = position;
     }
 
-    private static void RefreshPortrait(Image portrait, float stamina, Sprite normal, Sprite good, Sprite bad)
+    private static void RefreshPortrait(Image portrait, MushDogCondition condition, Sprite normal, Sprite good, Sprite bad)
     {
         if (portrait == null) return;
-        Sprite artwork = MushDogConditionIcon.GetConditionForStamina(stamina) switch
+        Sprite artwork = condition switch
         {
             MushDogCondition.Good => good,
             MushDogCondition.Bad => bad,

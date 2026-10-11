@@ -21,6 +21,7 @@ public sealed class MushSceneUI : MonoBehaviour
     [SerializeField] private GameObject titlePanel;
     [SerializeField] private GameObject pausePanel;
     [SerializeField] private GameObject optionPanel;
+    [SerializeField] private GameObject newGameConfirmPanel;
     [SerializeField] private MushRideControlGuide controlGuide;
     [SerializeField] private TMP_Text message;
     [SerializeField] private Slider master;
@@ -30,6 +31,9 @@ public sealed class MushSceneUI : MonoBehaviour
     [SerializeField] private TMP_Text musicCount;
     [SerializeField] private TMP_Text effectsCount;
     private Button continueButton;
+    private Button resumeButton;
+    private bool showingTrackingRecoveryStatus;
+    private Button newGameCancelButton;
     private bool ready;
     private bool leaving;
     private float nextSave;
@@ -39,8 +43,9 @@ public sealed class MushSceneUI : MonoBehaviour
     private RectTransform rootCanvasRect;
     private bool vrCanvasConfigured;
     public static MushSceneUI Active { get; private set; }
-    public static bool ModalOpen => Active != null && Active.OptionsOpen;
+    public static bool ModalOpen => Active != null && (Active.OptionsOpen || Active.NewGameConfirmationOpen);
     private bool OptionsOpen => optionPanel != null && optionPanel.activeSelf;
+    private bool NewGameConfirmationOpen => newGameConfirmPanel != null && newGameConfirmPanel.activeSelf;
 
     private void Awake()
     {
@@ -50,12 +55,15 @@ public sealed class MushSceneUI : MonoBehaviour
         ResolveAuthoredTitleReferences();
         if (pausePanel != null) pausePanel.SetActive(false);
         if (optionPanel != null) optionPanel.SetActive(false);
+        if (newGameConfirmPanel != null) newGameConfirmPanel.SetActive(false);
+        newGameCancelButton = Bind(newGameConfirmPanel, "Button_CancelNewGame", CancelNewGame);
+        Bind(newGameConfirmPanel, "Button_ConfirmNewGame", ConfirmNewGame);
         Bind(titlePanel, "TitleUI_Start", StartGame);
         continueButton = Bind(titlePanel, "TitleUI_Continue", ContinueGame);
         if (continueButton != null) continueButton.interactable = MushGameSave.HasSave;
         Bind(titlePanel, "TitleUI_Option", OpenOptions);
         Bind(titlePanel, "TitleUI_Quit", QuitGame);
-        Bind(pausePanel, "Button_Resume", Resume);
+        resumeButton = Bind(pausePanel, "Button_Resume", Resume);
         Bind(pausePanel, "Button_Recover", () => ride?.RecoverToCourse());
         Bind(pausePanel, "Button_Option", OpenOptions);
         Bind(pausePanel, "Button_Lobby", ReturnToLobby);
@@ -80,6 +88,8 @@ public sealed class MushSceneUI : MonoBehaviour
             titlePanel = FindNamedChild("TitleMenuUI")?.gameObject;
         if (optionPanel == null)
             optionPanel = FindNamedChild("OptionUI")?.gameObject;
+        if (newGameConfirmPanel == null)
+            newGameConfirmPanel = FindNamedChild("NewGameConfirmUI")?.gameObject;
         if (message == null)
             message = FindNamedChild("Save Status")?.GetComponent<TMP_Text>();
 
@@ -139,7 +149,8 @@ public sealed class MushSceneUI : MonoBehaviour
         if (!vrCanvasConfigured) TryConfigureVrRideCanvas();
         if (Keyboard.current?.escapeKey.wasPressedThisFrame == true)
         {
-            if (OptionsOpen) CloseOptions();
+            if (NewGameConfirmationOpen) CancelNewGame();
+            else if (OptionsOpen) CloseOptions();
             else if (ride != null && !ride.HasFinished) ride.SetRidePaused(!ride.IsPaused);
             else if (titlePanel != null) OpenOptions();
         }
@@ -165,6 +176,12 @@ public sealed class MushSceneUI : MonoBehaviour
         }
         else
         {
+            if (showingTrackingRecoveryStatus)
+            {
+                SetMessage(string.Empty);
+                showingTrackingRecoveryStatus = false;
+            }
+            if (resumeButton != null) resumeButton.interactable = true;
             CloseOptions();
             PositionVrCanvasAtNeutralView();
             Cursor.lockState = previousCursorLock;
@@ -173,6 +190,16 @@ public sealed class MushSceneUI : MonoBehaviour
         pausePanel.SetActive(paused);
         controlGuide?.SetPaused(paused);
         SelectFirst(paused ? pausePanel : null);
+    }
+
+    public void ShowTrackingRecoveryStatus(string status, bool canResume)
+    {
+        if (resumeButton != null) resumeButton.interactable = canResume;
+        if (!string.IsNullOrEmpty(status))
+        {
+            SetMessage(status);
+            showingTrackingRecoveryStatus = true;
+        }
     }
 
     private void TryConfigureVrRideCanvas()
@@ -227,9 +254,57 @@ public sealed class MushSceneUI : MonoBehaviour
         return false;
     }
 
-    private void StartGame() { MushGameSave.NewGame(); Load("PM_Lobby"); }
+    private void StartGame()
+    {
+        if (leaving || NewGameConfirmationOpen) return;
+        if (!MushGameSave.HasSave)
+        {
+            BeginNewGame();
+            return;
+        }
+        // Opening or cancelling this panel must never touch the saved progress.
+        if (newGameConfirmPanel == null)
+        {
+            SetMessage("새 게임 확인창을 열 수 없습니다. 저장 데이터는 유지됩니다.");
+            return;
+        }
+        if (titlePanel != null) titlePanel.SetActive(false);
+        GetComponent<MushTitleCredits>()?.SkipCredits();
+        newGameConfirmPanel.SetActive(true);
+        newGameConfirmPanel.transform.SetAsLastSibling();
+        if (newGameCancelButton != null) newGameCancelButton.Select();
+    }
+
+    private void CancelNewGame()
+    {
+        if (!NewGameConfirmationOpen || leaving) return;
+        newGameConfirmPanel.SetActive(false);
+        if (titlePanel != null) titlePanel.SetActive(true);
+        SelectFirst(titlePanel);
+    }
+
+    private void ConfirmNewGame()
+    {
+        if (!NewGameConfirmationOpen || leaving) return;
+        BeginNewGame();
+    }
+
+    private void BeginNewGame()
+    {
+        // Check the destination before resetting progress, even if build settings are incomplete.
+        if (!Application.CanStreamedLevelBeLoaded("PM_Lobby"))
+        {
+            CancelNewGame();
+            SetMessage("로비를 불러올 수 없습니다. 저장 데이터는 유지됩니다.");
+            return;
+        }
+        MushGameSave.NewGame();
+        Load("PM_Lobby");
+    }
+
     private void ContinueGame()
     {
+        if (leaving || NewGameConfirmationOpen) return;
         string scene = MushGameSave.ContinueGame();
         if (scene != null) Load(scene);
         else { if (continueButton != null) continueButton.interactable = false; SetMessage("불러올 수 있는 저장 데이터가 없습니다."); }
@@ -237,7 +312,7 @@ public sealed class MushSceneUI : MonoBehaviour
     private void Resume() => ride?.SetRidePaused(false);
     public void OpenOptions()
     {
-        if (optionPanel == null) return;
+        if (optionPanel == null || NewGameConfirmationOpen) return;
         if (titlePanel != null) titlePanel.SetActive(false);
         optionPanel.SetActive(true);
         optionPanel.transform.SetAsLastSibling();

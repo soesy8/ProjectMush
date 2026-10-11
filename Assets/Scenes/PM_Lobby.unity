@@ -62333,6 +62333,63 @@ ParticleSystem:
         m_PostInfinity: 2
         m_RotationOrder: 4
     vectorLabel1_3: W
+--- !u!1 &1870528939
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1870528941}
+  - component: {fileID: 1870528940}
+  m_Layer: 0
+  m_Name: Lobby Track VR Desktop Test
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1870528940
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1870528939}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c5d237679ad9814a9569c50c64dad25, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mush.Testing.LobbyTrackVrDesktopPreview
+  viewCamera: {fileID: 1000822040}
+  titleCanvas: {fileID: 98000000000213}
+  questInput: {fileID: 98000000000210}
+  pointerShader: {fileID: 4800000, guid: 7d2ba30914f709b4eba01bbd47adce3b, type: 3}
+  mouseSensitivity: 0.12
+  pitchLimit: 75
+  binocularHorizontalFieldOfView: 104
+  binocularVerticalFieldOfView: 98
+  uiDistance: 1.8
+  laserTransparencyPercent: 75
+  laserColor: {r: 0.35, g: 0.82, b: 1, a: 1}
+  hitDotRadius: 0.0125
+  trackSelectionPanel: {fileID: 98000000000326}
+--- !u!4 &1870528941
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1870528939}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1873170259
 GameObject:
   m_ObjectHideFlags: 0
@@ -66345,6 +66402,7 @@ MonoBehaviour:
   titlePanel: {fileID: 0}
   pausePanel: {fileID: 0}
   optionPanel: {fileID: 0}
+  newGameConfirmPanel: {fileID: 0}
   controlGuide: {fileID: 0}
   message: {fileID: 0}
   master: {fileID: 0}
@@ -109375,7 +109433,7 @@ RectTransform:
   m_GameObject: {fileID: 98000000001685}
   m_LocalRotation: {x: -0.011540568, y: 0.94796497, z: -0.03458981, w: -0.31627974}
   m_LocalPosition: {x: 0, y: 0, z: 0.90115285}
-  m_LocalScale: {x: 0.003, y: 0.003, z: 0.003}
+  m_LocalScale: {x: 0.00675, y: 0.00675, z: 0.00675}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 98000000001684}
@@ -109849,7 +109907,7 @@ RectTransform:
   m_GameObject: {fileID: 98000000001707}
   m_LocalRotation: {x: -0.00022276794, y: 0.9994721, z: 0.0070189843, w: 0.03172116}
   m_LocalPosition: {x: 0, y: 0, z: 0.70742655}
-  m_LocalScale: {x: 0.003, y: 0.003, z: 0.003}
+  m_LocalScale: {x: 0.00675, y: 0.00675, z: 0.00675}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 98000000001706}
@@ -110323,7 +110381,7 @@ RectTransform:
   m_GameObject: {fileID: 98000000001730}
   m_LocalRotation: {x: -0.041504253, y: -0.7771038, z: -0.05153204, w: 0.6258846}
   m_LocalPosition: {x: 0, y: 0, z: 1.2222519}
-  m_LocalScale: {x: 0.003, y: 0.003, z: 0.003}
+  m_LocalScale: {x: 0.00675, y: 0.00675, z: 0.00675}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 98000000001728}
@@ -110797,7 +110855,7 @@ RectTransform:
   m_GameObject: {fileID: 98000000001751}
   m_LocalRotation: {x: 0.0026965935, y: 0.98734903, z: 0.016889967, w: -0.15763675}
   m_LocalPosition: {x: 0, y: 0, z: 0.5923786}
-  m_LocalScale: {x: 0.003, y: 0.003, z: 0.003}
+  m_LocalScale: {x: 0.00675, y: 0.00675, z: 0.00675}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 98000000001750}
@@ -113963,3 +114021,4 @@ SceneRoots:
   - {fileID: 98000000000083}
   - {fileID: 1981934661}
   - {fileID: 930000002}
+  - {fileID: 1870528941}

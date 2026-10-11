@@ -11,6 +11,7 @@ namespace Mush.Lobby
     public sealed class MushLobbyFeedingStation : MonoBehaviour
     {
         private const float SecondsToFill = 2.35f;
+        public const int StaminaPerMeal = 40;
         private const int FullBowlPelletCount = 42;
         private const int BowlCount = 2;
         private readonly List<Material> ownedMaterials = new();
@@ -29,6 +30,20 @@ namespace Mush.Lobby
         private Camera desktopCamera;
         private Vector3 desktopHoldWorld;
         private float fallingEmitAccumulator;
+        private readonly float[] bowlRadius = new float[BowlCount];
+        private readonly float[] mealProgress = new float[BowlCount];
+        private readonly float[] nextCrunchTime = new float[BowlCount];
+        private readonly ParticleSystem.Particle[] storedPellets = new ParticleSystem.Particle[FullBowlPelletCount];
+        private AudioSource pourAudio;
+        private readonly AudioSource[] bowlAudio = new AudioSource[BowlCount];
+        private MushSoundBank soundBank;
+        private float lastPourTime = float.NegativeInfinity;
+        private float nextImpactTime;
+
+        public float GetBowlFill(int index) => index >= 0 && index < BowlCount ? bowlFill[index] : 0f;
+        public bool IsBowlReady(int index) => index >= 0 && index < BowlCount && bowlReady[index];
+        public Vector3 GetBowlPosition(int index) => bowlWorld[Mathf.Clamp(index, 0, BowlCount - 1)];
+        public MushLobbyDogRoamer GetAssignedDog(int index) => index >= 0 && index < BowlCount ? assignedDogs[index] : null;
 
         public Vector3 DesktopHoldWorld => desktopHoldWorld;
 
@@ -56,6 +71,7 @@ namespace Mush.Lobby
             station.CacheExistingFeedingPlace();
             if (station.fallingFoodParticles == null)
                 station.BuildFeedingPlace();
+            station.PrepareFoodVisualsAndAudio();
             return station;
         }
 
@@ -85,64 +101,99 @@ namespace Mush.Lobby
 
         private void Update()
         {
-            // The bowl can become full while every dog is busy with a ball or
-            // the fireplace. Keep the food waiting and call one only when free.
-            for (int bowlIndex = 0; bowlIndex < BowlCount; bowlIndex++)
+            if (pourAudio != null && (Time.timeScale <= 0f || Time.time - lastPourTime > 0.10f))
+                pourAudio.Stop();
+            for (int index = 0; index < BowlCount; index++)
             {
-                if (bowlReady[bowlIndex] && assignedDogs[bowlIndex] == null)
-                    TryCallDogToFullBowl(bowlIndex);
+                MushLobbyDogRoamer dog = assignedDogs[index];
+                if (!ReferenceEquals(dog, null) && (dog == null || !dog.isActiveAndEnabled || !dog.IsFeeding))
+                    CancelFeeding(index, dog);
+                if (bowlReady[index] && assignedDogs[index] == null)
+                    TryCallDogToFullBowl(index);
             }
         }
 
-        public void PourFrom(Vector3 pourWorldPosition, float deltaTime)
+        public void PourFrom(Vector3 source, float deltaTime)
         {
-            if (deltaTime <= 0f)
+            if (!isActiveAndEnabled || !float.IsFinite(deltaTime) || deltaTime <= 0f ||
+                !float.IsFinite(source.x) || !float.IsFinite(source.y) || !float.IsFinite(source.z))
                 return;
-
+            // Bound work after a stalled frame: no unbounded emission loop on Quest.
+            deltaTime = Mathf.Min(deltaTime, 0.25f);
+            lastPourTime = Time.time;
+            if (pourAudio != null)
+            {
+                pourAudio.transform.position = source;
+                if (!pourAudio.isPlaying && pourAudio.clip != null) pourAudio.Play();
+            }
+            int index = FindBowlBelow(source);
             fallingEmitAccumulator += deltaTime;
-            while (fallingEmitAccumulator >= 0.035f)
+            while (fallingEmitAccumulator >= 0.025f)
             {
-                fallingEmitAccumulator -= 0.035f;
-                EmitFallingPellet(pourWorldPosition);
+                fallingEmitAccumulator -= 0.025f;
+                EmitFallingPellet(source);
             }
-
-            int bowlIndex = FindBowlBelow(pourWorldPosition);
-            if (bowlIndex < 0)
+            if (index < 0)
                 return;
+            if (Time.time >= nextImpactTime)
+            {
+                nextImpactTime = Time.time + 0.18f;
+                PlayBowlClip(index, soundBank != null ? soundBank.kibbleBowlImpact : null, 0.18f);
+            }
             BeginFeedingRoundIfNeeded();
-            if (bowlReady[bowlIndex] || assignedDogs[bowlIndex] != null)
-                return; // 그릇 밖에서 기울이면 사료는 보이지만 채움 수치에는 들어가지 않는다.
-
-            bowlFill[bowlIndex] = Mathf.Clamp01(bowlFill[bowlIndex] + deltaTime / SecondsToFill);
-            int targetPellets = Mathf.FloorToInt(bowlFill[bowlIndex] * FullBowlPelletCount);
-            while (visibleBowlPellets[bowlIndex] < targetPellets)
-            {
-                EmitBowlPellet(bowlIndex);
-                visibleBowlPellets[bowlIndex]++;
-            }
-
-            if (bowlFill[bowlIndex] < 1f)
+            if (bowlReady[index] || assignedDogs[index] != null)
                 return;
-
-            bowlReady[bowlIndex] = true;
-            TryCallDogToFullBowl(bowlIndex); // 각 그릇을 충분히 채운 순간에만 한 마리씩 출발한다.
+            SetBowlFill(index, Mathf.Clamp01(bowlFill[index] + deltaTime / SecondsToFill));
+            if (bowlFill[index] < 1f)
+                return;
+            bowlReady[index] = true;
+            TryCallDogToFullBowl(index);
         }
 
-        public void CompleteFeeding(int bowlIndex, MushLobbyDogRoamer dog)
+        public bool OwnsReservation(int index, MushLobbyDogRoamer dog) =>
+            isActiveAndEnabled && index >= 0 && index < BowlCount && dog != null &&
+            dog.isActiveAndEnabled && assignedDogs[index] == dog;
+
+        public bool UpdateMealProgress(int index, MushLobbyDogRoamer dog, float progress)
         {
-            if (bowlIndex < 0 || bowlIndex >= BowlCount || assignedDogs[bowlIndex] != dog)
-                return;
-
-            MushGameSave.RestoreDogStamina(dog.TeamIndex, 100);
-            dogsFedThisRound.Add(dog);
-            assignedDogs[bowlIndex] = null;
-            bowlReady[bowlIndex] = false;
-            bowlFill[bowlIndex] = 0f;
-            visibleBowlPellets[bowlIndex] = 0;
-            fallingEmitAccumulator = 0f;
-            bowlFoodParticles[bowlIndex].Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            if (!OwnsReservation(index, dog) || !float.IsFinite(progress))
+                return false;
+            mealProgress[index] = Mathf.Max(mealProgress[index], Mathf.Clamp01(progress));
+            SetBowlFill(index, 1f - mealProgress[index]);
+            if (mealProgress[index] < 1f && Time.time >= nextCrunchTime[index])
+            {
+                nextCrunchTime[index] = Time.time + 0.85f;
+                AudioClip[] clips = soundBank != null ? soundBank.dogEatCrunches : null;
+                if (clips != null && clips.Length > 0)
+                    PlayBowlClip(index, clips[Random.Range(0, clips.Length)], 0.20f);
+            }
+            return true;
         }
 
+        public bool CompleteFeeding(int index, MushLobbyDogRoamer dog)
+        {
+            if (!OwnsReservation(index, dog) || mealProgress[index] < 1f)
+                return false;
+            // Release the consumed serving BEFORE the shared save call or callbacks.
+            assignedDogs[index] = null;
+            bowlReady[index] = false;
+            mealProgress[index] = 0f;
+            SetBowlFill(index, 0f);
+            dogsFedThisRound.Add(dog);
+            MushGameSave.RestoreDogStamina(dog.TeamIndex, StaminaPerMeal);
+            return true;
+        }
+
+        public void CancelFeeding(int index, MushLobbyDogRoamer dog)
+        {
+            if (index < 0 || index >= BowlCount || !ReferenceEquals(assignedDogs[index], dog))
+                return;
+            assignedDogs[index] = null;
+            mealProgress[index] = 0f;
+            // An interrupted meal retains the actual remaining food; top it up before recall.
+            bowlReady[index] = bowlFill[index] >= 1f;
+            if (bowlAudio[index] != null) bowlAudio[index].Stop();
+        }
         private void TryCallDogToFullBowl(int bowlIndex)
         {
             if (bowlIndex < 0 || bowlIndex >= BowlCount || !bowlReady[bowlIndex] ||
@@ -153,7 +204,7 @@ namespace Mush.Lobby
             float nearestDistance = float.PositiveInfinity;
             foreach (MushLobbyDogRoamer dog in dogs)
             {
-                if (dog == null || dogsFedThisRound.Contains(dog) || dog.IsFetching || dog.IsFeeding || dog.IsInLapRoutine)
+                if (dog == null || !dog.isActiveAndEnabled || dogsFedThisRound.Contains(dog) || dog.IsFetching || dog.IsFeeding || dog.IsInLapRoutine)
                     continue;
                 float distance = (dog.transform.position - eatingWorld[bowlIndex]).sqrMagnitude;
                 if (distance >= nearestDistance)
@@ -167,7 +218,11 @@ namespace Mush.Lobby
                     bowlIndex,
                     eatingWorld[bowlIndex],
                     eatingRotation[bowlIndex]))
+            {
                 assignedDogs[bowlIndex] = nearestDog;
+                mealProgress[bowlIndex] = 0f;
+                nextCrunchTime[bowlIndex] = 0f;
+            }
         }
 
         private void BeginFeedingRoundIfNeeded()
@@ -183,7 +238,7 @@ namespace Mush.Lobby
             {
                 foreach (MushLobbyDogRoamer dog in dogs)
                 {
-                    if (dog != null)
+                    if (dog != null && dog.isActiveAndEnabled)
                         availableDogCount++;
                 }
             }
@@ -212,7 +267,7 @@ namespace Mush.Lobby
                     bowl.localPosition = new Vector3(side * 0.44f, 0f, 0f);
                     BuildRoundBowl(bowl, bowlMaterial, rimMaterial);
                 }
-                bowlWorld[bowlIndex] = bowl.position + Vector3.up * 0.13f;
+                CacheBowlGeometry(bowlIndex, bowl);
                 // 개는 그릇의 방 안쪽에 서고, 그릇과 플레이어가 있는 방향을 함께 바라본다.
                 // 이전처럼 플레이어 앞에 등을 보인 채 먹지 않도록 접근 위치와 회전을 반대로 둔다.
                 eatingWorld[bowlIndex] = bowl.position + transform.forward * 0.62f;
@@ -354,7 +409,7 @@ namespace Mush.Lobby
                 if (bowl == null)
                     continue;
 
-                bowlWorld[bowlIndex] = bowl.position + Vector3.up * 0.13f;
+                CacheBowlGeometry(bowlIndex, bowl);
                 eatingWorld[bowlIndex] = bowl.position + transform.forward * 0.62f;
                 eatingRotation[bowlIndex] = Quaternion.LookRotation(-transform.forward, Vector3.up);
                 string foodName = bowlIndex == 0 ? "Food Stored In Left Bowl" : "Food Stored In Right Bowl";
@@ -390,61 +445,157 @@ namespace Mush.Lobby
             }
         }
 
+        private void CacheBowlGeometry(int index, Transform bowl)
+        {
+            Renderer visible = null;
+            foreach (Renderer renderer in bowl.GetComponentsInChildren<Renderer>(true))
+                if (renderer.enabled && renderer.gameObject.activeInHierarchy && renderer is not ParticleSystemRenderer)
+                    visible = renderer;
+            if (visible != null)
+            {
+                Bounds bounds = visible.bounds;
+                bowlWorld[index] = new Vector3(bounds.center.x, bounds.min.y + bounds.size.y * 0.62f, bounds.center.z);
+                bowlRadius[index] = Mathf.Max(0.05f, Mathf.Min(bounds.extents.x, bounds.extents.z) * 0.74f);
+            }
+            else
+            {
+                bowlWorld[index] = bowl.position + Vector3.up * 0.13f;
+                bowlRadius[index] = 0.23f;
+            }
+        }
+
         private int FindBowlBelow(Vector3 source)
         {
-            int nearestBowl = -1;
-            float nearestHorizontalDistance = float.PositiveInfinity;
-            for (int bowlIndex = 0; bowlIndex < BowlCount; bowlIndex++)
+            int nearest = -1;
+            float nearestDistance = float.PositiveInfinity;
+            for (int index = 0; index < BowlCount; index++)
             {
-                Vector3 difference = source - bowlWorld[bowlIndex];
-                if (difference.y < 0.05f || difference.y > 1.55f ||
-                    Mathf.Abs(difference.x) > 0.46f || Mathf.Abs(difference.z) > 0.46f)
+                Vector3 difference = source - bowlWorld[index];
+                float distance = difference.x * difference.x + difference.z * difference.z;
+                if (difference.y < 0.025f || difference.y > 1.55f || distance > bowlRadius[index] * bowlRadius[index] || distance >= nearestDistance)
                     continue;
-
-                float horizontalDistance = difference.x * difference.x + difference.z * difference.z;
-                if (horizontalDistance >= nearestHorizontalDistance)
-                    continue;
-                nearestHorizontalDistance = horizontalDistance;
-                nearestBowl = bowlIndex;
+                nearestDistance = distance;
+                nearest = index;
             }
-            return nearestBowl;
+            return nearest;
         }
 
         private void EmitFallingPellet(Vector3 source)
         {
-            fallingFoodParticles.Play();
-            ParticleSystem.EmitParams pellet = new ParticleSystem.EmitParams
-            {
-                position = source + Random.insideUnitSphere * 0.018f,
-                velocity = Vector3.down * Random.Range(0.72f, 0.95f),
-                startLifetime = 0.95f,
-                startSize = Random.Range(0.025f, 0.042f),
-                startColor = Random.value < 0.35f
-                    ? new Color(0.68f, 0.39f, 0.13f)
-                    : new Color(0.42f, 0.22f, 0.07f),
-            };
-            fallingFoodParticles.Emit(pellet, 1);
+            if (fallingFoodParticles == null) return;
+            int index = FindBowlBelow(source);
+            float landingY = index >= 0 ? bowlWorld[index].y : Mathf.Min(bowlWorld[0].y, bowlWorld[1].y) - 0.12f;
+            float height = Mathf.Max(0.02f, source.y - landingY);
+            float speed = 0.72f;
+            // Gravity-driven lifetime ends at the bowl surface (or the floor for a miss).
+            float lifetime = (Mathf.Sqrt(speed * speed + 2f * 9.81f * height) - speed) / 9.81f;
+            fallingFoodParticles.Emit(new ParticleSystem.EmitParams {
+                position = source + Random.insideUnitSphere * 0.01f,
+                velocity = Vector3.down * speed,
+                startLifetime = Mathf.Clamp(lifetime, 0.05f, 0.8f),
+                startSize = Random.Range(0.027f, 0.040f),
+                startColor = new Color(0.55f, 0.29f, 0.10f),
+                rotation = Random.Range(0f, 360f)
+            }, 1);
         }
 
-        private void EmitBowlPellet(int bowlIndex)
+        private void SetBowlFill(int index, float fill)
         {
-            bowlFoodParticles[bowlIndex].Play();
-            ParticleSystem.EmitParams pellet = new ParticleSystem.EmitParams
+            bowlFill[index] = fill;
+            int count = Mathf.CeilToInt(fill * FullBowlPelletCount);
+            if (count == visibleBowlPellets[index]) return;
+            visibleBowlPellets[index] = count;
+            ParticleSystem particles = bowlFoodParticles[index];
+            if (particles == null) return;
+            for (int pellet = 0; pellet < count; pellet++)
             {
-                position = bowlWorld[bowlIndex] + new Vector3(
-                    Random.Range(-0.23f, 0.23f),
-                    Random.Range(-0.012f, 0.025f),
-                    Random.Range(-0.18f, 0.18f)),
-                velocity = Vector3.zero,
-                startLifetime = 60f,
-                startSize = Random.Range(0.027f, 0.044f),
-                startColor = Random.value < 0.35f
-                    ? new Color(0.68f, 0.39f, 0.13f)
-                    : new Color(0.42f, 0.22f, 0.07f),
-            };
-            bowlFoodParticles[bowlIndex].Emit(pellet, 1);
+                float angle = pellet * 2.399963f;
+                float radius = Mathf.Sqrt((pellet + 0.5f) / FullBowlPelletCount) * bowlRadius[index] * 0.87f;
+                storedPellets[pellet] = new ParticleSystem.Particle {
+                    position = bowlWorld[index] + new Vector3(Mathf.Cos(angle) * radius, (pellet % 3) * 0.006f, Mathf.Sin(angle) * radius),
+                    velocity = Vector3.zero,
+                    startLifetime = float.MaxValue,
+                    remainingLifetime = float.MaxValue,
+                    startSize = 0.043f + (pellet % 4) * 0.003f,
+                    startColor = pellet % 3 == 0 ? new Color(0.68f, 0.39f, 0.13f) : new Color(0.42f, 0.22f, 0.07f),
+                    rotation = pellet * 47f,
+                    randomSeed = (uint)(pellet + 1)
+                };
+            }
+            if (count > 0 && !particles.isPlaying) particles.Play();
+            particles.SetParticles(storedPellets, count);
         }
 
+        private void PrepareFoodVisualsAndAudio()
+        {
+            Mesh kibble = Resources.Load<Mesh>("Feeding/KibblePellet");
+            for (int index = -1; index < BowlCount; index++)
+            {
+                ParticleSystem particles = index < 0 ? fallingFoodParticles : bowlFoodParticles[index];
+                if (particles == null) continue;
+                var main = particles.main;
+                main.maxParticles = index < 0 ? 64 : FullBowlPelletCount;
+                main.gravityModifier = index < 0 ? 1f : 0f;
+                main.cullingMode = ParticleSystemCullingMode.AlwaysSimulate;
+                var collision = particles.collision;
+                collision.enabled = false;
+                var renderer = particles.GetComponent<ParticleSystemRenderer>();
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                if (kibble != null) { renderer.renderMode = ParticleSystemRenderMode.Mesh; renderer.mesh = kibble; }
+                Material kibbleMaterial = Resources.Load<Material>("Feeding/Kibble");
+                if (kibbleMaterial != null) renderer.sharedMaterial = kibbleMaterial;
+            }
+            soundBank = MushSoundBank.Load();
+            if (pourAudio == null)
+            {
+                pourAudio = CreateCareAudio("Kibble Pour SFX", transform.position);
+                pourAudio.loop = true;
+                pourAudio.clip = soundBank != null ? soundBank.kibblePour : null;
+                pourAudio.GetComponent<MushAudioChannel>().SetVolume(0.35f);
+                for (int index = 0; index < BowlCount; index++)
+                    bowlAudio[index] = CreateCareAudio("Bowl " + index + " SFX", bowlWorld[index]);
+            }
+        }
+
+        private AudioSource CreateCareAudio(string objectName, Vector3 position)
+        {
+            GameObject root = new(objectName);
+            root.transform.SetParent(transform, false);
+            root.transform.position = position;
+            AudioSource source = root.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.spatialBlend = 1f;
+            source.minDistance = 0.7f;
+            source.maxDistance = 8f;
+            source.dopplerLevel = 0f;
+            root.AddComponent<MushAudioChannel>();
+            return source;
+        }
+
+        private void PlayBowlClip(int index, AudioClip clip, float volume)
+        {
+            if (clip == null || bowlAudio[index] == null) return;
+            bowlAudio[index].pitch = Random.Range(0.92f, 1.05f);
+            bowlAudio[index].PlayOneShot(clip, volume);
+        }
+
+        private void OnDisable()
+        {
+            if (pourAudio != null) pourAudio.Stop();
+            lastPourTime = float.NegativeInfinity;
+            fallingEmitAccumulator = 0f;
+            if (fallingFoodParticles != null) fallingFoodParticles.Clear();
+            for (int index = 0; index < BowlCount; index++)
+            {
+                MushLobbyDogRoamer dog = assignedDogs[index];
+                if (dog != null) dog.CancelFeeding();
+                assignedDogs[index] = null;
+                mealProgress[index] = 0f;
+                bowlReady[index] = bowlFill[index] >= 1f;
+                if (bowlAudio[index] != null) bowlAudio[index].Stop();
+            }
+        }
         private ParticleSystem CreateParticleSystem(string objectName, Material material, int maxParticles)
         {
             GameObject particleObject = new GameObject(objectName);

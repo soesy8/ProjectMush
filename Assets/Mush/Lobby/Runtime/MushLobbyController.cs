@@ -43,6 +43,7 @@ namespace Mush.Lobby
         private MushCustomizationState customization;
         private string selectedMap = "기본 설원";
         private string selectedSceneName = "Track_v2";
+        private bool departing;
         private string transientMessage = "마우스 또는 컨트롤러 광선으로 원하는 항목을 선택하세요";
 
         private const string RightControllerSecondaryButtonBinding = "<XRController>{RightHand}/secondaryButton"; // OpenXR의 오른손 XR 컨트롤러 보조 버튼을 지정한다. Quest Touch 계열에서는 이 경로가 B 버튼에 대응한다.
@@ -247,8 +248,6 @@ namespace Mush.Lobby
                     callDogsKeyboardArmed = false;
                     CallDogs();
                 }
-                if (keyboard.enterKey.wasPressedThisFrame)
-                    LoadSelectedMap();
             }
 
             if (callDogsVrAction != null)
@@ -310,33 +309,31 @@ namespace Mush.Lobby
             return dog != null;
         }
 
-        private void LoadSelectedMap()
+        public bool TryDepartMap(string sceneName, string displayName)
         {
-            LoadMap(selectedSceneName, selectedMap);
-        }
-
-        private void LoadMap(string sceneName, string displayName)
-        {
+            if (departing) return false;
             selectedSceneName = sceneName;
             selectedMap = displayName;
             if (!MushGameSave.IsStageUnlocked(sceneName))
             {
                 transientMessage = $"{displayName}은(는) 잠겨 있습니다. 이전 스테이지를 먼저 완료하세요";
                 RefreshAllText();
-                return;
+                return false;
             }
 
             if (!Application.CanStreamedLevelBeLoaded(sceneName))
             {
                 transientMessage = $"{displayName} 씬을 찾을 수 없습니다";
                 RefreshAllText();
-                return;
+                return false;
             }
 
             transientMessage = displayName + " 출발 중";
+            departing = true;
             RefreshAllText();
             MushSceneUI.Active?.SaveCurrent();
             MushSceneTransition.Load(sceneName, lobbyTrackDeparture: true);
+            return true;
         }
 
         public void SetKoreanFont(Font font)
@@ -439,13 +436,13 @@ namespace Mush.Lobby
                     OpenCustomizationScene();
                     return;
                 case MushLobbyAction.SelectSnowfield:
-                    LoadMap("Track_v2", "기본 설원");
+                    TryDepartMap("Track_v2", "기본 설원");
                     return;
                 case MushLobbyAction.SelectForest:
-                    LoadMap("Tree", "나무 숲");
+                    TryDepartMap("Tree", "나무 숲");
                     return;
                 case MushLobbyAction.SelectSharpCurve:
-                    LoadMap("SharpCurve", "급커브맵");
+                    TryDepartMap("SharpCurve", "급커브맵");
                     return;
                 case MushLobbyAction.BuyScarf:
                     BuyScarf();

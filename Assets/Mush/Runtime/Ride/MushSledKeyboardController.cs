@@ -322,6 +322,18 @@ namespace Mush.Prototype
 
         public void SetExternalReinTension(float tension) => externalReinTension = Mathf.Clamp01(tension);
 
+        public void StopAndClearInput()
+        {
+            // Works while paused, and preserves the course's terrain limits and penalties.
+            commandBoostHeld = false;
+            speedLevel = rideStarted ? 1 : 0;
+            currentSpeed = currentSteering = 0f;
+            externalSteeringActive = true;
+            externalSteeringInput = externalReinTension = reinTension = 0f;
+            UpdateSteeringVisuals(0f, 0f);
+            MotionReset?.Invoke();
+        }
+
         public void SetTerrainSpeedLimit(bool limited, float firstLevelLimit = 3f, float secondLevelLimit = 5f)
         {
             terrainLimitedFirstLevelSpeed = Mathf.Max(0.1f, firstLevelLimit);

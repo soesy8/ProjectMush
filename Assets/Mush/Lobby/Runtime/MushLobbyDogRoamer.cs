@@ -16,6 +16,7 @@ namespace Mush.Lobby
 
         private void OnDisable()
         {
+            CancelFeeding(false);
             if (gameObject.scene.IsValid())
                 SavedLobbyPositions[gameObject.scene.name + "/" + name] = new Pose(transform.position, transform.rotation);
         }
@@ -124,6 +125,8 @@ namespace Mush.Lobby
         private Quaternion feedingRotation = Quaternion.identity;
         private float feedingTimer;
         private bool eatingFood;
+        private const float MealSeconds = 4.2f;
+        private float feedingApproachTimer;
 
         private static readonly List<MushLobbyDogRoamer> ActiveDogs = new(); // 로비에 살아 있는 개들을 모아 두 마리 상호작용에 사용한다.
 
@@ -1155,7 +1158,7 @@ namespace Mush.Lobby
             Vector3 eatingPosition,
             Quaternion eatingFacing)
         {
-            if (station == null || fetchBall != null || lapTarget != null || feedingStation != null)
+            if (!isActiveAndEnabled || station == null || !station.isActiveAndEnabled || fetchBall != null || lapTarget != null || feedingStation != null)
                 return false;
 
             PrepareForBallActivity(); // 공 전용 이름이지만 수면·장난·호출을 안전하게 정리하는 공통 행동 초기화다.
@@ -1165,30 +1168,57 @@ namespace Mush.Lobby
             feedingWorld.y = transform.position.y;
             feedingRotation = eatingFacing;
             feedingTimer = 0f;
+            feedingApproachTimer = 30f;
             eatingFood = false;
             EnsureNavMeshAgentOnCurrentPosition();
             hasNavDestination = false;
             return true;
         }
 
+        public void CancelFeeding(bool resumeRoaming = true)
+        {
+            MushLobbyFeedingStation station = feedingStation;
+            int index = feedingBowlIndex;
+            feedingStation = null;
+            feedingBowlIndex = -1;
+            eatingFood = false;
+            feedingTimer = 0f;
+            feedingApproachTimer = 0f;
+            if (head != null) head.localRotation = headRestLocalRotation;
+            if (station != null) station.CancelFeeding(index, this);
+            if (resumeRoaming && isActiveAndEnabled && station != null) ResumeRoaming();
+        }
+
         private void UpdateFeedingMovement()
         {
+            if (feedingStation == null || !feedingStation.OwnsReservation(feedingBowlIndex, this))
+            {
+                CancelFeeding();
+                return;
+            }
             if (!eatingFood)
             {
+                feedingApproachTimer -= Time.deltaTime;
+                if (feedingApproachTimer <= 0f) { CancelFeeding(); return; }
                 if (!TryNavigateToWorld(feedingWorld, runSpeed, 0.82f, 0.24f, out bool arrived))
                     MoveDirectlyToWorld(feedingWorld, runSpeed, 0.82f, 0.24f, out arrived);
                 if (!arrived)
                     return;
 
                 eatingFood = true;
-                feedingTimer = 4.2f;
+                feedingTimer = MealSeconds;
                 StopNavAgent(false);
                 transform.rotation = feedingRotation;
                 PlayEat();
                 GetComponent<MushLobbyDogExpression>()?.ShowLoveCelebration(); // 플레이어를 보며 먹기 시작할 때 머리 위로 하트가 올라온다.
             }
 
-            feedingTimer -= Time.deltaTime;
+            feedingTimer = Mathf.Max(0f, feedingTimer - Time.deltaTime);
+            if (!feedingStation.UpdateMealProgress(feedingBowlIndex, this, 1f - feedingTimer / MealSeconds))
+            {
+                CancelFeeding();
+                return;
+            }
             transform.rotation = Quaternion.Slerp(transform.rotation, feedingRotation, Time.deltaTime * 8f);
             IsMoving = false;
             SetAnimatorSpeed(0f);
@@ -1198,15 +1228,10 @@ namespace Mush.Lobby
 
             MushLobbyFeedingStation completedStation = feedingStation;
             int completedBowl = feedingBowlIndex;
-            feedingStation = null;
-            feedingBowlIndex = -1;
-            eatingFood = false;
-            feedingTimer = 0f;
-            if (head != null)
-                head.localRotation = headRestLocalRotation; // 식사가 끝난 뒤 고개를 숙인 절차식 자세가 다음 행동까지 남지 않게 한다.
-            completedStation?.CompleteFeeding(completedBowl, this);
+            bool completed = completedStation != null && completedStation.CompleteFeeding(completedBowl, this);
+            CancelFeeding(false);
             ResumeRoaming();
-            Celebrate();
+            if (completed) Celebrate();
         }
 
         public bool TryBeginFetch(MushLobbyFetchBall ball)

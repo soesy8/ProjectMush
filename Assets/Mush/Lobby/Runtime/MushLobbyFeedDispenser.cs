@@ -24,6 +24,9 @@ namespace Mush.Lobby
         private float desktopTilt;
         private AudioSource interactionAudio;
         private MushSoundBank soundBank;
+        private Vector3 lastHeldPosition;
+        private Quaternion lastHeldRotation;
+        private float nextRattleTime;
 
         public static bool IsDesktopCanisterHeld =>
             activeDesktopDispenser != null && activeDesktopDispenser.heldOnDesktop;
@@ -47,7 +50,10 @@ namespace Mush.Lobby
             audioRoot.transform.SetParent(transform, false);
             interactionAudio = audioRoot.AddComponent<AudioSource>();
             interactionAudio.playOnAwake = false;
-            interactionAudio.spatialBlend = 0f;
+            interactionAudio.spatialBlend = 1f;
+            interactionAudio.minDistance = 0.7f;
+            interactionAudio.maxDistance = 8f;
+            interactionAudio.dopplerLevel = 0f;
             audioRoot.AddComponent<MushAudioChannel>();
             interactable = GetComponent<XRGrabInteractable>();
             if (interactable == null)
@@ -60,6 +66,16 @@ namespace Mush.Lobby
 
         private void Update()
         {
+            if (IsHeld && Time.timeScale > 0f && Time.time >= nextRattleTime)
+            {
+                bool moving = Vector3.Distance(transform.position, lastHeldPosition) > 0.035f ||
+                    Quaternion.Angle(transform.rotation, lastHeldRotation) > 8f;
+                if (moving && CurrentTiltDegrees() < PourAngle)
+                    PlayInteraction(soundBank != null ? soundBank.kibbleRattle : null);
+                lastHeldPosition = transform.position;
+                lastHeldRotation = transform.rotation;
+                nextRattleTime = Time.time + 0.28f;
+            }
             if (heldInVr)
             {
                 if (CurrentTiltDegrees() >= PourAngle)
@@ -108,6 +124,8 @@ namespace Mush.Lobby
             heldOnDesktop = true;
             activeDesktopDispenser = this;
             desktopTilt = 0f;
+            lastHeldPosition = transform.position;
+            lastHeldRotation = transform.rotation;
             PlayInteraction(soundBank != null ? soundBank.canisterGrab : null);
         }
 
@@ -131,6 +149,8 @@ namespace Mush.Lobby
             bool alreadyHeld = heldInVr || heldOnDesktop;
             heldInVr = true;
             heldOnDesktop = false;
+            lastHeldPosition = transform.position;
+            lastHeldRotation = transform.rotation;
             if (!alreadyHeld) PlayInteraction(soundBank != null ? soundBank.canisterGrab : null);
             if (activeDesktopDispenser == this)
                 activeDesktopDispenser = null;

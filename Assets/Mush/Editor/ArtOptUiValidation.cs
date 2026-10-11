@@ -26,7 +26,7 @@ public static class ArtOptUiValidation
         Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/PM_Lobby.unity", OpenSceneMode.Single);
         ValidateLobbyStamina(Components<MushLobbyStaminaHud>(scene).Single());
         ValidateSceneStartStamina();
-        Debug.Log("[Mush Stamina] PASS: both portraits, 30/70 boundaries and saved scene entry stamina.");
+        Debug.Log("[Mush Stamina] PASS: saved-condition portraits and labels, independent stamina, and scene entry stamina.");
     }
 
     [MenuItem("Mush/ArtOpt/Validate Track Stamina")]
@@ -36,7 +36,7 @@ public static class ArtOptUiValidation
         Scene scene = SceneManager.GetActiveScene();
         Require(scene.name == "Track_v2", "Open Track_v2 before running track stamina validation.");
         ValidateRideHud(Components<MushRideHud>(scene).Single(h => h.enabled));
-        Debug.Log("[Mush Track Stamina] PASS: individual bars, both portraits, 30/70 boundaries and authored layout.");
+        Debug.Log("[Mush Track Stamina] PASS: individual bars, saved-condition portraits and authored layout.");
     }
 
     [MenuItem("Mush/ArtOpt/Validate Scene Start Stamina")]
@@ -364,14 +364,16 @@ public static class ArtOptUiValidation
                 {
                     foreach (var (value, firstState, secondState) in new[]
                     {
-                        (0f, "Low", "High"), (29.99f, "Low", "High"),
-                        (30f, "Normal", "High"), (69.99f, "Normal", "Normal"),
-                        (70f, "High", "Normal"), (100f, "High", "Low"),
-                        (70f, "High", "Normal"), (30f, "Normal", "High"), (0f, "Low", "High")
+                        (0f, "Low", "High"), (29.99f, "High", "Normal"),
+                        (30f, "Normal", "Low"), (69.99f, "Low", "High"),
+                        (70f, "Normal", "Normal"), (100f, "High", "Low"),
+                        (70f, "Low", "High"), (30f, "High", "Normal"), (0f, "Low", "High")
                     })
                     {
                         sample.dogs[0].stamina = value;
                         sample.dogs[1].stamina = 100 - value;
+                        sample.dogs[0].condition = ConditionForArtwork(firstState);
+                        sample.dogs[1].condition = ConditionForArtwork(secondState);
                         Invoke(hud, "LateUpdate");
                         Require(Mathf.Approximately(first.fillAmount, value / 100f) &&
                                 Mathf.Approximately(second.fillAmount, (100 - value) / 100f) &&
@@ -380,8 +382,9 @@ public static class ArtOptUiValidation
                             "Track gauges and labels must follow each dog's stamina at condition boundaries.");
                         Require(AssetDatabase.GetAssetPath(firstPortrait.sprite) == $"Assets/Art/Textures/UI/T_KAI_{firstState}.png" &&
                                 AssetDatabase.GetAssetPath(secondPortrait.sprite) == $"Assets/Art/Textures/UI/T_LUMI_{secondState}.png",
-                            "Track portraits must use each dog's own stamina and the shared 30/70 thresholds.");
-                        Require(sample.dogs.All(dog => dog.condition == MushDogCondition.Normal),
+                            "Track portraits must use the saved gameplay condition independently of stamina.");
+                        Require(sample.dogs[0].condition == ConditionForArtwork(firstState) &&
+                                sample.dogs[1].condition == ConditionForArtwork(secondState),
                             "Track portrait updates must not change gameplay mood.");
                     }
                 }
@@ -437,14 +440,16 @@ public static class ArtOptUiValidation
             {
                 foreach (var (value, firstState, secondState) in new[]
                 {
-                    (0f, "Low", "High"), (29.99f, "Low", "High"),
-                    (30f, "Normal", "High"), (69.99f, "Normal", "Normal"),
-                    (70f, "High", "Normal"), (100f, "High", "Low"),
-                    (30f, "Normal", "High"), (0f, "Low", "High")
+                    (0f, "Low", "High"), (29.99f, "High", "Normal"),
+                    (30f, "Normal", "Low"), (69.99f, "Low", "High"),
+                    (70f, "Normal", "Normal"), (100f, "High", "Low"),
+                    (30f, "High", "Normal"), (0f, "Low", "High")
                 })
                 {
                     sample.dogs[0].stamina = value;
                     sample.dogs[1].stamina = 100 - value;
+                    sample.dogs[0].condition = ConditionForArtwork(firstState);
+                    sample.dogs[1].condition = ConditionForArtwork(secondState);
                     Invoke(hud, "Refresh");
                     Require(Mathf.Approximately(firstFill.fillAmount, Mathf.FloorToInt(value) / 100f) &&
                             Mathf.Approximately(secondFill.fillAmount, Mathf.FloorToInt(100 - value) / 100f),
@@ -455,11 +460,12 @@ public static class ArtOptUiValidation
                     RequireStaminaPortrait(firstIcon, "T_KAI_", firstState);
                     RequireStaminaPortrait(secondIcon, "T_LUMI_", secondState);
                     Require(firstConditionText.text == (firstState switch
-                            { "High" => "좋음", "Low" => "나쁨", _ => "평범" }) &&
+                            { "High" => "좋음", "Low" => "나쁨", _ => "보통" }) &&
                             secondConditionText.text == (secondState switch
-                            { "High" => "좋음", "Low" => "나쁨", _ => "평범" }),
-                        "Lobby condition labels must match the stamina portraits.");
-                    Require(sample.dogs.All(dog => dog.condition == MushDogCondition.Normal),
+                            { "High" => "좋음", "Low" => "나쁨", _ => "보통" }),
+                        "Lobby labels and portraits must match the saved gameplay condition.");
+                    Require(sample.dogs[0].condition == ConditionForArtwork(firstState) &&
+                            sample.dogs[1].condition == ConditionForArtwork(secondState),
                         "Portrait updates must not change the dogs' gameplay mood.");
                 }
             }, firstFill, secondFill);
@@ -502,6 +508,13 @@ public static class ArtOptUiValidation
                 AssetDatabase.GetAssetPath(expected) == $"Assets/Art/Textures/UI/{dogPrefix}{expectedState}.png",
             $"{dogPrefix} portrait must show {expectedState}.");
     }
+
+    private static MushDogCondition ConditionForArtwork(string state) => state switch
+    {
+        "High" => MushDogCondition.Good,
+        "Low" => MushDogCondition.Bad,
+        _ => MushDogCondition.Normal,
+    };
 
     private static string ImageAppearance(UnityEngine.UI.Image image, bool changingFill, bool changingPortrait) =>
         (changingPortrait ? "portrait" : image.sprite?.GetInstanceID().ToString()) + "|" + image.color + "|" + image.type + "|" + (changingFill ? "stamina" : image.fillAmount.ToString()) + "|" +

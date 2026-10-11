@@ -55,6 +55,8 @@ namespace Mush.Quest
         private bool previousLeftSecondary;
         private bool previousRightSecondary;
         private bool previousRightPrimary;
+        private bool leftButtonsArmed;
+        private bool rightButtonsArmed;
         private LineRenderer leftRay;
         private LineRenderer rightRay;
         private InputAction leftPointerPositionAction; // 왼손 컨트롤러의 실제 포인터 조준 시작 위치를 읽는 새 입력 시스템 액션이다.
@@ -83,11 +85,17 @@ namespace Mush.Quest
 
         public Transform LeftController => leftController;
         public Transform RightController => rightController;
-        public bool IsTracking => calibrated && IsXrActive;
+        public bool HeadTracked { get; private set; }
+        public bool LeftHandTracked { get; private set; }
+        public bool RightHandTracked { get; private set; }
+        public bool HasXrSession { get; private set; }
+        public bool IsTracking => isActiveAndEnabled && calibrated && HeadTracked;
+        public bool HasValidRideTracking => IsTracking && LeftHandTracked && RightHandTracked;
         public bool LeftGripHeld { get; private set; }
         public bool RightGripHeld { get; private set; }
         public bool LeftTriggerHeld { get; private set; }
         public bool RightTriggerHeld { get; private set; }
+        public bool BButtonHeld { get; private set; }
         public bool LeftTriggerPressedThisFrame { get; private set; }
         public bool RightTriggerPressedThisFrame { get; private set; }
         public bool XButtonPressedThisFrame { get; private set; }
@@ -139,6 +147,7 @@ namespace Mush.Quest
             ConfigurePointerRotationActions(); // 기기 그립 회전이 아니라 OpenXR 포인터 조준축을 읽도록 입력 액션을 준비한다.
             SetRayEnabled(false);
             calibrated = false;
+            ClearTrackingState();
         }
 
         public static MushQuestTrackedInputRig InstallForCamera(Camera camera)
@@ -164,12 +173,14 @@ namespace Mush.Quest
         public void SetRayEnabled(bool enabled)
         {
             rayEnabled = enabled;
-            SetRayVisible(leftRay, enabled && IsXrActive);
-            SetRayVisible(rightRay, enabled && IsXrActive);
+            SetRayVisible(leftRay, enabled && IsTracking && LeftHandTracked);
+            SetRayVisible(rightRay, enabled && IsTracking && RightHandTracked);
             if (!enabled)
             {
                 SetHoveredTarget(ref leftHoveredTarget, null);
                 SetHoveredTarget(ref rightHoveredTarget, null);
+                MushCanvasQuestInput.Release(XRNode.LeftHand);
+                MushCanvasQuestInput.Release(XRNode.RightHand);
             }
         }
 
@@ -211,6 +222,7 @@ namespace Mush.Quest
 
             if (!IsXrActive)
             {
+                ClearTrackingState();
                 if (calibrated)
                     StopHeadTracking();
                 SetRayVisible(leftRay, false);
@@ -218,6 +230,7 @@ namespace Mush.Quest
                 return;
             }
 
+            HasXrSession = true;
             UpdateTrackedPoses();
             UpdateButtons();
 
@@ -229,7 +242,10 @@ namespace Mush.Quest
 
         private void UpdateTrackedPoses()
         {
-            if (!TryGetPose(XRNode.Head, out Vector3 headPosition, out Quaternion headRotation))
+            HeadTracked = TryGetPose(XRNode.Head, out Vector3 headPosition, out Quaternion headRotation);
+            LeftHandTracked = TryGetPose(XRNode.LeftHand, out Vector3 leftPosition, out Quaternion leftRotation);
+            RightHandTracked = TryGetPose(XRNode.RightHand, out Vector3 rightPosition, out Quaternion rightRotation);
+            if (!HeadTracked)
                 return;
 
             if (!calibrated)
@@ -240,9 +256,9 @@ namespace Mush.Quest
                 calibrated = true;
             }
 
-            if (TryGetPose(XRNode.LeftHand, out Vector3 leftPosition, out Quaternion leftRotation))
+            if (LeftHandTracked)
                 ApplyPose(leftController, leftPosition, leftRotation);
-            if (TryGetPose(XRNode.RightHand, out Vector3 rightPosition, out Quaternion rightRotation))
+            if (RightHandTracked)
                 ApplyPose(rightController, rightPosition, rightRotation);
         }
 
@@ -333,6 +349,7 @@ namespace Mush.Quest
 
         private void OnDisable()
         {
+            ClearTrackingState();
             StopHeadTracking(false);
             SetRayVisible(leftRay, false);
             SetRayVisible(rightRay, false);
@@ -342,29 +359,45 @@ namespace Mush.Quest
 
         private void UpdateButtons()
         {
-            LeftGripHeld = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.gripButton);
-            RightGripHeld = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.gripButton);
-            LeftTriggerHeld = leftTriggerAction?.activeControl != null ? leftTriggerAction.IsPressed() :
-                ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.triggerButton);
-            RightTriggerHeld = rightTriggerAction?.activeControl != null ? rightTriggerAction.IsPressed() :
-                ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.triggerButton);
-            bool leftPrimary = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.primaryButton);
-            bool leftSecondary = ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.secondaryButton);
-            bool rightSecondary = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.secondaryButton);
-            bool rightPrimary = ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.primaryButton);
+            bool leftValid = IsTracking && LeftHandTracked;
+            bool rightValid = IsTracking && RightHandTracked;
+            LeftGripHeld = leftValid && ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.gripButton);
+            RightGripHeld = rightValid && ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.gripButton);
+            LeftTriggerHeld = leftValid && (leftTriggerAction?.activeControl != null ? leftTriggerAction.IsPressed() :
+                ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.triggerButton));
+            RightTriggerHeld = rightValid && (rightTriggerAction?.activeControl != null ? rightTriggerAction.IsPressed() :
+                ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.triggerButton));
+            bool leftPrimary = leftValid && ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.primaryButton);
+            bool leftSecondary = leftValid && ReadButton(XRNode.LeftHand, UnityEngine.XR.CommonUsages.secondaryButton);
+            bool rightSecondary = rightValid && ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.secondaryButton);
+            bool rightPrimary = rightValid && ReadButton(XRNode.RightHand, UnityEngine.XR.CommonUsages.primaryButton);
+            BButtonHeld = rightSecondary;
 
-            LeftTriggerPressedThisFrame = LeftTriggerHeld && !previousLeftTrigger;
-            RightTriggerPressedThisFrame = RightTriggerHeld && !previousRightTrigger;
-            XButtonPressedThisFrame = leftPrimary && !previousLeftPrimary;
-            YButtonPressedThisFrame = leftSecondary && !previousLeftSecondary;
-            BButtonPressedThisFrame = rightSecondary && !previousRightSecondary;
-            AButtonPressedThisFrame = rightPrimary && !previousRightPrimary;
+            // A held button returning with tracking must not become a new UI click or resume command.
+            LeftTriggerPressedThisFrame = leftButtonsArmed && LeftTriggerHeld && !previousLeftTrigger;
+            RightTriggerPressedThisFrame = rightButtonsArmed && RightTriggerHeld && !previousRightTrigger;
+            XButtonPressedThisFrame = leftButtonsArmed && leftPrimary && !previousLeftPrimary;
+            YButtonPressedThisFrame = leftButtonsArmed && leftSecondary && !previousLeftSecondary;
+            BButtonPressedThisFrame = rightButtonsArmed && rightSecondary && !previousRightSecondary;
+            AButtonPressedThisFrame = rightButtonsArmed && rightPrimary && !previousRightPrimary;
+            leftButtonsArmed = leftValid && (leftButtonsArmed || (!LeftTriggerHeld && !leftPrimary && !leftSecondary));
+            rightButtonsArmed = rightValid && (rightButtonsArmed || (!RightTriggerHeld && !rightPrimary && !rightSecondary));
             previousLeftTrigger = LeftTriggerHeld;
             previousRightTrigger = RightTriggerHeld;
             previousLeftPrimary = leftPrimary;
             previousLeftSecondary = leftSecondary;
             previousRightSecondary = rightSecondary;
             previousRightPrimary = rightPrimary;
+        }
+
+        private void ClearTrackingState()
+        {
+            HeadTracked = LeftHandTracked = RightHandTracked = false;
+            UpdateButtons();
+            SetHoveredTarget(ref leftHoveredTarget, null);
+            SetHoveredTarget(ref rightHoveredTarget, null);
+            MushCanvasQuestInput.Release(XRNode.LeftHand);
+            MushCanvasQuestInput.Release(XRNode.RightHand);
         }
 
         private void ApplyPose(Transform target, Vector3 devicePosition, Quaternion deviceRotation)
@@ -382,11 +415,13 @@ namespace Mush.Quest
             ref IMushQuestRayTarget hoveredTarget,
             bool selectPressed)
         {
-            bool visible = rayEnabled && calibrated && origin != null;
+            bool visible = rayEnabled && IsTracking && origin != null &&
+                (node == XRNode.LeftHand ? LeftHandTracked : RightHandTracked);
             SetRayVisible(line, visible);
             if (!visible)
             {
                 SetHoveredTarget(ref hoveredTarget, null);
+                MushCanvasQuestInput.Release(node);
                 return;
             }
 
@@ -567,9 +602,12 @@ namespace Mush.Quest
                 XRNode.RightHand => XRController.rightHand,
                 _ => null,
             };
-            if (trackedDevice != null && trackedDevice.isTracked.isPressed &&
-                (trackedDevice.trackingState.ReadValue() & 3) == 3)
+            position = Vector3.zero;
+            rotation = Quaternion.identity;
+            if (trackedDevice != null)
             {
+                if (!trackedDevice.isTracked.isPressed || (trackedDevice.trackingState.ReadValue() & 3) != 3)
+                    return false;
                 if (trackedDevice is XRHMD hmd)
                 {
                     position = hmd.centerEyePosition.ReadValue();
@@ -583,10 +621,13 @@ namespace Mush.Quest
                 return true;
             }
             UnityEngine.XR.InputDevice device = InputDevices.GetDeviceAtXRNode(node);
-            position = Vector3.zero;
-            rotation = Quaternion.identity;
-            bool hasPosition = device.isValid && device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out position);
-            bool hasRotation = device.isValid && device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out rotation);
+            const InputTrackingState required = InputTrackingState.Position | InputTrackingState.Rotation;
+            if (!device.isValid || !device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked, out bool tracked) || !tracked ||
+                !device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trackingState, out InputTrackingState state) ||
+                (state & required) != required)
+                return false;
+            bool hasPosition = device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out position);
+            bool hasRotation = device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out rotation);
             return hasPosition && hasRotation;
         }
 

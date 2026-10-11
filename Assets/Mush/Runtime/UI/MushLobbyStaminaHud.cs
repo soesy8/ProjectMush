@@ -89,9 +89,9 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         if (!individualUiReady)
             BindAuthoredDogUi();
 
-        // The portraits and labels share the same stamina-based display condition.
+        // Use the same saved condition as the sled's buff/default/penalty selection.
         int firstStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(0)), 0, 100);
-        MushDogCondition firstCondition = MushDogConditionIcon.GetConditionForStamina(firstStamina);
+        MushDogCondition firstCondition = MushGameSave.GetDogCondition(0);
         if (firstCondition != displayedFirstCondition)
         {
             displayedFirstCondition = firstCondition;
@@ -100,7 +100,7 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
                 conditionText.text = ConditionLabel(firstCondition);
         }
         int secondStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(1)), 0, 100);
-        MushDogCondition secondCondition = MushDogConditionIcon.GetConditionForStamina(secondStamina);
+        MushDogCondition secondCondition = MushGameSave.GetDogCondition(1);
         if (secondCondition != displayedSecondCondition)
         {
             displayedSecondCondition = secondCondition;
@@ -135,7 +135,7 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         {
             MushDogCondition.Bad => "나쁨",
             MushDogCondition.Good => "좋음",
-            _ => "평범",
+            _ => "보통",
         };
     }
 }

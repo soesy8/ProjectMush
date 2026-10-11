@@ -402,7 +402,7 @@ public static class MushGameSave
         DogState dog = GetDogState(data, dogIndex);
         if (dog == null)
             return;
-        dog.stamina = Mathf.Clamp(Mathf.FloorToInt(dog.stamina) + amount, 0, 100);
+        dog.stamina = Mathf.Clamp(dog.stamina + amount, 0f, 100f);
         // Feeding preserves a good mood; a full recovery only clears the bad condition.
         if (dog.stamina >= 100f && dog.condition == MushDogCondition.Bad)
             dog.condition = MushDogCondition.Normal;
