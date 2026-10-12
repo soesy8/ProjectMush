@@ -11,8 +11,8 @@ using UnityEngine.XR;
 [DefaultExecutionOrder(-250)]
 public sealed class MushCanvasQuestInput : MonoBehaviour
 {
-    private const float TitleCanvasDistance = 2.35f;
-    [SerializeField] private float vrTitleHeightOffset = 0.55f;
+    private const float TitleCanvasDistance = MushVrUiLayout.MenuDistance;
+    private const float AuthoredTitleDistance = 2.35f;
     [SerializeField] private float vrTitleScale = 0.00135f;
 
     [SerializeField] private Canvas canvas;
@@ -120,7 +120,8 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         // Render the complete authored title canvas in both headset eyes, including the logo and options.
         // Configure it even when a camera is already assigned: an overlay does not become VR UI by itself.
         Camera uiCamera = CreateTitleUiCamera(camera);
-        MushVrUiLayout.PlaceFixed(canvas, uiCamera, TitleCanvasDistance, vrTitleScale, vrTitleHeightOffset);
+        MushVrUiLayout.PlaceFixed(canvas, uiCamera, TitleCanvasDistance,
+            vrTitleScale * TitleCanvasDistance / AuthoredTitleDistance);
         canvas.overrideSorting = true;
         canvas.sortingOrder = 100;
         Canvas.ForceUpdateCanvases();
@@ -228,6 +229,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         raycaster ??= GetComponent<GraphicRaycaster>();
         lobbyScreen ??= GetComponent<MushVrLobbyScreenCanvas>();
         lobbyScreen?.RefreshForInput();
+        if (lobbyScreen == null) GetComponentInParent<MushVrWorldUiAnchor>()?.RefreshForInput();
         hits.Clear();
         if (canvas == null || !canvas.isActiveAndEnabled || EventSystem.current == null) return false;
         if (lobbyScreen != null) RaycastLobbyControls(ray);
@@ -271,13 +273,15 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             pointer.delta += hits[0].screenPosition - pointer.position;
             pointer.position = hits[0].screenPosition;
         }
-        if (hovered[hand] != target)
+        // Decorative children of one control share a single hover state.
+        GameObject hoverTarget = ExecuteEvents.GetEventHandler<IPointerEnterHandler>(target);
+        if (hovered[hand] != hoverTarget)
         {
-            if (target != null) EnsureVrButtonFeedback(target);
+            if (hoverTarget != null) EnsureVrButtonFeedback(hoverTarget);
             if (hovered[hand] != null) ExecuteEvents.ExecuteHierarchy(hovered[hand], pointer, ExecuteEvents.pointerExitHandler);
-            hovered[hand] = target;
-            pointer.pointerEnter = target;
-            if (target != null) ExecuteEvents.ExecuteHierarchy(target, pointer, ExecuteEvents.pointerEnterHandler);
+            hovered[hand] = hoverTarget;
+            pointer.pointerEnter = hoverTarget;
+            if (hoverTarget != null) ExecuteEvents.ExecuteHierarchy(hoverTarget, pointer, ExecuteEvents.pointerEnterHandler);
         }
         if (pressed && target != null)
         {

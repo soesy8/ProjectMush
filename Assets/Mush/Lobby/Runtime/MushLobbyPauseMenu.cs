@@ -180,6 +180,8 @@ namespace Mush.Lobby
 
         private void OpenOptions()
         {
+            if (MushQuestTrackedInputRig.IsXrActive)
+                authoredCanvas?.GetComponent<MushVrWorldUiAnchor>()?.Recenter();
             pausePanel.SetActive(false);
             optionPanel.SetActive(true);
             RefreshOptionValues();

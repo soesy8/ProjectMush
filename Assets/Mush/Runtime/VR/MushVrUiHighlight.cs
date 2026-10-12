@@ -10,11 +10,9 @@ namespace Mush.Quest
     {
         private readonly HashSet<int> hoveredPointers = new();
         private readonly HashSet<int> pressedPointers = new();
-        private Outline outline;
-        private bool originalEnabled;
+        private Image image;
         private Color originalColor;
-        private Vector2 originalDistance;
-        private bool originalUseAlpha;
+        private bool highlighted;
 
         public static void Set(Image image, bool hovered, bool pressed = false, int pointerId = -1)
         {
@@ -34,40 +32,29 @@ namespace Mush.Quest
 
         private void Awake()
         {
-            outline = GetComponent<Outline>();
-            if (outline != null)
-            {
-                originalEnabled = outline.enabled;
-                originalColor = outline.effectColor;
-                originalDistance = outline.effectDistance;
-                originalUseAlpha = outline.useGraphicAlpha;
-            }
-            else
-            {
-                outline = gameObject.AddComponent<Outline>();
-                originalEnabled = false;
-                outline.enabled = false;
-            }
+            image = GetComponent<Image>();
         }
 
         private void Refresh()
         {
-            if (outline == null) return;
+            if (image == null) return;
             if (hoveredPointers.Count == 0) { Restore(); return; }
-            outline.effectColor = pressedPointers.Count > 0
-                ? new Color(0.25f, 1f, 0.30f, 1f) : new Color(0.05f, 1f, 1f, 1f);
-            outline.effectDistance = new Vector2(7f, -7f);
-            outline.useGraphicAlpha = true;
-            outline.enabled = true;
+            if (!highlighted)
+            {
+                originalColor = image.color;
+                highlighted = true;
+            }
+            // Keep slider handles at their authored size and preserve their original alpha.
+            image.color = pressedPointers.Count > 0
+                ? new Color(originalColor.r * 0.9f, originalColor.g * 0.9f, originalColor.b * 0.9f, originalColor.a)
+                : Color.Lerp(originalColor, new Color(1f, 0.9f, 0.68f, originalColor.a), 0.12f);
         }
 
         private void Restore()
         {
-            if (outline == null) return;
-            outline.effectColor = originalColor;
-            outline.effectDistance = originalDistance;
-            outline.useGraphicAlpha = originalUseAlpha;
-            outline.enabled = originalEnabled;
+            if (!highlighted) return;
+            if (image != null) image.color = originalColor;
+            highlighted = false;
         }
 
         private void OnDisable()

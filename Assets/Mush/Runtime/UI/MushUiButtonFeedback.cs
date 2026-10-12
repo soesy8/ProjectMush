@@ -16,12 +16,10 @@ namespace Mush.UI
         [SerializeField] private Sprite disabledSprite;
         [SerializeField] private bool highlightOnFocus = true;
         private readonly HashSet<int> hoverPointers = new();
-        private readonly HashSet<int> vrHoverPointers = new();
         private readonly HashSet<int> pressedPointers = new();
         private Button button;
         private MushUiButtonSounds sounds;
         private Color normalColor;
-        private Vector3 normalScale;
         private bool initialized;
         private bool focused;
         private bool chosen;
@@ -64,11 +62,14 @@ namespace Mush.UI
             if (sounds == null) sounds = gameObject.AddComponent<MushUiButtonSounds>();
             if (button != null)
             {
+                SpriteState states = button.spriteState;
+                if (highlightedSprite == null) highlightedSprite = states.highlightedSprite;
+                if (pressedSprite == null) pressedSprite = states.pressedSprite;
+                if (disabledSprite == null) disabledSprite = states.disabledSprite;
                 button.targetGraphic = target;
                 button.transition = Selectable.Transition.None;
             }
             normalColor = target.color;
-            normalScale = target.rectTransform.localScale;
             initialized = true;
         }
 
@@ -85,7 +86,6 @@ namespace Mush.UI
         private void OnDisable()
         {
             hoverPointers.Clear();
-            vrHoverPointers.Clear();
             pressedPointers.Clear();
             externalHovered = focused = false;
             pressedUntil = 0f;
@@ -98,8 +98,6 @@ namespace Mush.UI
             if (!initialized || target == null) return;
             target.overrideSprite = null;
             target.color = normalColor;
-            target.rectTransform.localScale = normalScale;
-            Mush.Quest.MushVrUiHighlight.Set(target, false);
         }
 
         public void SetHighlightOnFocus(bool value) { highlightOnFocus = value; Refresh(); }
@@ -109,13 +107,11 @@ namespace Mush.UI
         public void OnPointerEnter(PointerEventData data)
         {
             hoverPointers.Add(data.pointerId);
-            if (MushCanvasQuestInput.IsQuestPointer(data.pointerId)) vrHoverPointers.Add(data.pointerId);
             Refresh();
         }
         public void OnPointerExit(PointerEventData data)
         {
             hoverPointers.Remove(data.pointerId);
-            vrHoverPointers.Remove(data.pointerId);
             Refresh();
         }
         public void OnPointerDown(PointerEventData data)
@@ -137,29 +133,29 @@ namespace Mush.UI
             int state = button != null && !button.IsInteractable() ? 3 :
                 pressedPointers.Count > 0 || Time.unscaledTime < pressedUntil ? 1 :
                 hovered ? 2 : selected ? 4 : 0;
-            bool liftSelectedHover = state == 2 && selected;
-            bool vrHovered = vrHoverPointers.Count > 0 ||
-                (externalHovered && Mush.Quest.MushQuestTrackedInputRig.IsXrActive);
-            bool vrEmphasis = vrHovered && state != 3;
-            int visualState = state * 4 + (liftSelectedHover ? 1 : 0) + (vrEmphasis ? 2 : 0);
+            bool selectedHover = state == 2 && selected;
+            int visualState = state * 2 + (selectedHover ? 1 : 0);
             if (previousState == visualState) return;
             previousState = visualState;
             Sprite stateSprite = state == 3 ? disabledSprite : state == 2 || state == 4 ? highlightedSprite :
                 state == 1 ? pressedSprite : null;
             target.overrideSprite = stateSprite;
-            // Chosen maps keep their highlight, with an extra response when the pointer enters.
-            target.rectTransform.localScale = normalScale * (liftSelectedHover ? 1.025f : 1f);
-            target.color = stateSprite != null || state == 0 ? normalColor : state == 3
-                ? new Color(normalColor.r * 0.5f, normalColor.g * 0.5f, normalColor.b * 0.5f, normalColor.a * 0.6f)
-                : Color.Lerp(normalColor, state == 1 ? Color.white : new Color(1f, 0.83f, 0.25f, normalColor.a),
-                    state == 1 ? 0.3f : 0.65f);
-            if (vrEmphasis)
+            // Use the authored sprites in both desktop and VR; tint only when extra feedback is needed.
+            target.color = normalColor;
+            Color warmHighlight = new(1f, 0.9f, 0.68f, normalColor.a);
+            if (stateSprite == null)
             {
-                target.color = state == 1 ? new Color(0.65f, 1f, 0.70f, normalColor.a) :
-                    new Color(normalColor.r * 1.20f, normalColor.g * 1.20f, normalColor.b * 1.20f, normalColor.a);
-                target.rectTransform.localScale = normalScale * (state == 1 ? 1.02f : 1.06f);
+                if (state == 3)
+                    target.color = new Color(normalColor.r * 0.5f, normalColor.g * 0.5f,
+                        normalColor.b * 0.5f, normalColor.a * 0.6f);
+                else if (state == 1)
+                    target.color = new Color(normalColor.r * 0.9f, normalColor.g * 0.9f,
+                        normalColor.b * 0.9f, normalColor.a);
+                else if (state == 2 || state == 4)
+                    target.color = Color.Lerp(normalColor, warmHighlight, selectedHover ? 0.24f : selected ? 0.2f : 0.12f);
             }
-            Mush.Quest.MushVrUiHighlight.Set(target, vrEmphasis, state == 1);
+            else if (selectedHover)
+                target.color = Color.Lerp(normalColor, warmHighlight, 0.12f);
         }
     }
 }

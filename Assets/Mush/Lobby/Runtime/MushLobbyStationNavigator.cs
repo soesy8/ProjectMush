@@ -54,6 +54,7 @@ namespace Mush.Lobby
         [SerializeField] private Transform menuRoot;
         private Transform originalMenuParent;
         private bool vrMenuAttached;
+        private Vector3 originalMenuScale;
         private readonly Dictionary<GameObject, int> originalMenuLayers = new();
         private Transform housingChair;
         [SerializeField] private Material buttonMaterial;
@@ -455,13 +456,14 @@ namespace Mush.Lobby
                 if (!vrMenuAttached)
                 {
                     originalMenuParent = menuRoot.parent;
+                    originalMenuScale = menuRoot.localScale;
                     foreach (Transform child in menuRoot.GetComponentsInChildren<Transform>(true))
                         originalMenuLayers[child.gameObject] = child.gameObject.layer;
                     vrMenuAttached = true;
                 }
                 MushVrLobbyUiCamera.GetFor(lobbyCamera);
-                menuRoot.SetParent(lobbyCamera.transform, true);
-                menuRoot.SetLocalPositionAndRotation(new Vector3(0f, -0.22f, 1.25f), Quaternion.identity);
+                menuRoot.localScale = originalMenuScale * (MushVrUiLayout.MenuDistance / 1.25f);
+                MushVrUiLayout.PlaceWorldUi(menuRoot, lobbyCamera);
                 foreach (Transform child in menuRoot.GetComponentsInChildren<Transform>(true))
                     child.gameObject.layer = MushVrLobbyUiCamera.UiLayer;
                 return;
@@ -478,7 +480,11 @@ namespace Mush.Lobby
 
         private void RestoreMenuParent()
         {
-            if (menuRoot != null) menuRoot.SetParent(originalMenuParent, true);
+            if (menuRoot != null)
+            {
+                menuRoot.SetParent(originalMenuParent, true);
+                menuRoot.localScale = originalMenuScale;
+            }
             foreach (var state in originalMenuLayers) if (state.Key != null) state.Key.layer = state.Value;
             originalMenuLayers.Clear();
             vrMenuAttached = false;

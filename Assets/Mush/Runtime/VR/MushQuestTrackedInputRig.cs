@@ -185,18 +185,19 @@ namespace Mush.Quest
             return true;
         }
 
-        public static void ConfigureWorldCanvas(Canvas canvas, Camera camera, float distance = 2.35f)
+        public static void ConfigureWorldCanvas(Canvas canvas, Camera camera,
+            float distance = MushVrUiLayout.MenuDistance)
         {
             if (canvas == null || camera == null)
                 return;
 
+            // Store/housing buttons use their existing collider-based Quest input.
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.worldCamera = camera;
             RectTransform rect = canvas.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(1920f, 1080f);
-            rect.localScale = Vector3.one * 0.00175f;
-            rect.position = camera.transform.position + camera.transform.forward * distance;
-            rect.rotation = camera.transform.rotation;
+            rect.localScale = Vector3.one * (0.00175f * distance / 2.35f);
+            MushVrUiLayout.PlaceWorldUi(rect, camera, distance);
         }
 
         private void Update()
@@ -219,6 +220,7 @@ namespace Mush.Quest
 
             UpdateTrackedPoses();
             UpdateButtons();
+            MushVrWorldUiAnchor.RefreshAllForInput();
 
             bool leftSelect = LeftTriggerPressedThisFrame && !RightTriggerPressedThisFrame;
             bool rightSelect = RightTriggerPressedThisFrame;

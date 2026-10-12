@@ -9,7 +9,7 @@ namespace Mush.Quest
     [DefaultExecutionOrder(11000)]
     public sealed class MushVrLobbyScreenCanvas : MonoBehaviour
     {
-        private const float Distance = 1.15f;
+        private const float Distance = MushVrUiLayout.MenuDistance;
         private Canvas canvas;
         private Camera view;
         private RectTransform rect;
@@ -27,6 +27,7 @@ namespace Mush.Quest
         private int originalSortingOrder;
         private readonly Dictionary<Graphic, Material> originalMaterials = new();
         private readonly List<Material> fallbackMaterials = new();
+        private MushVrWorldUiAnchor anchor;
 
         public void Configure(Canvas target, Camera camera, float newHeightOffset = 0f)
         {
@@ -49,6 +50,8 @@ namespace Mush.Quest
                 originalScale = rect.localScale; originalRotation = rect.localRotation;
                 configured = true;
             }
+            MushVrUiLayout.PlaceWorldUi(rect, view, Distance, heightOffset);
+            anchor = rect.GetComponent<MushVrWorldUiAnchor>();
             UpdatePose();
         }
 
@@ -57,7 +60,7 @@ namespace Mush.Quest
         private void OnTransformChildrenChanged() => layersDirty = true;
         private void LateUpdate() => UpdatePose();
 
-        // The controller hit test must use the same current head pose as the rendered menu.
+        // The controller hit test must use the same facing rotation as the rendered menu.
         public void RefreshForInput() => UpdatePose();
 
         private void UpdatePose()
@@ -68,6 +71,7 @@ namespace Mush.Quest
                 if (vrApplied) { Restore(); vrApplied = false; layersDirty = true; }
                 return;
             }
+            if (!vrApplied) anchor?.Recenter();
             vrApplied = true;
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.worldCamera = MushVrLobbyUiCamera.GetFor(view);
@@ -80,9 +84,7 @@ namespace Mush.Quest
             rect.localScale = new Vector3(scale / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
                 scale / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
                 scale / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
-            rect.SetPositionAndRotation(view.transform.position + view.transform.forward * Distance +
-                view.transform.up * heightOffset,
-                view.transform.rotation);
+            anchor?.RefreshForInput();
             if (!layersDirty) return;
             layersDirty = false;
             foreach (Transform child in GetComponentsInChildren<Transform>(true))

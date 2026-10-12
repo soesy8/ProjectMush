@@ -17,6 +17,11 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
     [SerializeField] private TMP_Text secondStaminaText;
     [SerializeField] private MushDogConditionIcon secondConditionIcon;
     [SerializeField] private TMP_Text secondConditionText;
+    [Header("Temporary VR wrist HUD")]
+    [Tooltip("Show the lobby dog status above the left controller's wrist in VR. Disable to use the previous HUD placement.")]
+    [SerializeField] private bool useVrWristHud = true;
+    [SerializeField] private Vector3 vrWristOffset = new(0f, 0.14f, -0.1f);
+    [SerializeField, Min(0.1f)] private float vrWristWidth = 0.24f;
     private int displayedFirstStamina = -1;
     private int displayedSecondStamina = -1;
     private MushDogCondition? displayedFirstCondition;
@@ -27,6 +32,7 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
     private float originalHudAlpha;
     private bool originalHudRaycasts;
     private bool vrVisibilityApplied;
+    private MushVrWristHud wristHud;
 
     private void OnEnable()
     {
@@ -35,13 +41,20 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         displayedFirstCondition = null;
         displayedSecondCondition = null;
         BindAuthoredDogUi();
-        TryConfigureVrCanvas();
+        ConfigureVrPresentation();
         Refresh();
         RefreshVrHudVisibility();
     }
 
     private void RefreshVrHudVisibility()
     {
+        bool menuOpen = Mush.Lobby.MushLobbyMapPanel.IsOpen || MushSceneUI.ModalOpen ||
+            (Mush.Lobby.MushLobbyPauseMenu.Active != null && Mush.Lobby.MushLobbyPauseMenu.Active.IsOpen);
+        if (wristHud != null && wristHud.IsAttached)
+        {
+            wristHud.MenuOpen = menuOpen;
+            return;
+        }
         if (IsXrDisplayRunning())
         {
             if (vrHudVisibility == null)
@@ -55,12 +68,16 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
                 originalHudRaycasts = vrHudVisibility.blocksRaycasts;
                 vrVisibilityApplied = true;
             }
-            vrHudVisibility.alpha = Mush.Lobby.MushLobbyMapPanel.IsOpen ||
-                MushSceneUI.ModalOpen ||
-                (Mush.Lobby.MushLobbyPauseMenu.Active != null && Mush.Lobby.MushLobbyPauseMenu.Active.IsOpen) ? 0f : 1f;
+            vrHudVisibility.alpha = menuOpen ? 0f : 1f;
             vrHudVisibility.blocksRaycasts = false;
         }
-        else if (vrHudVisibility != null && vrVisibilityApplied)
+        else
+            RestoreVrHudVisibility();
+    }
+
+    private void RestoreVrHudVisibility()
+    {
+        if (vrHudVisibility != null && vrVisibilityApplied)
         {
             vrHudVisibility.alpha = originalHudAlpha;
             vrHudVisibility.blocksRaycasts = originalHudRaycasts;
@@ -70,10 +87,36 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!vrCanvasConfigured)
-            TryConfigureVrCanvas();
+        ConfigureVrPresentation();
         Refresh();
         RefreshVrHudVisibility();
+    }
+
+    private void OnDisable()
+    {
+        if (wristHud != null) wristHud.Release();
+        RestoreVrHudVisibility();
+    }
+
+#if UNITY_EDITOR
+    public void RefreshEditorPreview() => Refresh();
+#endif
+
+    private void ConfigureVrPresentation()
+    {
+        if (!useVrWristHud || !IsXrDisplayRunning())
+        {
+            if (wristHud != null) wristHud.Release();
+            TryConfigureVrCanvas();
+            return;
+        }
+
+        Camera camera = Camera.main;
+        if (camera == null) return;
+        if (wristHud == null)
+            wristHud = GetComponent<MushVrWristHud>() ?? gameObject.AddComponent<MushVrWristHud>();
+        if (!wristHud.IsAttached) RestoreVrHudVisibility();
+        wristHud.Configure(camera, vrWristOffset, vrWristWidth);
     }
 
     // Layout, graphics and both dogs' rows are authored in the scene.

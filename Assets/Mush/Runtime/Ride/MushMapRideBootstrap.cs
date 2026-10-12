@@ -2422,10 +2422,20 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         EnsureResultPanel();
         if (resultPanel == null || rideCamera == null) return;
 
+        if (IsVrRideActive())
+        {
+            // Preserve the authored panel's apparent size when bringing it closer.
+            float authoredDistance = resultView != null ? 4.2f : 3.4f;
+            resultPanel.transform.localScale = Vector3.one * (0.90f * MushVrUiLayout.ResultDistance / authoredDistance);
+            MushVrUiLayout.PlaceWorldUi(resultPanel.transform, rideCamera, MushVrUiLayout.ResultDistance);
+            resultPanel.SetActive(true);
+            return;
+        }
+
         Vector3 forward = Vector3.ProjectOnPlane(rideCamera.transform.forward, Vector3.up).normalized;
         if (forward.sqrMagnitude < 0.01f) forward = rideTeam.forward;
         float resultDistance = resultView != null ? 4.2f : 3.4f;
-        float resultHeight = resultView != null ? (IsVrRideActive() ? 0.85f : 1.45f) : 0.85f;
+        float resultHeight = resultView != null ? 1.45f : 0.85f;
         resultPanel.transform.position = rideCamera.transform.position + forward * resultDistance + Vector3.up * resultHeight;
         resultPanel.transform.rotation = Quaternion.LookRotation(forward, Vector3.up) *
                                          Quaternion.Euler(8f, 0f, 0f);

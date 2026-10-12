@@ -164,6 +164,7 @@ public sealed class MushSceneUI : MonoBehaviour
         if (pausePanel == null) return;
         if (paused)
         {
+            RecenterVrMenu();
             previousCursorLock = Cursor.lockState;
             previousCursorVisible = Cursor.visible;
             Cursor.lockState = CursorLockMode.None;
@@ -217,11 +218,18 @@ public sealed class MushSceneUI : MonoBehaviour
     public void OpenOptions()
     {
         if (optionPanel == null) return;
+        RecenterVrMenu();
         if (titlePanel != null) titlePanel.SetActive(false);
         optionPanel.SetActive(true);
         controlGuide?.SetOptionsVisible(true);
         optionPanel.transform.SetAsLastSibling();
         SelectFirst(optionPanel);
+    }
+
+    private void RecenterVrMenu()
+    {
+        if (MushQuestTrackedInputRig.IsXrActive && rootCanvas != null)
+            rootCanvas.GetComponent<MushVrWorldUiAnchor>()?.Recenter();
     }
     private void CloseOptions()
     {

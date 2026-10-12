@@ -80,7 +80,7 @@ namespace Mush.Customization
             if (questRig == null && XRSettings.isDeviceActive)
             {
                 questRig = MushQuestTrackedInputRig.InstallForCamera(viewCamera);
-                MushQuestTrackedInputRig.ConfigureWorldCanvas(canvas, viewCamera, 2.35f);
+                MushQuestTrackedInputRig.ConfigureWorldCanvas(canvas, viewCamera);
                 questRig?.SetRayEnabled(true);
             }
         }

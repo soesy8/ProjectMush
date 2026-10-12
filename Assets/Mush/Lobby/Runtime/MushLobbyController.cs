@@ -683,11 +683,26 @@ namespace Mush.Lobby
         {
             if (panel == null || lobbyCamera == null)
                 return;
-            Canvas panelCanvas = MushQuestTrackedInputRig.IsXrActive
-                ? panel.GetComponentInChildren<Canvas>(true) : null;
-            if (panelCanvas != null)
+            if (MushQuestTrackedInputRig.IsXrActive)
             {
-                MushVrUiLayout.PlaceLobbyScreen(panelCanvas, lobbyCamera);
+                Canvas panelCanvas = panel.GetComponent<Canvas>();
+                if (panelCanvas != null)
+                    MushVrUiLayout.PlaceLobbyScreen(panelCanvas, lobbyCamera);
+                else
+                {
+                    // A 3D panel's decorative child canvases must move with its controls.
+                    if (panel.GetComponent<MushVrWorldUiAnchor>() == null)
+                        panel.transform.localScale *= MushVrUiLayout.MenuDistance / 1.20f;
+                    MushVrUiLayout.PlaceWorldUi(panel.transform, lobbyCamera);
+                    Camera uiCamera = MushVrLobbyUiCamera.GetFor(lobbyCamera);
+                    foreach (Canvas childCanvas in panel.GetComponentsInChildren<Canvas>(true))
+                    {
+                        childCanvas.renderMode = RenderMode.WorldSpace;
+                        childCanvas.worldCamera = uiCamera;
+                    }
+                    foreach (Transform child in panel.GetComponentsInChildren<Transform>(true))
+                        child.gameObject.layer = MushVrLobbyUiCamera.UiLayer;
+                }
                 return;
             }
 

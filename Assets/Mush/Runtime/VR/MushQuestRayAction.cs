@@ -11,7 +11,6 @@ namespace Mush.Quest
         private Renderer targetRenderer;
         private Image targetImage;
         private Color normalImageColor;
-        private Vector3 normalImageScale;
         private Color normalColor;
         private Color hoverColor;
         private MaterialPropertyBlock colors;
@@ -29,7 +28,6 @@ namespace Mush.Quest
             if (targetImage != null)
             {
                 normalImageColor = targetImage.color;
-                normalImageScale = targetImage.rectTransform.localScale;
             }
             hoverColor = newHoverColor;
             Material material = targetRenderer != null ? targetRenderer.sharedMaterial : null;
@@ -61,22 +59,13 @@ namespace Mush.Quest
             if (targetImage != null)
             {
                 targetImage.color = hovered
-                    ? Color.Lerp(normalImageColor, new Color(1f, 0.88f, 0.48f, normalImageColor.a), 0.30f)
+                    ? Color.Lerp(normalImageColor, new Color(1f, 0.9f, 0.68f, normalImageColor.a), 0.12f)
                     : normalImageColor;
-                targetImage.rectTransform.localScale = normalImageScale * (hovered ? 1.04f : 1f);
-                if (rayHoverCount > 0)
-                {
-                    targetImage.color = new Color(normalImageColor.r * 1.20f, normalImageColor.g * 1.20f,
-                        normalImageColor.b * 1.20f, normalImageColor.a);
-                    targetImage.rectTransform.localScale = normalImageScale * 1.06f;
-                }
-                MushVrUiHighlight.Set(targetImage, rayHoverCount > 0);
             }
             if (targetRenderer == null) return;
             colors ??= new MaterialPropertyBlock();
             targetRenderer.GetPropertyBlock(colors);
-            Color color = rayHoverCount > 0 ? new Color(0.15f, 1.8f, 2f, normalColor.a) :
-                mouseHovered ? hoverColor : normalColor;
+            Color color = hovered ? hoverColor : normalColor;
             colors.SetColor(BaseColor, color);
             colors.SetColor(ColorProperty, color);
             targetRenderer.SetPropertyBlock(colors);

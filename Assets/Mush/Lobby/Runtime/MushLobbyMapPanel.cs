@@ -39,6 +39,8 @@ namespace Mush.Lobby
         {
             controller = owner;
             if (canvas == null || camera == null) return;
+            Transform backdrop = canvas.transform.Find("Opaque Backdrop");
+            if (backdrop != null) backdrop.gameObject.SetActive(false);
             if (MushQuestTrackedInputRig.IsXrActive)
             {
                 MushVrUiLayout.PlaceLobbyScreen(canvas, camera);
