@@ -21,17 +21,23 @@
     },
     {
       "file": "CanisterGrab.wav",
-      "duration": 0.2656,
-      "rate": 22050,
+      "duration": 0.43,
+      "rate": 48000,
       "channels": 1,
-      "peak": 0.11465279800202437
+      "peak": 0.4453796148300171,
+      "bits": 24,
+      "source": "E:/Mush/SFX/3/SFX_Canister_Grab.wav",
+      "processing": "Copied unchanged from user-supplied WAV"
     },
     {
       "file": "CanisterSetDown.wav",
-      "duration": 0.2656,
-      "rate": 22050,
+      "duration": 0.6,
+      "rate": 48000,
       "channels": 1,
-      "peak": 0.12449815833555022
+      "peak": 0.5616453886032104,
+      "bits": 24,
+      "source": "E:/Mush/SFX/3/SFX_Canister_SetDown.wav",
+      "processing": "Copied unchanged from user-supplied WAV"
     },
     {
       "file": "KibbleBowlImpact.wav",

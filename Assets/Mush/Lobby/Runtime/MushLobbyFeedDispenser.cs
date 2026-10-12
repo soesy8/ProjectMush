@@ -22,11 +22,9 @@ namespace Mush.Lobby
         private bool heldInVr;
         private bool heldOnDesktop;
         private float desktopTilt;
-        private AudioSource interactionAudio;
-        private MushSoundBank soundBank;
-        private Vector3 lastHeldPosition;
-        private Quaternion lastHeldRotation;
-        private float nextRattleTime;
+        private AudioSource grabAudio;
+        private AudioSource setDownAudio;
+        private AudioSource pourAudio;
 
         public static bool IsDesktopCanisterHeld =>
             activeDesktopDispenser != null && activeDesktopDispenser.heldOnDesktop;
@@ -45,16 +43,11 @@ namespace Mush.Lobby
             originalParent = transform.parent;
             originalLocalPosition = transform.localPosition;
             originalLocalRotation = transform.localRotation;
-            soundBank = MushSoundBank.Load();
-            GameObject audioRoot = new("Canister Interaction SFX");
-            audioRoot.transform.SetParent(transform, false);
-            interactionAudio = audioRoot.AddComponent<AudioSource>();
-            interactionAudio.playOnAwake = false;
-            interactionAudio.spatialBlend = 1f;
-            interactionAudio.minDistance = 0.7f;
-            interactionAudio.maxDistance = 8f;
-            interactionAudio.dopplerLevel = 0f;
-            audioRoot.AddComponent<MushAudioChannel>();
+            MushSoundBank soundBank = MushSoundBank.Load();
+            grabAudio = CreateAudio("Canister Grab SFX", soundBank != null ? soundBank.canisterGrab : null, 0.8f);
+            setDownAudio = CreateAudio("Canister Set Down SFX", soundBank != null ? soundBank.canisterSetDown : null, 0.9f);
+            pourAudio = CreateAudio("Kibble Pour SFX", soundBank != null ? soundBank.kibblePour : null, 0.35f);
+            pourAudio.loop = true;
             interactable = GetComponent<XRGrabInteractable>();
             if (interactable == null)
                 return;
@@ -66,27 +59,18 @@ namespace Mush.Lobby
 
         private void Update()
         {
-            if (IsHeld && Time.timeScale > 0f && Time.time >= nextRattleTime)
-            {
-                bool moving = Vector3.Distance(transform.position, lastHeldPosition) > 0.035f ||
-                    Quaternion.Angle(transform.rotation, lastHeldRotation) > 8f;
-                if (moving && CurrentTiltDegrees() < PourAngle)
-                    PlayInteraction(soundBank != null ? soundBank.kibbleRattle : null);
-                lastHeldPosition = transform.position;
-                lastHeldRotation = transform.rotation;
-                nextRattleTime = Time.time + 0.28f;
-            }
             if (heldInVr)
             {
-                if (CurrentTiltDegrees() >= PourAngle)
-                    station?.PourFrom(GetPourWorldPosition(), Time.deltaTime);
+                UpdatePouring(Time.timeScale > 0f && CurrentTiltDegrees() >= PourAngle);
                 return;
             }
 
-            if (!heldOnDesktop || station == null)
+            if (!heldOnDesktop || station == null || !Application.isFocused ||
+                Time.timeScale <= 0f || MushDesktopSeatedLook.IsDesktopMenuOpen)
+            {
+                StopPouring();
                 return;
-            if (!Application.isFocused || Time.timeScale <= 0f || MushDesktopSeatedLook.IsDesktopMenuOpen)
-                return;
+            }
 
             Mouse mouse = Mouse.current;
             if (mouse != null && mouse.rightButton.wasPressedThisFrame)
@@ -106,14 +90,21 @@ namespace Mush.Lobby
 
         private void LateUpdate()
         {
+            if (heldInVr)
+                return;
             if (!heldOnDesktop || station == null || !Application.isFocused || Time.timeScale <= 0f ||
                 MushDesktopSeatedLook.IsDesktopMenuOpen)
+            {
+                StopPouring();
                 return;
+            }
             if (!station.TryGetDesktopPointerWorld(MushDesktopSeatedLook.PointerScreenPosition, out Vector3 pointerWorld))
+            {
+                StopPouring();
                 return;
+            }
             transform.SetPositionAndRotation(pointerWorld, station.GetDesktopCanisterRotation(desktopTilt));
-            if (Mathf.Abs(desktopTilt) >= PourAngle)
-                station.PourFrom(GetPourWorldPosition(), Time.deltaTime);
+            UpdatePouring(Mathf.Abs(desktopTilt) >= PourAngle);
         }
 
         public void Trigger()
@@ -124,9 +115,7 @@ namespace Mush.Lobby
             heldOnDesktop = true;
             activeDesktopDispenser = this;
             desktopTilt = 0f;
-            lastHeldPosition = transform.position;
-            lastHeldRotation = transform.rotation;
-            PlayInteraction(soundBank != null ? soundBank.canisterGrab : null);
+            PlayAction(grabAudio);
         }
 
         private float CurrentTiltDegrees()
@@ -149,9 +138,7 @@ namespace Mush.Lobby
             bool alreadyHeld = heldInVr || heldOnDesktop;
             heldInVr = true;
             heldOnDesktop = false;
-            lastHeldPosition = transform.position;
-            lastHeldRotation = transform.rotation;
-            if (!alreadyHeld) PlayInteraction(soundBank != null ? soundBank.canisterGrab : null);
+            if (!alreadyHeld) PlayAction(grabAudio);
             if (activeDesktopDispenser == this)
                 activeDesktopDispenser = null;
         }
@@ -165,6 +152,7 @@ namespace Mush.Lobby
         private void ReturnToStand()
         {
             bool wasHeld = heldInVr || heldOnDesktop;
+            StopPouring();
             heldInVr = false;
             heldOnDesktop = false;
             if (activeDesktopDispenser == this)
@@ -173,7 +161,7 @@ namespace Mush.Lobby
             transform.SetParent(originalParent, false);
             transform.localPosition = originalLocalPosition;
             transform.localRotation = originalLocalRotation;
-            if (wasHeld) PlayInteraction(soundBank != null ? soundBank.canisterSetDown : null);
+            if (wasHeld) PlayAction(setDownAudio);
             Rigidbody body = GetComponent<Rigidbody>();
             if (body == null || body.isKinematic)
                 return;
@@ -181,9 +169,46 @@ namespace Mush.Lobby
             body.angularVelocity = Vector3.zero;
         }
 
-        private void PlayInteraction(AudioClip clip)
+        private AudioSource CreateAudio(string objectName, AudioClip clip, float volume)
         {
-            if (interactionAudio != null && clip != null) interactionAudio.PlayOneShot(clip);
+            GameObject audioRoot = new(objectName);
+            audioRoot.transform.SetParent(transform, false);
+            AudioSource source = audioRoot.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.clip = clip;
+            source.spatialBlend = 1f;
+            source.rolloffMode = AudioRolloffMode.Linear;
+            source.minDistance = 1f;
+            source.maxDistance = 8f;
+            source.dopplerLevel = 0f;
+            audioRoot.AddComponent<MushAudioChannel>().SetVolume(volume);
+            return source;
+        }
+
+        private static void PlayAction(AudioSource source)
+        {
+            if (source != null && source.clip != null) source.Play();
+        }
+
+        private void UpdatePouring(bool pouring)
+        {
+            if (!pouring || station == null || !station.isActiveAndEnabled || Time.deltaTime <= 0f)
+            {
+                StopPouring();
+                return;
+            }
+
+            Vector3 origin = GetPourWorldPosition();
+            station.PourFrom(origin, Time.deltaTime);
+            if (pourAudio == null || pourAudio.clip == null)
+                return;
+            pourAudio.transform.position = origin;
+            if (!pourAudio.isPlaying) pourAudio.Play();
+        }
+
+        private void StopPouring()
+        {
+            if (pourAudio != null && pourAudio.isPlaying) pourAudio.Stop();
         }
 
         private void OnHoverEntered(HoverEnterEventArgs args) => SetHighlighted(true);
@@ -214,6 +239,9 @@ namespace Mush.Lobby
 
         private void OnDisable()
         {
+            StopPouring();
+            if (grabAudio != null) grabAudio.Stop();
+            if (setDownAudio != null) setDownAudio.Stop();
             heldOnDesktop = false;
             heldInVr = false;
             if (activeDesktopDispenser == this)

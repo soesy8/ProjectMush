@@ -20,6 +20,7 @@ namespace Mush.Lobby
         private MushLobbyDogRoamer[] dogs;
         private ParticleSystem fallingFoodParticles;
         private readonly ParticleSystem[] bowlFoodParticles = new ParticleSystem[BowlCount];
+        private readonly MushLobbyBowlFoodVisual[] bowlFoodVisuals = new MushLobbyBowlFoodVisual[BowlCount];
         private readonly MushLobbyDogRoamer[] assignedDogs = new MushLobbyDogRoamer[BowlCount];
         private readonly Vector3[] bowlWorld = new Vector3[BowlCount];
         private readonly Vector3[] eatingWorld = new Vector3[BowlCount];
@@ -34,10 +35,8 @@ namespace Mush.Lobby
         private readonly float[] mealProgress = new float[BowlCount];
         private readonly float[] nextCrunchTime = new float[BowlCount];
         private readonly ParticleSystem.Particle[] storedPellets = new ParticleSystem.Particle[FullBowlPelletCount];
-        private AudioSource pourAudio;
         private readonly AudioSource[] bowlAudio = new AudioSource[BowlCount];
         private MushSoundBank soundBank;
-        private float lastPourTime = float.NegativeInfinity;
         private float nextImpactTime;
 
         public float GetBowlFill(int index) => index >= 0 && index < BowlCount ? bowlFill[index] : 0f;
@@ -101,8 +100,6 @@ namespace Mush.Lobby
 
         private void Update()
         {
-            if (pourAudio != null && (Time.timeScale <= 0f || Time.time - lastPourTime > 0.10f))
-                pourAudio.Stop();
             for (int index = 0; index < BowlCount; index++)
             {
                 MushLobbyDogRoamer dog = assignedDogs[index];
@@ -120,12 +117,6 @@ namespace Mush.Lobby
                 return;
             // Bound work after a stalled frame: no unbounded emission loop on Quest.
             deltaTime = Mathf.Min(deltaTime, 0.25f);
-            lastPourTime = Time.time;
-            if (pourAudio != null)
-            {
-                pourAudio.transform.position = source;
-                if (!pourAudio.isPlaying && pourAudio.clip != null) pourAudio.Play();
-            }
             int index = FindBowlBelow(source);
             fallingEmitAccumulator += deltaTime;
             while (fallingEmitAccumulator >= 0.025f)
@@ -449,7 +440,8 @@ namespace Mush.Lobby
         {
             Renderer visible = null;
             foreach (Renderer renderer in bowl.GetComponentsInChildren<Renderer>(true))
-                if (renderer.enabled && renderer.gameObject.activeInHierarchy && renderer is not ParticleSystemRenderer)
+                if (renderer.enabled && renderer.gameObject.activeInHierarchy && renderer is not ParticleSystemRenderer &&
+                    renderer.GetComponent<MushLobbyBowlFoodVisual>() == null)
                     visible = renderer;
             if (visible != null)
             {
@@ -501,7 +493,12 @@ namespace Mush.Lobby
 
         private void SetBowlFill(int index, float fill)
         {
-            bowlFill[index] = fill;
+            bowlFill[index] = Mathf.Clamp01(fill);
+            if (bowlFoodVisuals[index] != null)
+            {
+                bowlFoodVisuals[index].SetFill(bowlFill[index]);
+                return;
+            }
             int count = Mathf.CeilToInt(fill * FullBowlPelletCount);
             if (count == visibleBowlPellets[index]) return;
             visibleBowlPellets[index] = count;
@@ -528,11 +525,18 @@ namespace Mush.Lobby
 
         private void PrepareFoodVisualsAndAudio()
         {
+            PrepareBowlFoodVisuals();
             Mesh kibble = Resources.Load<Mesh>("Feeding/KibblePellet");
             for (int index = -1; index < BowlCount; index++)
             {
                 ParticleSystem particles = index < 0 ? fallingFoodParticles : bowlFoodParticles[index];
                 if (particles == null) continue;
+                if (index >= 0 && bowlFoodVisuals[index] != null)
+                {
+                    particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                    particles.GetComponent<ParticleSystemRenderer>().enabled = false;
+                    continue;
+                }
                 var main = particles.main;
                 main.maxParticles = index < 0 ? 64 : FullBowlPelletCount;
                 main.gravityModifier = index < 0 ? 1f : 0f;
@@ -547,14 +551,48 @@ namespace Mush.Lobby
                 if (kibbleMaterial != null) renderer.sharedMaterial = kibbleMaterial;
             }
             soundBank = MushSoundBank.Load();
-            if (pourAudio == null)
+            for (int index = 0; index < BowlCount; index++)
             {
-                pourAudio = CreateCareAudio("Kibble Pour SFX", transform.position);
-                pourAudio.loop = true;
-                pourAudio.clip = soundBank != null ? soundBank.kibblePour : null;
-                pourAudio.GetComponent<MushAudioChannel>().SetVolume(0.35f);
-                for (int index = 0; index < BowlCount; index++)
+                if (bowlAudio[index] == null)
                     bowlAudio[index] = CreateCareAudio("Bowl " + index + " SFX", bowlWorld[index]);
+            }
+        }
+
+        private void PrepareBowlFoodVisuals()
+        {
+            Mesh foodMesh = Resources.Load<Mesh>("Feeding/BowlFood");
+            Material foodMaterial = Resources.Load<Material>("Feeding/BowlFood");
+            if (foodMesh == null || foodMaterial == null)
+                return;
+
+            for (int index = 0; index < BowlCount; index++)
+            {
+                if (bowlFoodVisuals[index] == null)
+                {
+                    Transform bowl = FindDescendant(transform, index == 0 ? "Left Dog Food Bowl" : "Right Dog Food Bowl");
+                    if (bowl == null)
+                        continue;
+                    foreach (MeshFilter model in bowl.GetComponentsInChildren<MeshFilter>(true))
+                    {
+                        if (model.sharedMesh == null || model.sharedMesh.name != "06_DogBowl" ||
+                            !model.gameObject.activeInHierarchy || !model.GetComponent<Renderer>().enabled)
+                            continue;
+
+                        Transform visualRoot = model.transform.parent;
+                        MushLobbyBowlFoodVisual visual = visualRoot.GetComponentInChildren<MushLobbyBowlFoodVisual>(true);
+                        if (visual == null)
+                        {
+                            GameObject food = new("Mush Bowl Food");
+                            food.transform.SetParent(visualRoot, false);
+                            visual = food.AddComponent<MushLobbyBowlFoodVisual>();
+                        }
+                        visual.Configure(foodMesh, foodMaterial, model.transform.localPosition);
+                        bowlFoodVisuals[index] = visual;
+                        break;
+                    }
+                }
+                if (bowlFoodVisuals[index] != null)
+                    bowlFoodVisuals[index].SetFill(bowlFill[index]);
             }
         }
 
@@ -582,8 +620,6 @@ namespace Mush.Lobby
 
         private void OnDisable()
         {
-            if (pourAudio != null) pourAudio.Stop();
-            lastPourTime = float.NegativeInfinity;
             fallingEmitAccumulator = 0f;
             if (fallingFoodParticles != null) fallingFoodParticles.Clear();
             for (int index = 0; index < BowlCount; index++)
