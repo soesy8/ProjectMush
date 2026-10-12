@@ -24,6 +24,10 @@ namespace Mush.Lobby
         [SerializeField] private Button startButton;
         [SerializeField] private Image[] dogStaminaFills = new Image[2];
         [SerializeField] private TMP_Text[] dogStaminaLabels = new TMP_Text[2];
+        [SerializeField] private Image[] dogPortraits = new Image[2];
+        [SerializeField] private Sprite[] dogNormalPortraits = new Sprite[2];
+        [SerializeField] private Sprite[] dogGoodPortraits = new Sprite[2];
+        [SerializeField] private Sprite[] dogBadPortraits = new Sprite[2];
         [SerializeField] private MushLobbyController controller;
         [SerializeField] private TMP_Text message;
         [SerializeField] private Canvas canvas;
@@ -166,7 +170,22 @@ namespace Mush.Lobby
                 if (i < dogStaminaLabels.Length && dogStaminaLabels[i] != null && number != displayedStamina[i])
                     dogStaminaLabels[i].text = $"{(i == 0 ? "KAI" : "LUMI")}  {number}";
                 displayedStamina[i] = number;
+                RefreshDogPortrait(i);
             }
+        }
+
+        private void RefreshDogPortrait(int index)
+        {
+            if (index >= dogPortraits.Length || dogPortraits[index] == null) return;
+            Sprite[] portraits = MushGameSave.GetDogCondition(index) switch
+            {
+                MushDogCondition.Good => dogGoodPortraits,
+                MushDogCondition.Bad => dogBadPortraits,
+                _ => dogNormalPortraits,
+            };
+            Sprite artwork = index < portraits.Length ? portraits[index] : null;
+            if (artwork != null && dogPortraits[index].sprite != artwork)
+                dogPortraits[index].sprite = artwork;
         }
     }
 }

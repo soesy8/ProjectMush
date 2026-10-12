@@ -170,6 +170,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     public bool IsMoving => !ridePaused && !resultVisible && rideController != null && rideController.RideStarted && rideController.CurrentSpeed > 0.1f;
     public float RouteProgress => resultVisible ? 1f : curvedWorld != null && rideTeam != null && curvedWorld.TryGetRouteProgress(rideTeam.position, out float value) ? value : 0f;
     private int earnedStars;
+    private int earnedGold;
+    private MushTrackResultView resultView;
     private float resultSequenceElapsed;
     private bool resultButtonsShown;
     private MushQuestRayAction desktopHoveredResultButton;
@@ -1326,6 +1328,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     {
         if (resultPanel != null)
         {
+            resultView = resultPanel.GetComponent<MushTrackResultView>();
             FindDeepChild(resultPanel.transform, "Result Back")?.gameObject.SetActive(false);
             resultButtonsRoot = FindDeepChild(resultPanel.transform, "Result Buttons")?.gameObject;
             for (int i = 0; i < 3; i++)
@@ -1350,6 +1353,12 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private void LayoutResultPanel()
     {
         // Only update values. Artwork, typography and button layout are authored in the scene.
+        if (resultView != null)
+        {
+            resultView.ShowResults(missionElapsedSeconds, bestCompletionSeconds, earnedStars, earnedGold,
+                deliveryTimeLimitSeconds, threeStarTimeRatio);
+            return;
+        }
         Transform typography = resultPanel != null ? resultPanel.transform.Find("Result Typography") : null;
         if (typography == null) return;
         TMP_Text time = typography.Find("Time")?.GetComponent<TMP_Text>();
@@ -1390,16 +1399,18 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
             if (progress < 1f)
             {
-                star.localScale = Vector3.one * Mathf.Lerp(0.52f, 1f, eased);
+                star.localScale = (resultView != null ? resultView.StarScale(index) : Vector3.one) *
+                                  Mathf.Lerp(0.52f, 1f, eased);
                 continue;
             }
 
             float impactAge = Mathf.Max(0f, resultSequenceElapsed - startTime - flightDuration);
             float bounce = 1f + Mathf.Exp(-8f * impactAge) * Mathf.Cos(19f * impactAge) * 0.22f;
-            star.localScale = Vector3.one * bounce;
+            star.localScale = (resultView != null ? resultView.StarScale(index) : Vector3.one) * bounce;
             if (!resultStarLanded[index])
             {
                 resultStarLanded[index] = true;
+                resultView?.LandStar(index);
                 MushSounds.PlayStar(index);
                 resultStarBursts[index]?.Emit(30);
                 PulseQuestBothHands(0.38f, 0.09f);
@@ -1450,6 +1461,8 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
     private Vector3 StarFlightStart(int index)
     {
+        if (resultView != null)
+            return StarTarget(index) + new Vector3((index - 1) * 0.24f, -0.75f, 0f);
         return index switch
         {
             0 => new Vector3(-1.75f, 0.15f, -0.13f),
@@ -1458,8 +1471,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         };
     }
 
-    private static Vector3 StarTarget(int index)
+    private Vector3 StarTarget(int index)
     {
+        if (resultView != null)
+            return resultView.StarTarget(index);
         return new Vector3((index - 1) * 1.05f, -0.24f, -0.13f);
     }
 
@@ -2084,7 +2099,9 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         resultVisible = true;
         earnedStars = MushMapRecords.CalculateStars(missionElapsedSeconds, deliveryTimeLimitSeconds, threeStarTimeRatio);
         bestCompletionSeconds = MushMapRecords.SaveCompletion(gameObject.scene.name, missionElapsedSeconds, earnedStars);
-        MushGameSave.AwardStageCompletion(gameObject.scene.name, out _);
+        int goldBeforeReward = MushGameSave.Current.gold;
+        MushGameSave.AwardStageCompletion(gameObject.scene.name, out _, earnedStars);
+        earnedGold = MushGameSave.Current.gold - goldBeforeReward;
         CaptureSavedRide(MushGameSave.Current);
         MushGameSave.Save();
         resultSequenceElapsed = 0f;
@@ -2128,7 +2145,9 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
         Vector3 forward = Vector3.ProjectOnPlane(rideCamera.transform.forward, Vector3.up).normalized;
         if (forward.sqrMagnitude < 0.01f) forward = rideTeam.forward;
-        resultPanel.transform.position = rideCamera.transform.position + forward * 3.4f + Vector3.up * 0.85f;
+        float resultDistance = resultView != null ? 4.2f : 3.4f;
+        float resultHeight = resultView != null ? (IsVrRideActive() ? 0.85f : 1.45f) : 0.85f;
+        resultPanel.transform.position = rideCamera.transform.position + forward * resultDistance + Vector3.up * resultHeight;
         resultPanel.transform.rotation = Quaternion.LookRotation(forward, Vector3.up) *
                                          Quaternion.Euler(8f, 0f, 0f);
         resultPanel.transform.localScale = Vector3.one * 0.90f;

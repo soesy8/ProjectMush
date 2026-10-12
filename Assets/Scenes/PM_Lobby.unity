@@ -74142,6 +74142,18 @@ MonoBehaviour:
   dogStaminaLabels:
   - {fileID: 1003510185}
   - {fileID: 133897721}
+  dogPortraits:
+  - {fileID: 1838070592}
+  - {fileID: 1687938152}
+  dogNormalPortraits:
+  - {fileID: 1671606054, guid: 8bcf2f252eed76642bf808781f127697, type: 3}
+  - {fileID: -398925139, guid: c9c3b22ed68fed14c9a9304972eb88b9, type: 3}
+  dogGoodPortraits:
+  - {fileID: 558924328, guid: 5d0660bc136800041b7be87d52350245, type: 3}
+  - {fileID: 617371896, guid: 3c1c429a93f23e241958f8adacf173b2, type: 3}
+  dogBadPortraits:
+  - {fileID: -232160024, guid: b4853ce6a35d4c24187fe23f03a7ec49, type: 3}
+  - {fileID: -2146901255, guid: 8ba8d70bb003fca4182176945f44c695, type: 3}
   controller: {fileID: 2093017016}
   message: {fileID: 98000000000276}
   canvas: {fileID: 98000000000213}
