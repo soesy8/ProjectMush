@@ -199354,6 +199354,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1943401154}
   - component: {fileID: 1943401153}
+  - component: {fileID: 1943401155}
   m_Layer: 0
   m_Name: Mush Ride Team
   m_TagString: Untagged
@@ -199418,6 +199419,34 @@ Transform:
   - {fileID: 1071999788}
   m_Father: {fileID: 211587011}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1943401155
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1943401152}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 479ad365155c2a5419faae7660ed57e7, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Mush.Prototype.MushTrackObstacleAvoidance
+  ride: {fileID: 211587009}
+  controller: {fileID: 1943401153}
+  course: {fileID: 211587010}
+  avoidanceEnabled: 1
+  preventPenetration: 1
+  showDetectionGizmos: 0
+  teamHalfWidth: 1.25
+  avoidancePadding: 0.6
+  lookAheadSeconds: 1.1
+  minimumLookAhead: 6
+  queryFrequency: 20
+  maximumAvoidanceTurnRate: 42
+  headingResponseSeconds: 0.35
+  turnInSeconds: 0.12
+  releaseSeconds: 0.28
+  maximumHeadingOffset: 24
 --- !u!1001 &1943810550
 PrefabInstance:
   m_ObjectHideFlags: 0
