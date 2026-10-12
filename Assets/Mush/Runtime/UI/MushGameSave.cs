@@ -15,6 +15,7 @@ public enum MushDogCondition
 public static class MushGameSave
 {
     public const int TeamDogCount = 2;
+    private const float GoodConditionEndStamina = 50f;
 
     [Serializable]
     public sealed class DogState
@@ -179,14 +180,21 @@ public static class MushGameSave
                 dog.condition = legacyCondition;
             }
             dog.stamina = float.IsFinite(dog.stamina) ? Mathf.Clamp(dog.stamina, 0f, 100f) : legacyStamina;
-            if (dog.stamina <= 0f)
-                dog.condition = MushDogCondition.Bad;
-            else if (dog.condition != MushDogCondition.Bad && dog.condition != MushDogCondition.Good)
-                dog.condition = MushDogCondition.Normal;
+            RefreshDogCondition(dog);
         }
 
         data.dogStaminaVersion = 1;
         SyncLegacyTeamState(data);
+    }
+
+    private static void RefreshDogCondition(DogState dog)
+    {
+        if (dog.stamina <= 0f)
+            dog.condition = MushDogCondition.Bad;
+        else if (dog.condition == MushDogCondition.Good && dog.stamina <= GoodConditionEndStamina)
+            dog.condition = MushDogCondition.Normal;
+        else if (dog.condition != MushDogCondition.Bad && dog.condition != MushDogCondition.Good)
+            dog.condition = MushDogCondition.Normal;
     }
 
     private static float CalculateTeamStamina(Data data)
@@ -371,7 +379,8 @@ public static class MushGameSave
             DogState snapshot = data.sceneStartDogs.Find(dog => dog != null && dog.dogId == DogId(index));
             DogState dog = GetDogState(data, index);
             dog.stamina = snapshot.stamina;
-            dog.condition = snapshot.stamina <= 0f ? MushDogCondition.Bad : snapshot.condition;
+            dog.condition = snapshot.condition;
+            RefreshDogCondition(dog);
         }
         SyncLegacyTeamState(data);
         return true;
@@ -401,6 +410,7 @@ public static class MushGameSave
         // Feeding preserves a good mood; a full recovery only clears the bad condition.
         if (dog.stamina >= 100f && dog.condition == MushDogCondition.Bad)
             dog.condition = MushDogCondition.Normal;
+        RefreshDogCondition(dog);
     }
 
     public static void ConsumeStamina(float amount)
@@ -413,8 +423,7 @@ public static class MushGameSave
             if (dog == null)
                 continue;
             dog.stamina = Mathf.Max(0f, dog.stamina - cost);
-            if (dog.stamina <= 0f)
-                dog.condition = MushDogCondition.Bad;
+            RefreshDogCondition(dog);
         }
         SyncLegacyTeamState(data);
     }

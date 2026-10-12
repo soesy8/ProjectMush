@@ -71,8 +71,6 @@ namespace Mush.Quest
         {
             get
             {
-                if (XRSettings.isDeviceActive)
-                    return true;
                 ActiveDisplays.Clear();
                 SubsystemManager.GetSubsystems(ActiveDisplays);
                 foreach (XRDisplaySubsystem display in ActiveDisplays)
@@ -410,7 +408,8 @@ namespace Mush.Quest
                 end = hit.point;
             }
 
-            MushVrPointerVisual.Update(line, start, end, true, canvasHit || target != null);
+            MushVrPointerVisual.Update(line, start, end, true, canvasHit || target != null,
+                MushVrLobbyUiCamera.UiLayer);
             SetHoveredTarget(ref hoveredTarget, target);
             if (selectPressed)
             {

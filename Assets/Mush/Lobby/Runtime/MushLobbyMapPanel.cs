@@ -41,7 +41,7 @@ namespace Mush.Lobby
             if (canvas == null || camera == null) return;
             if (MushQuestTrackedInputRig.IsXrActive)
             {
-                MushVrUiLayout.PlaceFixed(canvas, camera, 2.35f, 0.00125f, 0.12f);
+                MushVrUiLayout.PlaceLobbyScreen(canvas, camera);
             }
             else
             {

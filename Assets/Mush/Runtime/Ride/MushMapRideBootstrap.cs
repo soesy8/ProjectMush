@@ -33,9 +33,6 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, HideInInspector, FormerlySerializedAs("rightDogPosition")] private Vector3 legacyRightDogPosition = new(0.72f, 0f, 4.15f);
     [SerializeField] private Vector3 cameraPosition = new(0f, 1.87f, -2.52f);
     [SerializeField] private Vector3 cameraLookTarget = new(0f, 1.87f, 8f);
-    [Header("VR 전용 시야")]
-    [SerializeField, Range(-30f, 30f)] private float vrViewPitchOffset = 12f;
-    private Quaternion vrViewLocalRotation = Quaternion.identity;
 
     [SerializeField, Range(70f, 100f)] private float normalFieldOfView = 82f;
     [SerializeField, Range(75f, 110f)] private float boostFieldOfView = 90f;
@@ -110,6 +107,13 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, HideInInspector] private GameObject questPauseMenu;
     private Vector3 cameraBaseLocalPosition;
     private Quaternion cameraRestLocalRotation;
+    private Transform rideViewTrackingSpace;
+    private Vector3 rideViewRestLocalPosition;
+    private Quaternion rideViewRestLocalRotation;
+    private float rideViewGroundY;
+    private int rideViewHeightFrame = -1;
+    private bool rideViewStable;
+    private bool rideViewHeightInitialized;
     [SerializeField, HideInInspector] private ParticleSystem speedParticles;
     private MushSnowfieldBlizzardController snowController;
     private readonly Transform[] resultFilledStars = new Transform[3];
@@ -153,7 +157,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     public Camera RideCamera => rideCamera;
     public Transform RideViewAnchor => rideSeatAnchor;
     public Vector3 RideViewLocalPosition => cameraBaseLocalPosition;
-    public Quaternion RideViewLocalRotation => IsVrRideActive() ? vrViewLocalRotation : cameraRestLocalRotation;
+    public Quaternion RideViewLocalRotation => cameraRestLocalRotation;
     public bool IsBoosting => rideController != null && rideController.IsBoosting;
     public float RemainingSeconds => Mathf.Max(0f, deliveryTimeLimitSeconds - missionElapsedSeconds);
     public bool ShowingOffCourseTimePenalty => Time.unscaledTime < sharpOffCoursePenaltyFeedbackUntil;
@@ -176,6 +180,52 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private bool resultButtonsShown;
     private MushQuestRayAction desktopHoveredResultButton;
 
+    private const float DogPawClearance = 0.015f;
+    private static readonly string[] DogPawBoneNames = { "front_foot.L", "front_foot.R", "foot.L", "foot.R" };
+
+    private sealed class DogPawSkin
+    {
+        public SkinnedMeshRenderer renderer;
+        public Transform[] bones;
+        public Matrix4x4[] bindPoses;
+        public Matrix4x4[] matrices;
+
+        public void Refresh()
+        {
+            for (int index = 0; index < matrices.Length; index++)
+                matrices[index] = bones[index] != null ? bones[index].localToWorldMatrix * bindPoses[index] : Matrix4x4.identity;
+        }
+    }
+
+    private sealed class DogPawVertex
+    {
+        public DogPawSkin skin;
+        public Vector3 bindPoint;
+        public BoneWeight1[] weights;
+
+        public Vector3 WorldPoint()
+        {
+            int limit = skin.renderer.quality == SkinQuality.Auto ? (int)QualitySettings.skinWeights : (int)skin.renderer.quality;
+            Vector3 point = Vector3.zero;
+            float totalWeight = 0f;
+            for (int index = 0; index < Mathf.Min(weights.Length, limit); index++)
+            {
+                BoneWeight1 weight = weights[index];
+                if (weight.boneIndex < 0 || weight.boneIndex >= skin.matrices.Length) continue;
+                point += skin.matrices[weight.boneIndex].MultiplyPoint3x4(bindPoint) * weight.weight;
+                totalWeight += weight.weight;
+            }
+            return totalWeight > 0f ? point / totalWeight : skin.renderer.transform.TransformPoint(bindPoint);
+        }
+    }
+
+    private sealed class DogPawContact
+    {
+        public Transform bone;
+        public Vector3 localSolePoint;
+        public readonly List<DogPawVertex> vertices = new();
+    }
+
     private sealed class DogRuntime
     {
         public MushRideDog member;
@@ -191,12 +241,17 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         public float gaitClock;
         public Animator animator;
         public Renderer[] groundRenderers;
+        public DogPawContact[] pawContacts;
+        public DogPawSkin[] pawSkins;
     }
 
     private void Awake()
     {
         if (Application.isPlaying) MushRideParticleGate.Install(this);
     }
+
+    private void OnEnable() => Application.onBeforeRender += UpdateRideViewTrackingSpace;
+    private void OnDisable() => Application.onBeforeRender -= UpdateRideViewTrackingSpace;
 
     private void Start()
     {
@@ -570,12 +625,15 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         dog.groundRenderers = visual.GetComponentsInChildren<Renderer>(true);
         if (dog.animator != null)
         {
+            dog.animator.applyRootMotion = false;
+            dog.animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             dog.animator.SetFloat(DogMoveSpeed, 0f);
             dog.animator.Update(0f);
         }
-        if (TryGetLocalRendererBounds(holder, visual, out Bounds dogBounds))
+        ConfigureDogPawContacts(dog);
+        if (TryGetDogPawHeight(dog, out float pawHeight))
         {
-            visual.localPosition += Vector3.up * (0.008f - dogBounds.min.y);
+            visual.localPosition += Vector3.up * (DogPawClearance - pawHeight);
             dog.restLocalPosition = visual.localPosition;
         }
 
@@ -597,6 +655,186 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (!hasLegPivots && !Application.isPlaying)
             BuildDogLegPivots(dog);
         return dog;
+    }
+
+    private static void ConfigureDogPawContacts(DogRuntime dog)
+    {
+        Transform[] bones = new Transform[DogPawBoneNames.Length];
+        Vector3[] bonePositions = new Vector3[bones.Length];
+        bool hasBones = false;
+        for (int index = 0; index < bones.Length; index++)
+        {
+            bones[index] = FindDeepChild(dog.visual, DogPawBoneNames[index]);
+            if (bones[index] == null) continue;
+            hasBones = true;
+            bonePositions[index] = dog.holder.InverseTransformPoint(bones[index].position);
+        }
+        if (!hasBones) return;
+
+        DogPawContact[] contacts = new DogPawContact[bones.Length];
+        float[] lowest = new float[bones.Length];
+        for (int index = 0; index < lowest.Length; index++) lowest[index] = float.PositiveInfinity;
+        // Read the posed mesh once. Imported skinned-renderer bounds include empty
+        // space for the whole animation and are not the current paw positions.
+        Mesh pose = new() { name = "Mush Ride Paw Contact Pose", hideFlags = HideFlags.DontSave };
+        List<Vector3> vertices = new();
+        List<Vector3> bindVertices = new();
+        List<DogPawSkin> skins = new();
+        float nearestPawSpacing = float.PositiveInfinity;
+        for (int first = 0; first < bones.Length; first++)
+        for (int second = first + 1; second < bones.Length; second++)
+        {
+            if (bones[first] == null || bones[second] == null) continue;
+            Vector3 difference = bonePositions[first] - bonePositions[second];
+            float spacing = new Vector2(difference.x, difference.z).magnitude;
+            if (spacing > 0.0001f) nearestPawSpacing = Mathf.Min(nearestPawSpacing, spacing);
+        }
+        float radius = float.IsFinite(nearestPawSpacing) ? Mathf.Clamp(nearestPawSpacing * 0.45f, 0.06f, 0.30f) : 0.18f;
+        float radiusSquared = radius * radius;
+        try
+        {
+            foreach (SkinnedMeshRenderer renderer in dog.visual.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                if (!renderer.enabled || !renderer.gameObject.activeInHierarchy || renderer.sharedMesh == null) continue;
+                renderer.BakeMesh(pose, false);
+                vertices.Clear();
+                pose.GetVertices(vertices);
+                Mesh source = renderer.sharedMesh;
+                DogPawSkin skin = null;
+                var bonesPerVertex = source.isReadable ? source.GetBonesPerVertex() : default;
+                var boneWeights = source.isReadable ? source.GetAllBoneWeights() : default;
+                if (source.isReadable && bonesPerVertex.Length == vertices.Count)
+                {
+                    bindVertices.Clear();
+                    source.GetVertices(bindVertices);
+                    Transform[] skinBones = renderer.bones;
+                    Matrix4x4[] bindPoses = source.bindposes;
+                    if (skinBones.Length > 0 && skinBones.Length == bindPoses.Length && bindVertices.Count == vertices.Count)
+                    {
+                        skin = new DogPawSkin { renderer = renderer, bones = skinBones, bindPoses = bindPoses,
+                            matrices = new Matrix4x4[skinBones.Length] };
+                        skins.Add(skin);
+                    }
+                }
+                int[] footBoneOwners = skin != null ? new int[skin.bones.Length] : Array.Empty<int>();
+                for (int boneIndex = 0; boneIndex < footBoneOwners.Length; boneIndex++)
+                {
+                    footBoneOwners[boneIndex] = -1;
+                    if (skin.bones[boneIndex] == null) continue;
+                    for (int foot = 0; foot < bones.Length; foot++)
+                        if (bones[foot] != null && skin.bones[boneIndex].IsChildOf(bones[foot]))
+                        {
+                            footBoneOwners[boneIndex] = foot;
+                            break;
+                        }
+                }
+                int weightOffset = 0;
+                for (int vertexIndex = 0; vertexIndex < vertices.Count; vertexIndex++)
+                {
+                    Vector3 vertex = vertices[vertexIndex];
+                    Vector3 worldPoint = renderer.transform.TransformPoint(vertex);
+                    Vector3 localPoint = dog.holder.InverseTransformPoint(worldPoint);
+                    int weightCount = vertexIndex < bonesPerVertex.Length ? bonesPerVertex[vertexIndex] : 0;
+                    int weightedFoot = -1;
+                    if (skin != null && weightOffset + weightCount <= boneWeights.Length)
+                        for (int weightIndex = 0; weightIndex < weightCount; weightIndex++)
+                        {
+                            BoneWeight1 weight = boneWeights[weightOffset + weightIndex];
+                            if (weight.boneIndex < 0 || weight.boneIndex >= footBoneOwners.Length || weight.weight < 0.2f) continue;
+                            if (footBoneOwners[weight.boneIndex] >= 0)
+                            {
+                                weightedFoot = footBoneOwners[weight.boneIndex];
+                                break;
+                            }
+                        }
+                    for (int index = 0; index < bones.Length; index++)
+                    {
+                        if (bones[index] == null) continue;
+                        float dx = localPoint.x - bonePositions[index].x;
+                        float dz = localPoint.z - bonePositions[index].z;
+                        // Include the complete weighted foot, including heels and
+                        // toe tips outside the initial proximity search circle.
+                        if (weightedFoot != index && dx * dx + dz * dz > radiusSquared) continue;
+                        contacts[index] ??= new DogPawContact { bone = bones[index] };
+                        if (localPoint.y < lowest[index])
+                        {
+                            lowest[index] = localPoint.y;
+                            contacts[index].localSolePoint = bones[index].InverseTransformPoint(worldPoint);
+                        }
+                        if (skin == null || weightCount == 0 || weightOffset + weightCount > boneWeights.Length ||
+                            localPoint.y > bonePositions[index].y + 0.06f) continue;
+                        BoneWeight1[] influences = new BoneWeight1[weightCount];
+                        for (int weight = 0; weight < weightCount; weight++) influences[weight] = boneWeights[weightOffset + weight];
+                        contacts[index].vertices.Add(new DogPawVertex { skin = skin, bindPoint = bindVertices[vertexIndex], weights = influences });
+                    }
+                    weightOffset += weightCount;
+                }
+            }
+        }
+        finally
+        {
+            DestroyForCurrentMode(pose);
+        }
+        dog.pawContacts = contacts;
+        dog.pawSkins = skins.ToArray();
+    }
+
+    private static void RefreshDogPawSkins(DogRuntime dog)
+    {
+        if (dog.pawSkins == null) return;
+        foreach (DogPawSkin skin in dog.pawSkins) skin.Refresh();
+    }
+
+    private static bool TryGetDogPawHeight(DogRuntime dog, out float height)
+    {
+        height = float.PositiveInfinity;
+        RefreshDogPawSkins(dog);
+        if (dog.pawContacts != null)
+            foreach (DogPawContact contact in dog.pawContacts)
+            {
+                if (contact?.bone == null) continue;
+                if (contact.vertices.Count > 0)
+                    foreach (DogPawVertex vertex in contact.vertices)
+                        height = Mathf.Min(height, dog.holder.InverseTransformPoint(vertex.WorldPoint()).y);
+                else
+                    height = Mathf.Min(height, dog.holder.InverseTransformPoint(contact.bone.TransformPoint(contact.localSolePoint)).y);
+            }
+        if (float.IsFinite(height)) return true;
+        if (!TryGetLocalRendererBounds(dog.holder, dog.groundRenderers, out Bounds bounds)) return false;
+        height = bounds.min.y;
+        return true;
+    }
+
+    private void GroundDogPaws(DogRuntime dog)
+    {
+        float correction = float.NegativeInfinity;
+        RefreshDogPawSkins(dog);
+        if (curvedWorld != null && dog.pawContacts != null)
+            foreach (DogPawContact contact in dog.pawContacts)
+            {
+                if (contact?.bone == null) continue;
+                if (!curvedWorld.TryGetCourseSurface(contact.bone.position, out Vector3 surface, out Vector3 normal,
+                    out _, out _) || Mathf.Abs(normal.y) < 0.0001f) continue;
+                if (contact.vertices.Count > 0)
+                {
+                    foreach (DogPawVertex vertex in contact.vertices)
+                        correction = Mathf.Max(correction, PawSurfaceCorrection(vertex.WorldPoint(), surface, normal));
+                }
+                else
+                    correction = Mathf.Max(correction, PawSurfaceCorrection(
+                        contact.bone.TransformPoint(contact.localSolePoint), surface, normal));
+            }
+        if (float.IsFinite(correction))
+            dog.visual.position += Vector3.up * correction;
+        else if (TryGetDogPawHeight(dog, out float height))
+            dog.visual.localPosition += Vector3.up * (DogPawClearance - height);
+    }
+
+    private static float PawSurfaceCorrection(Vector3 sole, Vector3 surface, Vector3 normal)
+    {
+        Vector3 offset = sole - surface;
+        float height = surface.y - (normal.x * offset.x + normal.z * offset.z) / normal.y;
+        return height + DogPawClearance - sole.y;
     }
 
     private static Transform FindSavedDogVisual(Transform holder, string dogName)
@@ -1052,20 +1290,61 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
     private void ConfigureQuestRide(Transform team, Transform leftGrip, Transform rightGrip)
     {
-        if (rideCamera == null || team == null)
+        if (rideCamera == null || team == null || rideTeam == null)
             return;
 
-        questRig = team.GetComponent<MushQuestTrackedInputRig>();
+        MushQuestTrackedInputRig previousRig = questRig != null ? questRig : team.GetComponent<MushQuestTrackedInputRig>();
+        rideViewTrackingSpace = rideTeam.Find("Ride View Tracking Space");
+        if (rideViewTrackingSpace == null)
+            rideViewTrackingSpace = CreateAnchor("Ride View Tracking Space", rideTeam, Vector3.zero);
+        rideViewTrackingSpace.SetPositionAndRotation(team.position, team.rotation);
+        rideViewRestLocalPosition = rideViewTrackingSpace.localPosition;
+        rideViewRestLocalRotation = rideViewTrackingSpace.localRotation;
+        rideViewHeightInitialized = false;
+        UpdateRideViewTrackingSpace();
+        questRig = rideViewTrackingSpace.GetComponent<MushQuestTrackedInputRig>();
         if (questRig == null)
-            questRig = team.gameObject.AddComponent<MushQuestTrackedInputRig>();
-        vrViewLocalRotation = cameraRestLocalRotation * Quaternion.Euler(vrViewPitchOffset, 0f, 0f);
+            questRig = rideViewTrackingSpace.gameObject.AddComponent<MushQuestTrackedInputRig>();
+        if (previousRig != null && previousRig != questRig) previousRig.enabled = false;
         questRig.Configure(
             rideCamera,
-            team,
+            rideViewTrackingSpace,
             cameraBaseLocalPosition,
-            MushQuestTrackedInputRig.IsXrActive ? vrViewLocalRotation : cameraRestLocalRotation,
+            cameraRestLocalRotation,
             leftGrip,
             rightGrip);
+    }
+
+    private void UpdateRideViewTrackingSpace()
+    {
+        if (rideViewTrackingSpace == null || rideTeam == null || rideSeatAnchor == null) return;
+        bool vr = MushQuestTrackedInputRig.IsXrActive;
+        if (!vr)
+        {
+            rideViewTrackingSpace.SetPositionAndRotation(rideSeatAnchor.position, rideSeatAnchor.rotation);
+            rideViewStable = false;
+            rideViewHeightInitialized = false;
+            return;
+        }
+        // Stabilize the moving seat, while the pose driver keeps the headset's
+        // actual movement and rotation unfiltered in this separate tracking space.
+        Vector3 position = rideTeam.TransformPoint(rideViewRestLocalPosition);
+        Vector3 forward = Vector3.ProjectOnPlane(
+            rideTeam.rotation * (rideViewRestLocalRotation * Vector3.forward), Vector3.up);
+        if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+        if (!rideViewStable || !rideViewHeightInitialized)
+        {
+            rideViewGroundY = position.y;
+            rideViewHeightInitialized = true;
+        }
+        else if (rideViewHeightFrame != Time.frameCount)
+            rideViewGroundY = Mathf.Lerp(rideViewGroundY, position.y, 1f - Mathf.Exp(-12f * Time.deltaTime));
+        // Keep the rider close to the road on steep climbs and descents.
+        rideViewGroundY = Mathf.Clamp(rideViewGroundY, position.y - 0.08f, position.y + 0.08f);
+        position.y = rideViewGroundY;
+        rideViewTrackingSpace.SetPositionAndRotation(position, Quaternion.LookRotation(forward.normalized, Vector3.up));
+        rideViewStable = true;
+        rideViewHeightFrame = Time.frameCount;
     }
 
     private void UpdateQuestRideControls()
@@ -1784,6 +2063,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             rideController.CurrentSpeed);
         UpdateRidePresentation(running, boost01);
         UpdateSledSurfacePose(running);
+        UpdateRideViewTrackingSpace();
         float dogAnimationSpeed = !running ? 1f :
             offCourse || rideController.ActiveDogEffect == MushDogRideEffect.Penalty ? dogSlowedAnimationSpeed :
             rideController.IsBoosting ? dogBoostAnimationSpeed : dogNormalAnimationSpeed;
@@ -1801,6 +2081,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
             if (!running && rideCamera != null)
             {
+                UpdateDogSurfacePose(dog, 0f);
                 Vector3 lookDirection = Vector3.ProjectOnPlane(
                     rideCamera.transform.position - dog.holder.position,
                     Vector3.up);
@@ -1823,6 +2104,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
                     dog.restLocalPosition,
                     1f - Mathf.Exp(-8f * Time.deltaTime));
                 if (dog.animator == null) AnimateDogLegs(dog, 0f, 12f);
+                GroundDogPaws(dog);
                 continue;
             }
 
@@ -1839,13 +2121,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
                 AnimateDogLegs(dog, strideAngle, Mathf.Lerp(12f, 20f, speed01));
 
             float gait = Mathf.Abs(Mathf.Sin(dog.gaitClock + dog.gaitPhase));
-            Vector3 targetPosition = dog.restLocalPosition + Vector3.up * (gait * 0.055f * speed01);
+            float bob = dog.animator == null ? gait * 0.055f * speed01 : 0f;
+            Vector3 targetPosition = dog.restLocalPosition + Vector3.up * bob;
             dog.visual.localPosition = Vector3.Lerp(dog.visual.localPosition, targetPosition, forwardBlend);
-            if (TryGetLocalRendererBounds(dog.holder, dog.groundRenderers, out Bounds animatedBounds))
-            {
-                // Ground this frame's pose in both directions without accumulating height in the rest pose.
-                dog.visual.localPosition += Vector3.up * (0.008f - animatedBounds.min.y);
-            }
+            GroundDogPaws(dog);
         }
     }
 
@@ -2221,10 +2500,10 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         Vector3 targetLocalPosition = dog.restHolderLocalPosition;
         Quaternion targetLocalRotation = dog.restHolderLocalRotation;
 
-        Vector3 samplePosition = rideTeam.TransformPoint(new Vector3(
-            dog.restHolderLocalPosition.x,
-            0f,
-            dog.restHolderLocalPosition.z));
+        Transform parent = dog.holder.parent;
+        Vector3 samplePosition = parent != null
+            ? parent.TransformPoint(dog.restHolderLocalPosition)
+            : dog.restHolderLocalPosition;
         if (curvedWorld != null && curvedWorld.TryGetCourseSurface(
                 samplePosition,
                 out Vector3 surfacePoint,
@@ -2235,14 +2514,15 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             // Each dog gets its own ground height instead of inheriting the
             // sled centre height.  A small clearance keeps animated paws from
             // flickering through the road mesh.
-            Vector3 localGround = rideTeam.InverseTransformPoint(surfacePoint);
-            targetLocalPosition.y = localGround.y;
+            targetLocalPosition = parent != null ? parent.InverseTransformPoint(surfacePoint) : surfacePoint;
 
             Vector3 slopeForward = Vector3.ProjectOnPlane(rideTeam.forward, surfaceNormal).normalized;
             if (slopeForward.sqrMagnitude > 0.0001f)
             {
                 Quaternion targetWorldRotation = Quaternion.LookRotation(slopeForward, surfaceNormal);
-                targetLocalRotation = Quaternion.Inverse(rideTeam.rotation) * targetWorldRotation;
+                targetLocalRotation = parent != null
+                    ? Quaternion.Inverse(parent.rotation) * targetWorldRotation
+                    : targetWorldRotation;
             }
         }
 

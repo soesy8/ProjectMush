@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Mush.Quest;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -13,8 +14,6 @@ using UnityEngine.XR;
 [DefaultExecutionOrder(-1000)]
 public sealed class MushSceneUI : MonoBehaviour
 {
-    private const float VrCanvasDistance = 2.35f;
-    private const float VrCanvasScale = 0.00125f;
     private static readonly List<XRDisplaySubsystem> XrDisplays = new();
 
     [SerializeField] private MushMapRideBootstrap ride;
@@ -36,7 +35,6 @@ public sealed class MushSceneUI : MonoBehaviour
     private CursorLockMode previousCursorLock;
     private bool previousCursorVisible;
     private Canvas rootCanvas;
-    private RectTransform rootCanvasRect;
     private bool vrCanvasConfigured;
     public static MushSceneUI Active { get; private set; }
     public static bool ModalOpen => Active != null && Active.OptionsOpen;
@@ -56,7 +54,6 @@ public sealed class MushSceneUI : MonoBehaviour
     {
         Active = this;
         rootCanvas = GetComponent<Canvas>();
-        rootCanvasRect = rootCanvas != null ? rootCanvas.GetComponent<RectTransform>() : null;
         ResolveAuthoredTitleReferences();
         if (pausePanel != null) pausePanel.SetActive(false);
         if (optionPanel != null) optionPanel.SetActive(false);
@@ -167,7 +164,6 @@ public sealed class MushSceneUI : MonoBehaviour
         if (pausePanel == null) return;
         if (paused)
         {
-            PositionVrCanvasAtCurrentView();
             previousCursorLock = Cursor.lockState;
             previousCursorVisible = Cursor.visible;
             Cursor.lockState = CursorLockMode.None;
@@ -177,7 +173,6 @@ public sealed class MushSceneUI : MonoBehaviour
         else
         {
             CloseOptions();
-            PositionVrCanvasAtNeutralView();
             Cursor.lockState = previousCursorLock;
             Cursor.visible = previousCursorVisible;
         }
@@ -188,47 +183,17 @@ public sealed class MushSceneUI : MonoBehaviour
 
     private void TryConfigureVrRideCanvas()
     {
-        if (vrCanvasConfigured || ride == null || rootCanvas == null || rootCanvasRect == null ||
-            ride.RideCamera == null || ride.RideViewAnchor == null || !IsXrDisplayRunning())
+        if (vrCanvasConfigured || ride == null || rootCanvas == null ||
+            ride.RideCamera == null || !IsXrDisplayRunning())
             return;
 
-        rootCanvas.renderMode = RenderMode.WorldSpace;
-        rootCanvas.worldCamera = ride.RideCamera;
-        rootCanvas.overrideSorting = true;
+        // Render the complete PC canvas in VR without moving or resizing its panels.
+        MushVrUiLayout.PlaceScreen(rootCanvas, ride.RideCamera);
         rootCanvas.sortingOrder = 200;
-        rootCanvasRect.sizeDelta = new Vector2(1920f, 1080f);
         vrCanvasConfigured = true;
         if (pausePanel != null)
             foreach (TMP_Text label in pausePanel.GetComponentsInChildren<TMP_Text>(true))
                 if (label.text.Contains("코스 복귀")) label.text = "코스 복귀 (A 버튼)";
-        PositionVrCanvasAtNeutralView();
-    }
-
-    private void PositionVrCanvasAtNeutralView()
-    {
-        if (!vrCanvasConfigured || ride?.RideViewAnchor == null)
-            return;
-
-        rootCanvasRect.SetParent(ride.RideViewAnchor, false);
-        rootCanvasRect.localScale = Vector3.one * VrCanvasScale;
-        Quaternion viewRotation = ride.RideViewLocalRotation;
-        Vector3 viewPosition = ride.RideViewLocalPosition;
-        rootCanvasRect.SetLocalPositionAndRotation(
-            viewPosition + viewRotation * (Vector3.forward * VrCanvasDistance),
-            viewRotation);
-    }
-
-    private void PositionVrCanvasAtCurrentView()
-    {
-        if (!vrCanvasConfigured || ride?.RideCamera == null || ride.RideViewAnchor == null)
-            return;
-
-        Transform view = ride.RideCamera.transform;
-        rootCanvasRect.SetParent(ride.RideViewAnchor, true);
-        rootCanvasRect.localScale = Vector3.one * VrCanvasScale;
-        rootCanvasRect.SetPositionAndRotation(
-            view.position + view.forward * VrCanvasDistance,
-            view.rotation);
     }
 
     private static bool IsXrDisplayRunning()

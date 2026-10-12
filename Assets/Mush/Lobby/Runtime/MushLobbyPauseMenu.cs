@@ -86,7 +86,7 @@ namespace Mush.Lobby
             if (!vrCanvasConfigured && authoredCanvas != null &&
                 MushQuestTrackedInputRig.IsXrActive && viewCamera != null)
             {
-                MushVrUiLayout.PlaceFixed(authoredCanvas, viewCamera, 2.35f, 0.00125f, 0.12f);
+                MushVrUiLayout.PlaceLobbyScreen(authoredCanvas, viewCamera);
                 vrCanvasConfigured = true;
             }
         }
@@ -109,7 +109,16 @@ namespace Mush.Lobby
         public void SetOpen(bool open)
         {
             if (open && MushQuestTrackedInputRig.IsXrActive)
-                MushVrUiLayout.PlaceFixed(authoredCanvas, viewCamera, 2.35f, 0.00125f, 0.12f);
+            {
+                foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+                {
+                    foreach (MushLobbyStationNavigator navigator in root.GetComponentsInChildren<MushLobbyStationNavigator>(true))
+                        navigator.CloseMenu();
+                    foreach (MushLobbyController owner in root.GetComponentsInChildren<MushLobbyController>(true))
+                        owner.ClosePanelsForTravel();
+                }
+                MushVrUiLayout.PlaceLobbyScreen(authoredCanvas, viewCamera);
+            }
             pausePanel.SetActive(open);
             if (!open && optionPanel != null)
                 optionPanel.SetActive(false);

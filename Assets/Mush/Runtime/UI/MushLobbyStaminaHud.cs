@@ -8,8 +8,6 @@ using UnityEngine.XR;
 [DisallowMultipleComponent]
 public sealed class MushLobbyStaminaHud : MonoBehaviour
 {
-    private const float VrCanvasDistance = 1.65f;
-    private const float VrCanvasScale = 0.00105f;
     private static readonly List<XRDisplaySubsystem> XrDisplays = new();
     [SerializeField] private Image staminaFill;
     [SerializeField] private TMP_Text staminaText;
@@ -25,6 +23,10 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
     private MushDogCondition? displayedSecondCondition;
     private bool vrCanvasConfigured;
     private bool individualUiReady;
+    private CanvasGroup vrHudVisibility;
+    private float originalHudAlpha;
+    private bool originalHudRaycasts;
+    private bool vrVisibilityApplied;
 
     private void OnEnable()
     {
@@ -35,6 +37,35 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         BindAuthoredDogUi();
         TryConfigureVrCanvas();
         Refresh();
+        RefreshVrHudVisibility();
+    }
+
+    private void RefreshVrHudVisibility()
+    {
+        if (IsXrDisplayRunning())
+        {
+            if (vrHudVisibility == null)
+            {
+                vrHudVisibility = GetComponent<CanvasGroup>();
+                if (vrHudVisibility == null) vrHudVisibility = gameObject.AddComponent<CanvasGroup>();
+            }
+            if (!vrVisibilityApplied)
+            {
+                originalHudAlpha = vrHudVisibility.alpha;
+                originalHudRaycasts = vrHudVisibility.blocksRaycasts;
+                vrVisibilityApplied = true;
+            }
+            vrHudVisibility.alpha = Mush.Lobby.MushLobbyMapPanel.IsOpen ||
+                MushSceneUI.ModalOpen ||
+                (Mush.Lobby.MushLobbyPauseMenu.Active != null && Mush.Lobby.MushLobbyPauseMenu.Active.IsOpen) ? 0f : 1f;
+            vrHudVisibility.blocksRaycasts = false;
+        }
+        else if (vrHudVisibility != null && vrVisibilityApplied)
+        {
+            vrHudVisibility.alpha = originalHudAlpha;
+            vrHudVisibility.blocksRaycasts = originalHudRaycasts;
+            vrVisibilityApplied = false;
+        }
     }
 
     private void LateUpdate()
@@ -42,6 +73,7 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         if (!vrCanvasConfigured)
             TryConfigureVrCanvas();
         Refresh();
+        RefreshVrHudVisibility();
     }
 
     // Layout, graphics and both dogs' rows are authored in the scene.
@@ -63,11 +95,8 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         if (canvas == null || canvasRect == null || vrCamera == null)
             return;
 
-        canvas.renderMode = RenderMode.WorldSpace;
-        canvas.worldCamera = vrCamera;
-        canvas.overrideSorting = true;
+        MushVrUiLayout.PlaceLobbyScreen(canvas, vrCamera);
         canvas.sortingOrder = 250;
-        MushVrUiLayout.PlaceFixed(canvas, vrCamera, VrCanvasDistance, VrCanvasScale, 0.12f);
         Canvas.ForceUpdateCanvases();
         vrCanvasConfigured = true;
     }

@@ -60,6 +60,12 @@ namespace Mush.Lobby
             RefreshAppearance();
         }
 
+        public void SetQuestRayHovered(bool value)
+        {
+            rayHoverCount = Mathf.Max(0, rayHoverCount + (value ? 1 : -1));
+            RefreshAppearance();
+        }
+
         private void OnSelected(SelectEnterEventArgs args) => Trigger();
         private void OnHoverEntered(HoverEnterEventArgs args) { rayHoverCount++; RefreshAppearance(); }
         private void OnHoverExited(HoverExitEventArgs args) { rayHoverCount = Mathf.Max(0, rayHoverCount - 1); RefreshAppearance(); }

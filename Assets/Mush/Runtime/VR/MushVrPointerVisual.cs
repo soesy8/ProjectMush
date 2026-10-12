@@ -6,7 +6,7 @@ namespace Mush.Quest
     {
         private static Material material;
 
-        public static void Update(LineRenderer ray, Vector3 start, Vector3 end, bool visible, bool hit)
+        public static void Update(LineRenderer ray, Vector3 start, Vector3 end, bool visible, bool hit, int layer = 5)
         {
             if (ray == null) return;
             if (material == null)
@@ -15,7 +15,7 @@ namespace Mush.Quest
                 if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
                 material = new Material(shader) { name = "VR Pointer Overlay" };
             }
-            ray.gameObject.layer = 5;
+            ray.gameObject.layer = layer;
             ray.sharedMaterial = material;
             ray.enabled = visible;
             ray.startColor = ray.endColor = hit ? Color.cyan : Color.white;
@@ -26,7 +26,7 @@ namespace Mush.Quest
             if (existing == null)
             {
                 GameObject tipObject = new("VR Pointer Tip");
-                tipObject.layer = 5;
+                tipObject.layer = layer;
                 tipObject.transform.SetParent(ray.transform, false);
                 tip = tipObject.AddComponent<LineRenderer>();
                 tip.useWorldSpace = true;
@@ -36,6 +36,7 @@ namespace Mush.Quest
                 tip.sharedMaterial = material;
             }
             else tip = existing.GetComponent<LineRenderer>();
+            tip.gameObject.layer = layer;
             tip.enabled = visible;
             if (!visible) return;
             Camera camera = Camera.main;

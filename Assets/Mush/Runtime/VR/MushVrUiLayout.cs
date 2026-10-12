@@ -5,6 +5,26 @@ namespace Mush.Quest
 {
     public static class MushVrUiLayout
     {
+        public static void PlaceLobbyScreen(Canvas canvas, Camera camera)
+            => PlaceScreen(canvas, camera, -0.22f);
+
+        public static void PlaceScreen(Canvas canvas, Camera camera, float heightOffset = 0f)
+        {
+            if (!MushQuestTrackedInputRig.IsXrActive || canvas == null || camera == null) return;
+            // Keep nested canvases under their menu owner so opening/closing the owner controls the UI.
+            canvas.enabled = true;
+            GraphicRaycaster raycaster = canvas.GetComponent<GraphicRaycaster>();
+            if (raycaster == null) raycaster = canvas.gameObject.AddComponent<GraphicRaycaster>();
+            raycaster.enabled = true;
+            MushCanvasQuestInput input = canvas.GetComponent<MushCanvasQuestInput>();
+            if (input == null) input = canvas.gameObject.AddComponent<MushCanvasQuestInput>();
+            MushVrLobbyScreenCanvas screen = canvas.GetComponent<MushVrLobbyScreenCanvas>();
+            if (screen == null) screen = canvas.gameObject.AddComponent<MushVrLobbyScreenCanvas>();
+            screen.Configure(canvas, camera, heightOffset);
+            input.ConfigureLobby(canvas, raycaster, screen);
+            Canvas.ForceUpdateCanvases();
+        }
+
         public static void PlaceFixed(Canvas canvas, Camera camera, float distance = 2.35f,
             float scale = 0.00125f, float heightOffset = 0f)
         {

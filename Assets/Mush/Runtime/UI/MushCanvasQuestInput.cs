@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Mush.Quest;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 using UnityEngine.XR;
@@ -11,12 +12,13 @@ using UnityEngine.XR;
 public sealed class MushCanvasQuestInput : MonoBehaviour
 {
     private const float TitleCanvasDistance = 2.35f;
-    [SerializeField] private float vrTitleHeightOffset = 0.30f;
+    [SerializeField] private float vrTitleHeightOffset = 0.55f;
     [SerializeField] private float vrTitleScale = 0.00135f;
 
     [SerializeField] private Canvas canvas;
     [SerializeField] private GraphicRaycaster raycaster;
     private static readonly List<MushCanvasQuestInput> ActiveCanvases = new();
+    private static MushCanvasQuestInput[] activeSnapshot = System.Array.Empty<MushCanvasQuestInput>();
     private bool titleRigInstalled;
     private Camera titleSourceCamera;
     private Camera titleUiCamera;
@@ -29,6 +31,8 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
 
     public static bool IsQuestPointer(int pointerId) => pointerId == -100 || pointerId == -101;
     private readonly List<Graphic> graphics = new();
+    private readonly List<Selectable> lobbyControls = new();
+    private MushVrLobbyScreenCanvas lobbyScreen;
     private int graphicsRefreshFrame = -1;
     private Vector3 lastHitPosition;
 
@@ -37,18 +41,31 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         canvas ??= GetComponent<Canvas>();
         raycaster ??= GetComponent<GraphicRaycaster>();
         graphicsRefreshFrame = -1;
-        if (!ActiveCanvases.Contains(this)) ActiveCanvases.Add(this);
+        if (!ActiveCanvases.Contains(this))
+        {
+            ActiveCanvases.Add(this);
+            activeSnapshot = ActiveCanvases.ToArray();
+        }
     }
     private void OnDisable()
     {
         ReleasePointer(0);
         ReleasePointer(1);
         ActiveCanvases.Remove(this);
+        activeSnapshot = ActiveCanvases.ToArray();
+    }
+
+    public void ConfigureLobby(Canvas target, GraphicRaycaster targetRaycaster, MushVrLobbyScreenCanvas screen)
+    {
+        canvas = target;
+        raycaster = targetRaycaster;
+        lobbyScreen = screen;
+        graphicsRefreshFrame = -1;
     }
 
     public static void Release(XRNode hand)
     {
-        foreach (MushCanvasQuestInput input in ActiveCanvases)
+        foreach (MushCanvasQuestInput input in activeSnapshot)
             if (input != null) input.ReleasePointer(hand == XRNode.LeftHand ? 0 : 1);
     }
 
@@ -66,6 +83,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         pointer.rawPointerPress = null;
         pointer.eligibleForClick = false;
         pointer.dragging = false;
+        pointer.pointerEnter = null;
         hovered[hand] = null;
         if (press != null) ExecuteEvents.Execute(press, pointer, ExecuteEvents.pointerUpHandler);
         if (drag != null) ExecuteEvents.Execute(drag, pointer, ExecuteEvents.endDragHandler);
@@ -79,7 +97,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         TryConfigureTitleVrCanvas();
         if (gameObject.scene.name == "PM_Lobby" && canvas != null &&
             canvas.renderMode != RenderMode.WorldSpace && MushQuestTrackedInputRig.IsXrActive)
-            MushVrUiLayout.PlaceFixed(canvas, Camera.main);
+            MushVrUiLayout.PlaceLobbyScreen(canvas, Camera.main);
     }
 
     private void TryConfigureTitleVrCanvas()
@@ -168,35 +186,70 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
     {
         hitPosition = ray.GetPoint(4.5f);
         if (!MushQuestTrackedInputRig.IsXrActive) return false;
+        EnsureEventSystem();
         int handIndex = hand == XRNode.LeftHand ? 0 : 1;
-        foreach (MushCanvasQuestInput input in ActiveCanvases)
+        MushCanvasQuestInput[] snapshot = activeSnapshot;
+        MushCanvasQuestInput selected = null;
+        RaycastResult best = default;
+        foreach (MushCanvasQuestInput input in snapshot)
         {
             if (input == null || !input.isActiveAndEnabled) continue;
             PointerEventData pointer = input.pointers[handIndex];
             if (pointer != null && (pointer.pointerPress != null || pointer.pointerDrag != null))
             {
-                bool handled = input.Process(handIndex, ray, pressed, held);
-                hitPosition = input.lastHitPosition;
-                return handled;
+                selected = input;
+                break;
             }
         }
-        for (int i = ActiveCanvases.Count - 1; i >= 0; i--)
+        if (selected == null)
         {
-            MushCanvasQuestInput input = ActiveCanvases[i];
-            if (input != null && input.isActiveAndEnabled &&
-                input.Process(handIndex, ray, pressed, held))
+            foreach (MushCanvasQuestInput input in snapshot)
             {
-                hitPosition = input.lastHitPosition;
-                return true;
+                if (input == null || !input.isActiveAndEnabled || !input.FindHit(ray)) continue;
+                RaycastResult hit = input.hits[0];
+                if (selected == null || CompareHits(hit, best) < 0)
+                {
+                    selected = input;
+                    best = hit;
+                }
             }
         }
-        return false;
+        foreach (MushCanvasQuestInput input in snapshot)
+            if (input != null && input != selected) input.ReleasePointer(handIndex);
+        if (selected == null) return false;
+        bool handled = selected.Process(handIndex, ray, pressed, held);
+        hitPosition = selected.lastHitPosition;
+        return handled;
+    }
+
+    private bool FindHit(Ray ray)
+    {
+        canvas ??= GetComponent<Canvas>();
+        raycaster ??= GetComponent<GraphicRaycaster>();
+        lobbyScreen ??= GetComponent<MushVrLobbyScreenCanvas>();
+        lobbyScreen?.RefreshForInput();
+        hits.Clear();
+        if (canvas == null || !canvas.isActiveAndEnabled || EventSystem.current == null) return false;
+        if (lobbyScreen != null) RaycastLobbyControls(ray);
+        else if (raycaster != null && raycaster.isActiveAndEnabled && canvas.worldCamera != null)
+            RaycastWorldGraphics(ray);
+        return hits.Count > 0;
+    }
+
+    private static int CompareHits(RaycastResult left, RaycastResult right)
+    {
+        int order = SortingLayer.GetLayerValueFromID(right.sortingLayer)
+            .CompareTo(SortingLayer.GetLayerValueFromID(left.sortingLayer));
+        if (order == 0) order = right.sortingOrder.CompareTo(left.sortingOrder);
+        if (order == 0) order = left.distance.CompareTo(right.distance);
+        if (order == 0) order = right.depth.CompareTo(left.depth);
+        return order;
     }
 
     private bool Process(int hand, Ray ray, bool pressed, bool held)
     {
-        if (canvas == null || raycaster == null || !raycaster.isActiveAndEnabled ||
-            canvas.worldCamera == null || EventSystem.current == null) return false;
+        FindHit(ray);
+        if (canvas == null || !canvas.isActiveAndEnabled || EventSystem.current == null) return false;
         Plane plane = new(canvas.transform.forward, canvas.transform.position);
         bool intersects = plane.Raycast(ray, out float distance) && distance >= 0f && distance <= 4.5f;
         lastHitPosition = intersects ? ray.GetPoint(distance) : ray.GetPoint(4.5f);
@@ -204,14 +257,12 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         {
             pointerId = -100 - hand, button = PointerEventData.InputButton.Left, useDragThreshold = false,
         };
-        if (intersects)
+        if (intersects && canvas.worldCamera != null)
         {
             Vector2 position = canvas.worldCamera.WorldToScreenPoint(ray.GetPoint(distance));
             pointer.delta = position - pointer.position;
             pointer.position = position;
         }
-        hits.Clear();
-        if (intersects) RaycastWorldGraphics(ray);
         GameObject target = hits.Count > 0 ? hits[0].gameObject : null;
         pointer.pointerCurrentRaycast = hits.Count > 0 ? hits[0] : default;
         if (hits.Count > 0)
@@ -225,11 +276,12 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             if (target != null) EnsureVrButtonFeedback(target);
             if (hovered[hand] != null) ExecuteEvents.ExecuteHierarchy(hovered[hand], pointer, ExecuteEvents.pointerExitHandler);
             hovered[hand] = target;
+            pointer.pointerEnter = target;
             if (target != null) ExecuteEvents.ExecuteHierarchy(target, pointer, ExecuteEvents.pointerEnterHandler);
         }
         if (pressed && target != null)
         {
-            Mush.Art.Test.ScreenClickVfx.PlayWorld(ray.GetPoint(distance), canvas.worldCamera);
+            Mush.Art.Test.ScreenClickVfx.PlayWorld(lastHitPosition, canvas.worldCamera);
             pointer.pressPosition = pointer.position;
             pointer.pointerPressRaycast = pointer.pointerCurrentRaycast;
             pointer.eligibleForClick = true;
@@ -278,6 +330,13 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         SpriteState states = button.spriteState;
         Mush.UI.MushUiButtonFeedback.Attach(button.gameObject, artwork, states.highlightedSprite,
             states.pressedSprite, states.disabledSprite).SetHighlightOnFocus(false);
+    }
+
+    public static void EnsureEventSystem()
+    {
+        if (!MushQuestTrackedInputRig.IsXrActive || EventSystem.current != null) return;
+        GameObject root = new("Mush VR EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+        root.GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
     }
 
     private void UpdateVrSliderHighlight(int hand, GameObject target, bool pressed)
@@ -330,6 +389,46 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             int order = right.sortingOrder.CompareTo(left.sortingOrder);
             return order != 0 ? order : right.depth.CompareTo(left.depth);
         });
+    }
+
+    private void RaycastLobbyControls(Ray ray)
+    {
+        if (canvas.worldCamera == null || raycaster == null || !raycaster.isActiveAndEnabled) return;
+        if (graphicsRefreshFrame != Time.frameCount)
+        {
+            graphicsRefreshFrame = Time.frameCount;
+            lobbyControls.Clear();
+            GetComponentsInChildren(true, lobbyControls);
+        }
+        // Test the visible control in world space. Decorative graphics and their
+        // raycastTarget flags must not hide the button that receives the events.
+        foreach (Selectable control in lobbyControls)
+        {
+            if (control == null || !control.isActiveAndEnabled || !control.IsInteractable()) continue;
+            Graphic artwork = control.targetGraphic;
+            RectTransform rect = control is Button && artwork != null
+                ? artwork.rectTransform : control.transform as RectTransform;
+            if (rect == null || !new Plane(rect.forward, rect.position).Raycast(ray, out float distance) ||
+                distance < 0f || distance > 4.5f) continue;
+            Vector3 worldPoint = ray.GetPoint(distance);
+            Vector3 local = rect.InverseTransformPoint(worldPoint);
+            if (!rect.rect.Contains(new Vector2(local.x, local.y))) continue;
+            Vector2 screenPoint = canvas.worldCamera.WorldToScreenPoint(worldPoint);
+            // Preserve the authored CanvasGroup and mask filters, even when
+            // the target artwork is not registered as a raycast graphic.
+            if (artwork != null && (!artwork.isActiveAndEnabled ||
+                !artwork.Raycast(screenPoint, canvas.worldCamera))) continue;
+            Canvas owner = artwork != null ? artwork.canvas : canvas;
+            if (owner == null) continue;
+            hits.Add(new RaycastResult
+            {
+                gameObject = control.gameObject, module = raycaster, distance = distance,
+                worldPosition = worldPoint, worldNormal = rect.forward, screenPosition = screenPoint,
+                depth = artwork != null ? artwork.depth : 0, sortingLayer = owner.sortingLayerID,
+                sortingOrder = owner.sortingOrder,
+            });
+        }
+        hits.Sort(CompareHits);
     }
 
     private static void SetSliderFromWorldRay(Slider slider, Ray ray)

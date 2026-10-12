@@ -161,7 +161,10 @@ namespace Mush.Lobby
 
         private void RefreshHighlight()
         {
-            SetHighlighted(mouseHovered || xrHovered || questHoverCount > 0);
+            bool vrMenuOpen = MushQuestTrackedInputRig.IsXrActive &&
+                (MushLobbyMapPanel.IsOpen || MushSceneUI.ModalOpen ||
+                 (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen));
+            SetHighlighted(!vrMenuOpen && (mouseHovered || xrHovered || questHoverCount > 0));
         }
 
         private void SetHighlighted(bool highlighted)
@@ -181,6 +184,12 @@ namespace Mush.Lobby
 
         private void LateUpdate()
         {
+            if (MushQuestTrackedInputRig.IsXrActive && (MushLobbyMapPanel.IsOpen || MushSceneUI.ModalOpen ||
+                (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen)))
+            {
+                SetHighlighted(false);
+                return;
+            }
             if (hoverPanelCanvas == null && !hasColor)
                 return;
             if (hoverCamera == null)

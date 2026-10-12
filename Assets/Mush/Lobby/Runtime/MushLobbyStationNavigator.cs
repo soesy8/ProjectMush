@@ -52,13 +52,15 @@ namespace Mush.Lobby
         private MushSeatedRigLock seatedRig;
         private MushDesktopSeatedLook desktopLook;
         [SerializeField] private Transform menuRoot;
+        private Transform originalMenuParent;
+        private bool vrMenuAttached;
+        private readonly Dictionary<GameObject, int> originalMenuLayers = new();
         private Transform housingChair;
         [SerializeField] private Material buttonMaterial;
         [SerializeField] private Material selectedMaterial;
         private int selectedIndex;
         private int currentStationIndex;
         private bool stickClickWasPressed;
-        private bool triggerWasPressed;
         private bool seatedAtFireplace;
         private bool locomotionWasActive;
 
@@ -126,18 +128,22 @@ namespace Mush.Lobby
 
         private void Update()
         {
+            if (!MushQuestTrackedInputRig.IsXrActive && vrMenuAttached)
+            {
+                RestoreMenuParent();
+                if (IsMenuOpen) PlaceMenuInFrontOfPlayer();
+            }
             if (!Application.isFocused || MushSceneUI.ModalOpen || MushLobbyMapPanel.IsOpen ||
                 (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen)) return;
             if (!MushQuestTrackedInputRig.IsXrActive)
             {
                 stickClickWasPressed = false;
-                triggerWasPressed = false;
                 HandleDesktopLocomotion();
                 return;
             }
 
             InputDevice leftController = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
-            bool stickPressed = leftController.isValid &&
+            bool stickPressed = !MushLobbyFeedDispenser.IsVrCanisterHeld(XRNode.LeftHand) && leftController.isValid &&
                                 leftController.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool stickValue) &&
                                 stickValue;
             bool menuToggledThisFrame = stickPressed && !stickClickWasPressed;
@@ -145,12 +151,8 @@ namespace Mush.Lobby
                 ToggleMenu();
             stickClickWasPressed = stickPressed;
 
-            bool triggerPressed = leftController.isValid &&
-                                  leftController.TryGetFeatureValue(CommonUsages.triggerButton, out bool triggerValue) &&
-                                  triggerValue;
             if (!IsMenuOpen)
             {
-                triggerWasPressed = triggerPressed;
                 if (!menuToggledThisFrame)
                     HandleVrLocomotion(leftController);
                 else
@@ -169,9 +171,7 @@ namespace Mush.Lobby
                 RefreshSelectionVisuals();
             }
 
-            if (triggerPressed && !triggerWasPressed)
-                TravelTo(selectedIndex);
-            triggerWasPressed = triggerPressed;
+            // Trigger selection is routed through the pointed station button by the shared lobby ray bridge.
         }
 
         private void HandleDesktopLocomotion()
@@ -197,13 +197,13 @@ namespace Mush.Lobby
         private void HandleVrLocomotion(InputDevice leftController)
         {
             Vector2 moveInput = Vector2.zero;
-            if (leftController.isValid)
+            if (leftController.isValid && !MushLobbyFeedDispenser.IsVrCanisterHeld(XRNode.LeftHand))
                 leftController.TryGetFeatureValue(CommonUsages.primary2DAxis, out moveInput);
             ApplyLocomotion(moveInput);
 
             InputDevice rightController = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
             Vector2 lookInput = Vector2.zero;
-            if (rightController.isValid)
+            if (rightController.isValid && !MushLobbyFeedDispenser.IsVrCanisterHeld(XRNode.RightHand))
                 rightController.TryGetFeatureValue(CommonUsages.primary2DAxis, out lookInput);
             if (seatedRig == null || lookInput.sqrMagnitude < SmoothLookDeadzone * SmoothLookDeadzone)
                 return;
@@ -450,6 +450,22 @@ namespace Mush.Lobby
 
         private void PlaceMenuInFrontOfPlayer()
         {
+            if (MushQuestTrackedInputRig.IsXrActive)
+            {
+                if (!vrMenuAttached)
+                {
+                    originalMenuParent = menuRoot.parent;
+                    foreach (Transform child in menuRoot.GetComponentsInChildren<Transform>(true))
+                        originalMenuLayers[child.gameObject] = child.gameObject.layer;
+                    vrMenuAttached = true;
+                }
+                MushVrLobbyUiCamera.GetFor(lobbyCamera);
+                menuRoot.SetParent(lobbyCamera.transform, true);
+                menuRoot.SetLocalPositionAndRotation(new Vector3(0f, -0.22f, 1.25f), Quaternion.identity);
+                foreach (Transform child in menuRoot.GetComponentsInChildren<Transform>(true))
+                    child.gameObject.layer = MushVrLobbyUiCamera.UiLayer;
+                return;
+            }
             Vector3 forward = Vector3.ProjectOnPlane(lobbyCamera.transform.forward, Vector3.up).normalized;
             if (forward.sqrMagnitude < 0.001f)
                 forward = Vector3.ProjectOnPlane(seatedRig.transform.forward, Vector3.up).normalized;
@@ -458,6 +474,14 @@ namespace Mush.Lobby
 
             menuRoot.position = lobbyCamera.transform.position + forward * 1.25f - Vector3.up * 0.06f;
             menuRoot.rotation = Quaternion.LookRotation(forward, Vector3.up);
+        }
+
+        private void RestoreMenuParent()
+        {
+            if (menuRoot != null) menuRoot.SetParent(originalMenuParent, true);
+            foreach (var state in originalMenuLayers) if (state.Key != null) state.Key.layer = state.Value;
+            originalMenuLayers.Clear();
+            vrMenuAttached = false;
         }
 
 

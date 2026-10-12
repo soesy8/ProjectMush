@@ -724,7 +724,9 @@ public sealed class MushCurvedMapRuntime : MonoBehaviour
         surfacePoint = transform.TransformPoint(new Vector3(localPosition.x, surfaceHeight, localPosition.z));
         surfaceNormal = transform.TransformDirection(localNormal).normalized;
         surfaceForward = transform.TransformDirection(localForward).normalized;
-        if (Application.isPlaying && TrySampleBakedSurface(worldPosition, out RaycastHit savedHit))
+        // Pick the collider near the expected course surface, independently of
+        // an actor or animated foot that is currently above or below the road.
+        if (Application.isPlaying && TrySampleBakedSurface(surfacePoint, out RaycastHit savedHit))
         {
             surfacePoint = savedHit.point;
             surfaceNormal = savedHit.normal;

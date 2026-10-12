@@ -365,6 +365,27 @@ namespace Mush.Lobby
         {
             if (dogs == null)
                 return;
+            // The preserved Mochi/Bori roots can contain the opposite named art model.
+            // Match the save and HUD order (KAI, LUMI) to the actual visible dogs.
+            if (dogs.Length == MushGameSave.TeamDogCount)
+            {
+                MushLobbyDogRoamer kai = null;
+                MushLobbyDogRoamer lumi = null;
+                foreach (MushLobbyDogRoamer dog in dogs)
+                {
+                    if (dog == null) continue;
+                    string visualName = dog.VisualRoot.name;
+                    if (visualName.Contains("KAI", System.StringComparison.OrdinalIgnoreCase))
+                        kai = dog;
+                    else if (visualName.Contains("LUMI", System.StringComparison.OrdinalIgnoreCase))
+                        lumi = dog;
+                }
+                if (kai != null && lumi != null)
+                {
+                    dogs[0] = kai;
+                    dogs[1] = lumi;
+                }
+            }
             for (int index = 0; index < dogs.Length; index++)
                 dogs[index]?.SetTeamIndex(index);
         }
@@ -662,9 +683,11 @@ namespace Mush.Lobby
         {
             if (panel == null || lobbyCamera == null)
                 return;
-            if (MushQuestTrackedInputRig.IsXrActive && panel.TryGetComponent(out Canvas panelCanvas))
+            Canvas panelCanvas = MushQuestTrackedInputRig.IsXrActive
+                ? panel.GetComponentInChildren<Canvas>(true) : null;
+            if (panelCanvas != null)
             {
-                MushVrUiLayout.PlaceFixed(panelCanvas, lobbyCamera, 2.35f, 0.00125f, 0.12f);
+                MushVrUiLayout.PlaceLobbyScreen(panelCanvas, lobbyCamera);
                 return;
             }
 

@@ -1,6 +1,6 @@
 using TMPro;
-using UnityEngine;
 using Mush.Quest;
+using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
@@ -30,10 +30,10 @@ public sealed class MushRideHud : MonoBehaviour
     private int previousSeconds = -1;
     private int previousFirstStamina = -1;
     private int previousSecondStamina = -1;
-    [Header("VR 전용 HUD")]
-    [SerializeField, Min(0.5f)] private float vrHudDistance = 1.65f;
-    [SerializeField, Min(0.0001f)] private float vrHudScale = 0.0016f;
-    private Canvas vrHudCanvas;
+    private RectTransform progressRect;
+    private Vector2 authoredProgressAnchorMin, authoredProgressAnchorMax;
+    private Vector2 authoredProgressPivot, authoredProgressPosition;
+    private bool vrProgressPlaced;
 
     private void OnEnable()
     {
@@ -43,7 +43,7 @@ public sealed class MushRideHud : MonoBehaviour
     private void LateUpdate()
     {
         if (ride == null) return;
-        ConfigureVrHud();
+        UpdateVrProgressPosition();
         bool visible = !ride.HasFinished;
         RefreshProgress(ride.RouteProgress);
         if (trackRoot != null && trackRoot.activeSelf != visible) trackRoot.SetActive(visible);
@@ -82,56 +82,39 @@ public sealed class MushRideHud : MonoBehaviour
         }
     }
 
-    private void ConfigureVrHud()
+    private void UpdateVrProgressPosition()
     {
-        if (!MushQuestTrackedInputRig.IsXrActive || ride.RideCamera == null) return;
-        if (vrHudCanvas == null)
+        bool vr = MushQuestTrackedInputRig.IsXrActive;
+        if (vr == vrProgressPlaced) return;
+        if (vr)
         {
-            GameObject root = new("VR Ride HUD", typeof(RectTransform), typeof(Canvas));
-            root.transform.SetParent(ride.RideCamera.transform, false);
-            vrHudCanvas = root.GetComponent<Canvas>();
-            vrHudCanvas.renderMode = RenderMode.WorldSpace;
-            vrHudCanvas.worldCamera = ride.RideCamera;
-            vrHudCanvas.overrideSorting = true;
-            vrHudCanvas.sortingOrder = 210;
-            RectTransform canvasRect = root.GetComponent<RectTransform>();
-            canvasRect.sizeDelta = new Vector2(1920f, 1080f);
-            canvasRect.localScale = Vector3.one * vrHudScale;
-            canvasRect.SetLocalPositionAndRotation(Vector3.forward * vrHudDistance, Quaternion.identity);
-            MoveVrHudPanel(progressRoot, canvasRect, true);
-            MoveVrHudPanel(trackRoot, canvasRect, false);
-            GameObject hintObject = new("VR Controls", typeof(RectTransform), typeof(TextMeshProUGUI));
-            hintObject.transform.SetParent(canvasRect, false);
-            TMP_Text hint = hintObject.GetComponent<TMP_Text>();
-            if (timer != null) hint.font = timer.font;
-            hint.fontSize = 28f;
-            hint.color = Color.white;
-            hint.alignment = TextAlignmentOptions.Center;
-            hint.raycastTarget = false;
-            hint.text = "X 버튼: 메뉴 열기/닫기   ·   A 버튼: 코스 복귀";
-            RectTransform hintRect = hint.rectTransform;
-            hintRect.anchorMin = hintRect.anchorMax = new Vector2(0.5f, 0f);
-            hintRect.pivot = new Vector2(0.5f, 0f);
-            hintRect.sizeDelta = new Vector2(1200f, 55f);
-            hintRect.anchoredPosition = new Vector2(0f, 8f);
-            foreach (Transform child in root.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = 5;
+            progressRect = progressRoot != null ? progressRoot.GetComponent<RectTransform>() : null;
+            if (progressRect == null) return;
+            authoredProgressAnchorMin = progressRect.anchorMin;
+            authoredProgressAnchorMax = progressRect.anchorMax;
+            authoredProgressPivot = progressRect.pivot;
+            authoredProgressPosition = progressRect.anchoredPosition;
+            progressRect.anchorMin = new Vector2(authoredProgressAnchorMin.x, 0.5f);
+            progressRect.anchorMax = new Vector2(authoredProgressAnchorMax.x, 0.5f);
+            progressRect.pivot = new Vector2(authoredProgressPivot.x, 0.5f);
+            // Keep the complete authored progress panel close to the headset's eye line.
+            progressRect.anchoredPosition = new Vector2(authoredProgressPosition.x, 150f);
+            vrProgressPlaced = true;
         }
-        vrHudCanvas.gameObject.SetActive(!ride.HasFinished && !ride.IsPaused);
+        else RestoreProgressPosition();
     }
 
-    private static void MoveVrHudPanel(GameObject panel, RectTransform parent, bool top)
+    private void RestoreProgressPosition()
     {
-        if (panel == null) return;
-        RectTransform rect = panel.GetComponent<RectTransform>();
-        if (rect == null) return;
-        rect.SetParent(parent, false);
-        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, top ? 1f : 0f);
-        rect.anchoredPosition = new Vector2(0f, top ? -24f : 70f);
-        Vector2 size = rect.sizeDelta;
-        if (size.x < 1f) size.x = 1700f;
-        if (size.y < 1f) size.y = top ? 160f : 260f;
-        rect.sizeDelta = size;
+        if (!vrProgressPlaced || progressRect == null) return;
+        progressRect.anchorMin = authoredProgressAnchorMin;
+        progressRect.anchorMax = authoredProgressAnchorMax;
+        progressRect.pivot = authoredProgressPivot;
+        progressRect.anchoredPosition = authoredProgressPosition;
+        vrProgressPlaced = false;
     }
+
+    private void OnDisable() => RestoreProgressPosition();
 
     private void RefreshProgress(float routeProgress)
     {

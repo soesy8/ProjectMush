@@ -1,9 +1,10 @@
 using System.Collections;
+using System.Collections.Generic;
+using Mush.Quest;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using UnityEngine.XR;
 
 /// <summary>Black fade shared by map departure, retry and return to the lobby.</summary>
 public sealed class MushSceneTransition : MonoBehaviour
@@ -15,6 +16,7 @@ public sealed class MushSceneTransition : MonoBehaviour
     private RectTransform rect;
     private Material overlayMaterial;
     private bool loading;
+    private readonly List<MushAudioChannel> fadingEffects = new();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => instance = null;
@@ -64,8 +66,17 @@ public sealed class MushSceneTransition : MonoBehaviour
     {
         canvas.gameObject.SetActive(true);
         group.blocksRaycasts = true;
+        CaptureEffectsForFade();
         if (fadeLobbyAudio) MushSounds.BeginLobbyTrackDeparture();
         yield return Fade(0f, 1f, fadeLobbyAudio);
+        // Give the audio thread time to reach silence before sources are unloaded.
+        yield return new WaitForSecondsRealtime(0.05f);
+        foreach (MushAudioChannel channel in fadingEffects)
+        {
+            if (channel == null) continue;
+            AudioSource source = channel.GetComponent<AudioSource>();
+            if (source != null) source.Stop();
+        }
         AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName);
         if (operation != null)
             while (!operation.isDone) yield return null;
@@ -75,7 +86,27 @@ public sealed class MushSceneTransition : MonoBehaviour
         yield return Fade(1f, 0f);
         group.blocksRaycasts = false;
         canvas.gameObject.SetActive(false);
+        fadingEffects.Clear();
         loading = false;
+    }
+
+    private void CaptureEffectsForFade()
+    {
+        fadingEffects.Clear();
+        foreach (AudioSource source in Object.FindObjectsByType<AudioSource>(FindObjectsSortMode.None))
+        {
+            if (!source.isActiveAndEnabled) continue;
+            MushAudioChannel channel = source.GetComponent<MushAudioChannel>();
+            if (channel == null) channel = source.gameObject.AddComponent<MushAudioChannel>();
+            if (channel.ChannelBus == MushAudioChannel.Bus.Effects)
+                fadingEffects.Add(channel);
+        }
+    }
+
+    private void SetEffectsFade(float volume)
+    {
+        foreach (MushAudioChannel channel in fadingEffects)
+            if (channel != null) channel.SetTransitionVolume(volume);
     }
 
     private IEnumerator Fade(float from, float to, bool fadeLobbyAudio = false)
@@ -86,10 +117,12 @@ public sealed class MushSceneTransition : MonoBehaviour
             elapsed += Time.unscaledDeltaTime;
             float progress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / FadeSeconds));
             group.alpha = Mathf.Lerp(from, to, progress);
+            SetEffectsFade(1f - group.alpha);
             if (fadeLobbyAudio) MushSounds.SetLobbyDepartureFade(progress);
             yield return null;
         }
         group.alpha = to;
+        SetEffectsFade(1f - to);
         if (fadeLobbyAudio) MushSounds.SetLobbyDepartureFade(1f);
     }
 
@@ -97,7 +130,7 @@ public sealed class MushSceneTransition : MonoBehaviour
     {
         if (!loading || canvas == null) return;
         Camera camera = Camera.main;
-        bool vr = XRSettings.isDeviceActive && camera != null;
+        bool vr = MushQuestTrackedInputRig.IsXrActive && camera != null;
         canvas.renderMode = vr ? RenderMode.WorldSpace : RenderMode.ScreenSpaceOverlay;
         canvas.worldCamera = camera;
         if (!vr) return;
@@ -113,6 +146,7 @@ public sealed class MushSceneTransition : MonoBehaviour
     private void OnDisable() => Application.onBeforeRender -= LateUpdate;
     private void OnDestroy()
     {
+        SetEffectsFade(1f);
         if (overlayMaterial != null) Destroy(overlayMaterial);
         if (instance == this) instance = null;
     }

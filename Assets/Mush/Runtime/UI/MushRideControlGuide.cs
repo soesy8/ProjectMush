@@ -1,8 +1,6 @@
 using System.Collections;
 using UnityEngine;
 using Mush.Quest;
-using TMPro;
-using UnityEngine.UI;
 
 /// <summary>Shows the authored control cards before departure and alongside the pause menu.</summary>
 [DefaultExecutionOrder(200)]
@@ -15,18 +13,24 @@ public sealed class MushRideControlGuide : MonoBehaviour
     [SerializeField, Min(0f)] private float departureRise = 320f;
 
     private Vector2 restingPosition;
+    private Vector2 authoredRestingPosition, authoredAnchorMin, authoredAnchorMax, authoredPivot;
+    private bool vrLayoutApplied;
+    private bool vrPausedLayout;
     private bool initialized;
     private bool departureHandled;
     private bool departing;
     private bool paused;
     private float departureElapsed;
-    private bool vrArtworkConfigured;
     private bool optionsVisible;
 
     private void Awake()
     {
         if (guideRoot == null || guideGroup == null) return;
         restingPosition = guideRoot.anchoredPosition;
+        authoredRestingPosition = restingPosition;
+        authoredAnchorMin = guideRoot.anchorMin;
+        authoredAnchorMax = guideRoot.anchorMax;
+        authoredPivot = guideRoot.pivot;
         guideGroup.interactable = false;
         guideGroup.blocksRaycasts = false;
         Hide();
@@ -47,6 +51,7 @@ public sealed class MushRideControlGuide : MonoBehaviour
     private void LateUpdate()
     {
         if (!initialized) return;
+        UpdateViewLayout();
         if (optionsVisible) { Hide(); return; }
         if (ride.HasFinished)
         {
@@ -69,7 +74,8 @@ public sealed class MushRideControlGuide : MonoBehaviour
         departureElapsed += Time.unscaledDeltaTime;
         float progress = Mathf.Clamp01(departureElapsed / Mathf.Max(0.01f, departureDuration));
         float eased = 1f - Mathf.Pow(1f - progress, 3f);
-        guideRoot.anchoredPosition = restingPosition + Vector2.up * (departureRise * eased);
+        float rise = MushQuestTrackedInputRig.IsXrActive ? Mathf.Min(departureRise, 80f) : departureRise;
+        guideRoot.anchoredPosition = restingPosition + Vector2.up * (rise * eased);
         guideGroup.alpha = 1f - progress;
         if (progress >= 1f)
         {
@@ -98,7 +104,7 @@ public sealed class MushRideControlGuide : MonoBehaviour
 
     private void Show()
     {
-        ConfigureVrGuide();
+        UpdateViewLayout();
         guideRoot.anchoredPosition = restingPosition;
         guideGroup.alpha = 1f;
         guideRoot.gameObject.SetActive(true);
@@ -111,66 +117,29 @@ public sealed class MushRideControlGuide : MonoBehaviour
         guideRoot.anchoredPosition = restingPosition;
     }
 
-    private void ConfigureVrGuide()
+    private void UpdateViewLayout()
     {
-        if (!MushQuestTrackedInputRig.IsXrActive) return;
-        // Keep the ZIP's keyboard artwork and layout for PC; VR has its own controller guide.
-        guideRoot.anchorMin = new Vector2(0.06f, paused ? 0f : 0.5f);
-        guideRoot.anchorMax = new Vector2(0.94f, paused ? 0f : 0.5f);
-        guideRoot.pivot = new Vector2(0.5f, paused ? 0f : 0.5f);
-        restingPosition = new Vector2(0f, paused ? 85f : 0f);
-        if (vrArtworkConfigured) return;
-        vrArtworkConfigured = true;
-        TMP_Text template = GetComponentInChildren<TMP_Text>(true);
-        string[] names = { "Control Start", "Control Accelerate", "Control Steer" };
-        string[] instructions = { "출발\n양손 그립 잡기", "가속\n검지 트리거 유지", "조향\n고삐를 당겨 좌우 회전" };
-        for (int index = 0; index < names.Length; index++)
+        if (guideRoot == null) return;
+        if (MushQuestTrackedInputRig.IsXrActive)
         {
-            Transform card = guideRoot.Find(names[index]);
-            if (card == null) continue;
-            Image background = card.GetComponent<Image>();
-            if (background != null)
-            {
-                background.sprite = null;
-                background.color = new Color(0.025f, 0.045f, 0.075f, 0.92f);
-            }
-            CreateVrLabel(card, "VR Control Text", instructions[index], template, 36f, true);
+            if (vrLayoutApplied && vrPausedLayout == paused) return;
+            guideRoot.anchorMin = new Vector2(authoredAnchorMin.x, 0.5f);
+            guideRoot.anchorMax = new Vector2(authoredAnchorMax.x, 0.5f);
+            guideRoot.pivot = new Vector2(authoredPivot.x, 0.5f);
+            restingPosition = new Vector2(authoredRestingPosition.x, paused ? -340f : -160f);
+            vrLayoutApplied = true;
+            vrPausedLayout = paused;
         }
-        TMP_Text caption = CreateVrLabel(guideRoot, "VR Menu Controls",
-            "X 버튼: 메뉴 열기/닫기   ·   A 버튼: 코스 복귀", template, 28f, false);
-        LayoutElement element = caption.gameObject.AddComponent<LayoutElement>();
-        element.ignoreLayout = true;
-        RectTransform rect = caption.rectTransform;
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.sizeDelta = new Vector2(1200f, 50f);
-        rect.anchoredPosition = new Vector2(0f, -12f);
+        else
+        {
+            if (!vrLayoutApplied) return;
+            guideRoot.anchorMin = authoredAnchorMin;
+            guideRoot.anchorMax = authoredAnchorMax;
+            guideRoot.pivot = authoredPivot;
+            restingPosition = authoredRestingPosition;
+            vrLayoutApplied = false;
+        }
+        guideRoot.anchoredPosition = restingPosition;
     }
 
-    private static TMP_Text CreateVrLabel(Transform parent, string name, string text,
-        TMP_Text template, float size, bool stretch)
-    {
-        GameObject root = new(name, typeof(RectTransform), typeof(TextMeshProUGUI));
-        root.layer = 5;
-        root.transform.SetParent(parent, false);
-        TMP_Text label = root.GetComponent<TMP_Text>();
-        if (template != null) label.font = template.font;
-        label.text = text;
-        label.color = Color.white;
-        label.fontSize = size;
-        label.fontSizeMin = 26f;
-        label.fontSizeMax = size;
-        label.enableAutoSizing = true;
-        label.alignment = TextAlignmentOptions.Center;
-        label.raycastTarget = false;
-        if (stretch)
-        {
-            RectTransform rect = label.rectTransform;
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = new Vector2(16f, 12f);
-            rect.offsetMax = new Vector2(-16f, -12f);
-        }
-        return label;
-    }
 }
