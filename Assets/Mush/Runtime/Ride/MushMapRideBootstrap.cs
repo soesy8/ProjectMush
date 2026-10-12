@@ -2206,7 +2206,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         earnedStars = MushMapRecords.CalculateStars(missionElapsedSeconds, deliveryTimeLimitSeconds, threeStarTimeRatio);
         bestCompletionSeconds = MushMapRecords.SaveCompletion(gameObject.scene.name, missionElapsedSeconds, earnedStars);
         int goldBeforeReward = MushGameSave.Current.gold;
-        MushGameSave.AwardStageCompletion(gameObject.scene.name, out _);
+        MushGameSave.AwardStageCompletion(gameObject.scene.name, out _, earnedStars);
         earnedGold = MushGameSave.Current.gold - goldBeforeReward;
         CaptureSavedRide(MushGameSave.Current);
         MushGameSave.Save();

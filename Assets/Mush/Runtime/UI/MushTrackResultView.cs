@@ -12,6 +12,7 @@ public sealed class MushTrackResultView : MonoBehaviour
     [SerializeField] private TMP_Text goldText;
     [Tooltip("Criteria and highlights are ordered from three stars to one star.")]
     [SerializeField] private TMP_Text[] rankCriteriaTexts = new TMP_Text[3];
+    [SerializeField] private TMP_Text[] rankRewardTexts = new TMP_Text[3];
     [SerializeField] private GameObject[] rankHighlights = new GameObject[3];
     [SerializeField] private Transform[] starSlots = new Transform[3];
 
@@ -20,17 +21,21 @@ public sealed class MushTrackResultView : MonoBehaviour
     {
         currentTimeText.text = FormatTime(elapsedSeconds);
         bestTimeText.text = FormatTime(bestSeconds);
-        rankText.text = $"별 {stars}개";
+        if (rankText != null) rankText.gameObject.SetActive(false);
         goldText.text = $"+{awardedGold.ToString("N0", CultureInfo.InvariantCulture)} G";
 
         // Use the same thresholds as MushMapRecords.CalculateStars, including fractional seconds.
         string threeStarLimit = FormatThreshold(timeLimitSeconds * threeStarTimeRatio);
         string twoStarLimit = FormatThreshold(timeLimitSeconds);
         rankCriteriaTexts[0].text = $"{threeStarLimit} 이하";
-        rankCriteriaTexts[1].text = $"{threeStarLimit} 초과\n{twoStarLimit} 이하";
+        rankCriteriaTexts[1].text = $"{twoStarLimit} 이하";
         rankCriteriaTexts[2].text = $"{twoStarLimit} 초과";
         for (int index = 0; index < rankHighlights.Length; index++)
+        {
             rankHighlights[index].SetActive(stars == 3 - index);
+            if (index < rankRewardTexts.Length && rankRewardTexts[index] != null)
+                rankRewardTexts[index].text = $"{MushGameSave.StageReward("Track_v2", 3 - index).ToString("N0", CultureInfo.InvariantCulture)} G";
+        }
         foreach (Transform slot in starSlots)
             slot.gameObject.SetActive(true);
     }

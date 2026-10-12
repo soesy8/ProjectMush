@@ -238,25 +238,20 @@ public static class MushGameSave
         return stageIndex < 0 || stageIndex < ResolveUnlockedStageCount(Current);
     }
 
-    public static int StageReward(string sceneName)
+    public static int StageReward(string sceneName, int stars = 3)
     {
         sceneName = sceneName == "Track_v2" ? "snow" : sceneName;
-        return Array.IndexOf(Maps, sceneName) switch
-        {
-            0 => 500,
-            1 => 500,
-            2 => 500,
-            _ => 0,
-        };
+        if (Array.IndexOf(Maps, sceneName) < 0) return 0;
+        return 300 - (3 - Mathf.Clamp(stars, 1, 3)) * 50;
     }
 
-    public static int AwardStageCompletion(string sceneName, out bool unlockedNextStage)
+    public static int AwardStageCompletion(string sceneName, out bool unlockedNextStage, int stars = 3)
     {
         sceneName = sceneName == "Track_v2" ? "snow" : sceneName;
         Data data = Current;
         int stageIndex = Array.IndexOf(Maps, sceneName);
         int previousUnlockedCount = ResolveUnlockedStageCount(data);
-        int reward = StageReward(sceneName);
+        int reward = StageReward(sceneName, stars);
         data.gold = (int)Math.Min(int.MaxValue, (long)data.gold + reward);
         if (stageIndex >= 0)
             data.unlockedStageCount = Mathf.Clamp(Mathf.Max(previousUnlockedCount, stageIndex + 2), 1, Maps.Length);
