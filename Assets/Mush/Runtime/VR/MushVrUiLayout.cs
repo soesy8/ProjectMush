@@ -10,14 +10,14 @@ namespace Mush.Quest
         {
             if (!MushQuestTrackedInputRig.IsXrActive || canvas == null || camera == null) return;
             RectTransform rect = canvas.GetComponent<RectTransform>();
-            Vector3 forward = Vector3.ProjectOnPlane(camera.transform.forward, Vector3.up).normalized;
-            if (forward.sqrMagnitude < 0.001f) forward = Vector3.forward;
+            // Snapshot the current eye pose once; subsequent head movement never moves the menu.
+            Vector3 forward = camera.transform.forward;
             rect.SetParent(null, true);
             rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * 0.5f;
             rect.sizeDelta = new Vector2(1920f, 1080f);
             rect.localScale = Vector3.one * scale;
-            rect.SetPositionAndRotation(camera.transform.position + forward * distance + Vector3.up * heightOffset,
-                Quaternion.LookRotation(forward, Vector3.up));
+            rect.SetPositionAndRotation(camera.transform.position + forward * distance + camera.transform.up * heightOffset,
+                camera.transform.rotation);
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.worldCamera = camera;
             canvas.overrideSorting = true;

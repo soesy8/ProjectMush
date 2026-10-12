@@ -25,14 +25,18 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
     private readonly List<RaycastResult> hits = new();
     private readonly PointerEventData[] pointers = new PointerEventData[2];
     private readonly GameObject[] hovered = new GameObject[2];
-    private Graphic[] graphics;
+    private readonly Image[] highlightedSliderImages = new Image[2];
+
+    public static bool IsQuestPointer(int pointerId) => pointerId == -100 || pointerId == -101;
+    private readonly List<Graphic> graphics = new();
+    private int graphicsRefreshFrame = -1;
     private Vector3 lastHitPosition;
 
     private void OnEnable()
     {
         canvas ??= GetComponent<Canvas>();
         raycaster ??= GetComponent<GraphicRaycaster>();
-        graphics = GetComponentsInChildren<Graphic>(true);
+        graphicsRefreshFrame = -1;
         if (!ActiveCanvases.Contains(this)) ActiveCanvases.Add(this);
     }
     private void OnDisable()
@@ -50,14 +54,22 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
 
     private void ReleasePointer(int hand)
     {
+        MushVrUiHighlight.Set(highlightedSliderImages[hand], false, false, -100 - hand);
+        highlightedSliderImages[hand] = null;
         PointerEventData pointer = pointers[hand];
         if (pointer == null) return;
-        if (pointer.pointerPress != null) ExecuteEvents.Execute(pointer.pointerPress, pointer, ExecuteEvents.pointerUpHandler);
-        if (pointer.pointerDrag != null) ExecuteEvents.Execute(pointer.pointerDrag, pointer, ExecuteEvents.endDragHandler);
-        if (hovered[hand] != null) ExecuteEvents.ExecuteHierarchy(hovered[hand], pointer, ExecuteEvents.pointerExitHandler);
+        GameObject press = pointer.pointerPress;
+        GameObject drag = pointer.pointerDrag;
+        GameObject previousHover = hovered[hand];
         pointer.pointerPress = null;
         pointer.pointerDrag = null;
+        pointer.rawPointerPress = null;
+        pointer.eligibleForClick = false;
+        pointer.dragging = false;
         hovered[hand] = null;
+        if (press != null) ExecuteEvents.Execute(press, pointer, ExecuteEvents.pointerUpHandler);
+        if (drag != null) ExecuteEvents.Execute(drag, pointer, ExecuteEvents.endDragHandler);
+        if (previousHover != null) ExecuteEvents.ExecuteHierarchy(previousHover, pointer, ExecuteEvents.pointerExitHandler);
     }
 
     private void Start() => TryConfigureTitleVrCanvas();
@@ -210,6 +222,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         }
         if (hovered[hand] != target)
         {
+            if (target != null) EnsureVrButtonFeedback(target);
             if (hovered[hand] != null) ExecuteEvents.ExecuteHierarchy(hovered[hand], pointer, ExecuteEvents.pointerExitHandler);
             hovered[hand] = target;
             if (target != null) ExecuteEvents.ExecuteHierarchy(target, pointer, ExecuteEvents.pointerEnterHandler);
@@ -232,6 +245,7 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
             }
         }
         bool captured = pointer.pointerPress != null || pointer.pointerDrag != null;
+        UpdateVrSliderHighlight(hand, target, held && captured);
         if (held && pointer.pointerDrag != null && intersects)
         {
             Slider slider = pointer.pointerDrag.GetComponent<Slider>();
@@ -240,21 +254,53 @@ public sealed class MushCanvasQuestInput : MonoBehaviour
         }
         if (!held && captured)
         {
-            ExecuteEvents.Execute(pointer.pointerPress, pointer, ExecuteEvents.pointerUpHandler);
-            if (target != null && pointer.pointerPress == ExecuteEvents.GetEventHandler<IPointerClickHandler>(target))
-                ExecuteEvents.Execute(pointer.pointerPress, pointer, ExecuteEvents.pointerClickHandler);
-            if (pointer.pointerDrag != null) ExecuteEvents.Execute(pointer.pointerDrag, pointer, ExecuteEvents.endDragHandler);
+            GameObject press = pointer.pointerPress;
+            GameObject drag = pointer.pointerDrag;
+            bool click = target != null && press == ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
             pointer.pointerPress = null;
             pointer.pointerDrag = null;
             pointer.rawPointerPress = null;
             pointer.eligibleForClick = false;
             pointer.dragging = false;
+            if (press != null) ExecuteEvents.Execute(press, pointer, ExecuteEvents.pointerUpHandler);
+            if (drag != null) ExecuteEvents.Execute(drag, pointer, ExecuteEvents.endDragHandler);
+            // A close/open callback may disable this canvas; clear capture before dispatching it.
+            if (click && press != null) ExecuteEvents.Execute(press, pointer, ExecuteEvents.pointerClickHandler);
         }
         return target != null || captured;
     }
 
+    private static void EnsureVrButtonFeedback(GameObject target)
+    {
+        Button button = target.GetComponentInParent<Button>();
+        if (button == null || button.GetComponent<Mush.UI.MushUiButtonFeedback>() != null ||
+            button.targetGraphic is not Image artwork) return;
+        SpriteState states = button.spriteState;
+        Mush.UI.MushUiButtonFeedback.Attach(button.gameObject, artwork, states.highlightedSprite,
+            states.pressedSprite, states.disabledSprite).SetHighlightOnFocus(false);
+    }
+
+    private void UpdateVrSliderHighlight(int hand, GameObject target, bool pressed)
+    {
+        Slider slider = target != null ? target.GetComponentInParent<Slider>() : null;
+        Image image = slider != null && slider.IsInteractable()
+            ? slider.handleRect != null ? slider.handleRect.GetComponent<Image>() : slider.targetGraphic as Image
+            : null;
+        int pointerId = -100 - hand;
+        if (highlightedSliderImages[hand] != image)
+            MushVrUiHighlight.Set(highlightedSliderImages[hand], false, false, pointerId);
+        highlightedSliderImages[hand] = image;
+        MushVrUiHighlight.Set(image, image != null, pressed, pointerId);
+    }
+
     private void RaycastWorldGraphics(Ray ray)
     {
+        if (graphicsRefreshFrame != Time.frameCount)
+        {
+            graphicsRefreshFrame = Time.frameCount;
+            graphics.Clear();
+            GetComponentsInChildren(true, graphics);
+        }
         // Intersect the controller ray with the actual UI, without a headset-eye screen ray.
         foreach (Graphic graphic in graphics)
         {

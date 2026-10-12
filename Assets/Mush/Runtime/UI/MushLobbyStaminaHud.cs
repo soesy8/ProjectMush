@@ -89,21 +89,25 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         if (!individualUiReady)
             BindAuthoredDogUi();
 
+        // Use the same saved condition as the sled's buff/default/penalty selection.
+        int firstStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(0)), 0, 100);
         MushDogCondition firstCondition = MushGameSave.GetDogCondition(0);
         if (firstCondition != displayedFirstCondition)
         {
             displayedFirstCondition = firstCondition;
+            conditionIcon?.SetCondition(firstCondition);
             if (conditionText != null)
                 conditionText.text = ConditionLabel(firstCondition);
         }
+        int secondStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(1)), 0, 100);
         MushDogCondition secondCondition = MushGameSave.GetDogCondition(1);
         if (secondCondition != displayedSecondCondition)
         {
             displayedSecondCondition = secondCondition;
+            secondConditionIcon?.SetCondition(secondCondition);
             if (secondConditionText != null)
                 secondConditionText.text = ConditionLabel(secondCondition);
         }
-        int firstStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(0)), 0, 100);
         if (firstStamina != displayedFirstStamina)
         {
             displayedFirstStamina = firstStamina;
@@ -113,7 +117,6 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
                 staminaText.SetText("카이  {0} / 100", firstStamina);
         }
 
-        int secondStamina = Mathf.Clamp(Mathf.FloorToInt(MushGameSave.GetDogStamina(1)), 0, 100);
         if (secondStamina != displayedSecondStamina)
         {
             displayedSecondStamina = secondStamina;
@@ -132,7 +135,7 @@ public sealed class MushLobbyStaminaHud : MonoBehaviour
         {
             MushDogCondition.Bad => "나쁨",
             MushDogCondition.Good => "좋음",
-            _ => "평범",
+            _ => "보통",
         };
     }
 }

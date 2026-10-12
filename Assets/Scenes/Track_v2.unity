@@ -5451,7 +5451,7 @@ GameObject:
   - component: {fileID: 54934981}
   - component: {fileID: 54934983}
   - component: {fileID: 54934982}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_06
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8834,7 +8834,7 @@ GameObject:
   - component: {fileID: 88253366}
   - component: {fileID: 88253368}
   - component: {fileID: 88253367}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_05
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19765,7 +19765,7 @@ GameObject:
   - component: {fileID: 197758070}
   - component: {fileID: 197758072}
   - component: {fileID: 197758071}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: First Person Handle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -21328,6 +21328,9 @@ MonoBehaviour:
   threeStarTimeRatio: 0.8
   resultStarFlightSeconds: 0.62
   resultStarIntervalSeconds: 0.75
+  dogNormalAnimationSpeed: 1
+  dogBoostAnimationSpeed: 1.15
+  dogSlowedAnimationSpeed: 0.8
   offCourseImpactRetainedSpeed: 0.5
   offCourseAccelerationMultiplier: 0.72
   sharpCurveOffCourseTimePenalty: 4
@@ -23197,7 +23200,7 @@ GameObject:
   - component: {fileID: 226813484}
   - component: {fileID: 226813486}
   - component: {fileID: 226813485}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Right Handle Upright
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -24881,6 +24884,78 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2019699211}
     m_Modifications:
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: emitterVelocityMode
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: InheritVelocityModule.enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: InitialModule.startLifetime.scalar
+      value: 0.4
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: InheritVelocityModule.m_Curve.scalar
+      value: 0.4
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.atime1
+      value: 7373
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.atime2
+      value: 29491
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.atime4
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.ctime2
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.ctime3
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key1.a
+      value: 0.725
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key2.a
+      value: 0.65
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key2.b
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key2.g
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key2.r
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key3.b
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key3.g
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key3.r
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.m_ColorSpace
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2544457057022662660, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
       propertyPath: m_Name
       value: VFX_SnowFog_Plus
@@ -27984,7 +28059,7 @@ GameObject:
   - component: {fileID: 275236478}
   - component: {fileID: 275236480}
   - component: {fileID: 275236479}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Runner_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -32030,6 +32105,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Mush_Sledge
       objectReference: {fileID: 0}
+    - target: {fileID: 753232516895525819, guid: 3d71f9250050ce2478c7513cf7eba316, type: 3}
+      propertyPath: m_Layer
+      value: 8
+      objectReference: {fileID: 0}
     - target: {fileID: 766777742047731997, guid: 3d71f9250050ce2478c7513cf7eba316, type: 3}
       propertyPath: m_CastShadows
       value: 0
@@ -34446,7 +34525,7 @@ GameObject:
   - component: {fileID: 329425942}
   - component: {fileID: 329425944}
   - component: {fileID: 329425943}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_HandleGrip
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -37518,7 +37597,7 @@ GameObject:
   - component: {fileID: 360719435}
   - component: {fileID: 360719437}
   - component: {fileID: 360719436}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -44145,7 +44224,7 @@ GameObject:
   - component: {fileID: 422719910}
   - component: {fileID: 422719912}
   - component: {fileID: 422719911}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Left Handle Upright
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -44415,7 +44494,7 @@ GameObject:
   - component: {fileID: 425883374}
   - component: {fileID: 425883376}
   - component: {fileID: 425883375}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_SideRail_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -48025,7 +48104,7 @@ GameObject:
   - component: {fileID: 458360445}
   - component: {fileID: 458360447}
   - component: {fileID: 458360446}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_CargoBack
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -57533,6 +57612,209 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85bd9285f6d6e3e43bbf6f312f019004, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MushGeneratedRoadPart
+--- !u!1001 &559167836
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 98000000000001}
+    m_Modifications:
+    - target: {fileID: 1732826308111137523, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_Name
+      value: Ride Control Guides
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_Pivot.x
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_Pivot.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0.94
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0.06
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 196
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -100
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4681408967409588147, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4681408967409588147, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4681408967409588147, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4681408967409588147, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4681408967409588147, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4681408967409588147, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4681408967409588147, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4681408967409588147, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4777333933415070105, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4777333933415070105, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4777333933415070105, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4777333933415070105, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4777333933415070105, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4777333933415070105, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4777333933415070105, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4777333933415070105, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7964560419238550789, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7964560419238550789, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7964560419238550789, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7964560419238550789, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7964560419238550789, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7964560419238550789, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7964560419238550789, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7964560419238550789, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+--- !u!225 &559167837 stripped
+CanvasGroup:
+  m_CorrespondingSourceObject: {fileID: 8121823366420152917, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+  m_PrefabInstance: {fileID: 559167836}
+  m_PrefabAsset: {fileID: 0}
+--- !u!224 &559167838 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 2097429936085242050, guid: 0aacf0e5c1049d040a93d77c59374ecc, type: 3}
+  m_PrefabInstance: {fileID: 559167836}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &559633168
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -61197,7 +61479,7 @@ GameObject:
   - component: {fileID: 596522532}
   - component: {fileID: 596522534}
   - component: {fileID: 596522533}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Cross_-0.88
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -62940,7 +63222,7 @@ GameObject:
   - component: {fileID: 611929958}
   - component: {fileID: 611929960}
   - component: {fileID: 611929959}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Cross_0.18
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -63737,7 +64019,7 @@ GameObject:
   - component: {fileID: 619838412}
   - component: {fileID: 619838414}
   - component: {fileID: 619838413}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -65604,7 +65886,7 @@ GameObject:
   - component: {fileID: 634651010}
   - component: {fileID: 634651012}
   - component: {fileID: 634651011}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_SideRail_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -65900,7 +66182,7 @@ GameObject:
   - component: {fileID: 637566596}
   - component: {fileID: 637566598}
   - component: {fileID: 637566597}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Front Cross Bar
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -75112,7 +75394,7 @@ GameObject:
   - component: {fileID: 733073428}
   - component: {fileID: 733073430}
   - component: {fileID: 733073429}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 5
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -83300,7 +83582,7 @@ GameObject:
   - component: {fileID: 806641570}
   - component: {fileID: 806641572}
   - component: {fileID: 806641571}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -85600,7 +85882,7 @@ GameObject:
   - component: {fileID: 827110368}
   - component: {fileID: 827110370}
   - component: {fileID: 827110369}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Cross_-0.38
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -88626,7 +88908,7 @@ GameObject:
   - component: {fileID: 853197614}
   - component: {fileID: 853197616}
   - component: {fileID: 853197615}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Runner_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -95585,7 +95867,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &918413695
 RectTransform:
   m_ObjectHideFlags: 0
@@ -97046,7 +97328,7 @@ GameObject:
   - component: {fileID: 931595519}
   - component: {fileID: 931595521}
   - component: {fileID: 931595520}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_HandleSide_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -98330,6 +98612,78 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 51354536}
     m_Modifications:
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: emitterVelocityMode
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: InheritVelocityModule.enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: InitialModule.startLifetime.scalar
+      value: 0.4
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: InheritVelocityModule.m_Curve.scalar
+      value: 0.4
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.atime1
+      value: 7373
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.atime2
+      value: 29491
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.atime4
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.ctime2
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.ctime3
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key1.a
+      value: 0.725
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key2.a
+      value: 0.65
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key2.b
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key2.g
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key2.r
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key3.b
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key3.g
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key3.r
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 603803292781746325, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.m_ColorSpace
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2544457057022662660, guid: e72fbabe51d7d63428235f674e80653d, type: 3}
       propertyPath: m_Name
       value: VFX_SnowFog_Plus
@@ -104304,7 +104658,7 @@ GameObject:
   - component: {fileID: 1002309789}
   - component: {fileID: 1002309788}
   m_Layer: 5
-  m_Name: Team Ride Icon
+  m_Name: Kai Portrait
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -104326,8 +104680,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -83, y: -23}
-  m_SizeDelta: {x: 80, y: 56}
+  m_AnchoredPosition: {x: -103, y: 0.83360004}
+  m_SizeDelta: {x: 44, y: 44}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1002309788
 MonoBehaviour:
@@ -104349,7 +104703,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -763677372, guid: 676e6c1ceabc9ec4a8df2d73cbf0c12e, type: 3}
+  m_Sprite: {fileID: 1671606054, guid: 8bcf2f252eed76642bf808781f127697, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -107440,7 +107794,7 @@ GameObject:
   - component: {fileID: 1037617662}
   - component: {fileID: 1037617664}
   - component: {fileID: 1037617663}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_HandleSide_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -110017,6 +110371,76 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mush.EditorTools.PrefabScatter.PrefabScatterMarker
   sourcePrefab: {fileID: 6527996575594863612, guid: db699c07287e61077d0d744b1138c318, type: 3}
+--- !u!1001 &1071999787
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1943401154}
+    m_Modifications:
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.87
+      objectReference: {fileID: 0}
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -2.52
+      objectReference: {fileID: 0}
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2404718720520704259, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: m_Name
+      value: AirflowFrame
+      objectReference: {fileID: 0}
+    - target: {fileID: 4824060943524054894, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: ride
+      value: 
+      objectReference: {fileID: 211587009}
+    - target: {fileID: 4824060943524054894, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+      propertyPath: controller
+      value: 
+      objectReference: {fileID: 1943401153}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+--- !u!4 &1071999788 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1162283844804383610, guid: e3c84be79d9dc93418418b5b0732233c, type: 3}
+  m_PrefabInstance: {fileID: 1071999787}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1074347019
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -114197,7 +114621,7 @@ GameObject:
   - component: {fileID: 1121313185}
   - component: {fileID: 1121313187}
   - component: {fileID: 1121313186}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_02
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -114493,7 +114917,7 @@ GameObject:
   - component: {fileID: 1122671894}
   - component: {fileID: 1122671896}
   - component: {fileID: 1122671895}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Deck Slat 4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -116120,7 +116544,7 @@ GameObject:
   - component: {fileID: 1138372957}
   - component: {fileID: 1138372959}
   - component: {fileID: 1138372958}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_00
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -116615,7 +117039,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1150258278
 RectTransform:
   m_ObjectHideFlags: 0
@@ -126810,7 +127234,7 @@ Camera:
     height: 1
   near clip plane: 0.04
   far clip plane: 500
-  field of view: 100.6
+  field of view: 85
   orthographic: 0
   orthographic size: 5
   m_Depth: 0
@@ -130025,7 +130449,7 @@ GameObject:
   - component: {fileID: 1238138654}
   - component: {fileID: 1238138656}
   - component: {fileID: 1238138655}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_Cross_0.72
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -142581,7 +143005,7 @@ GameObject:
   - component: {fileID: 1385868613}
   - component: {fileID: 1385868615}
   - component: {fileID: 1385868614}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_01
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -146003,7 +146427,7 @@ GameObject:
   - component: {fileID: 1419557765}
   - component: {fileID: 1419557767}
   - component: {fileID: 1419557766}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Left Visible Runner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -159479,7 +159903,7 @@ GameObject:
   - component: {fileID: 1550432029}
   - component: {fileID: 1550432031}
   - component: {fileID: 1550432030}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_04
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -181203,7 +181627,7 @@ GameObject:
   - component: {fileID: 1793168273}
   - component: {fileID: 1793168275}
   - component: {fileID: 1793168274}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Right Visible Runner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -185185,6 +185609,23 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1829114519}
   m_Mesh: {fileID: 3217444865179272301, guid: 16ac171088d298d4faf8ecf5cf7afb51, type: 3}
+--- !u!114 &1829539501
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 98000000000018}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 19af7b2358b311b42b2437a5a140d7df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MushRideControlGuide
+  ride: {fileID: 211587009}
+  guideRoot: {fileID: 559167838}
+  guideGroup: {fileID: 559167837}
+  departureDuration: 0.45
+  departureRise: 320
 --- !u!1001 &1831890211
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -190712,7 +191153,7 @@ GameObject:
   - component: {fileID: 1892637281}
   - component: {fileID: 1892637283}
   - component: {fileID: 1892637282}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_03
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -194795,6 +195236,7 @@ Transform:
   - {fileID: 51354536}
   - {fileID: 45456835}
   - {fileID: 421748744}
+  - {fileID: 1071999788}
   m_Father: {fileID: 211587011}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1943810550
@@ -199403,7 +199845,7 @@ GameObject:
   - component: {fileID: 1996873448}
   - component: {fileID: 1996873450}
   - component: {fileID: 1996873449}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_FrontHoop
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -202126,7 +202568,7 @@ GameObject:
   - component: {fileID: 2024444942}
   - component: {fileID: 2024444944}
   - component: {fileID: 2024444943}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Mush_Sled_Natural_DeckSlat_07
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -209797,7 +210239,7 @@ GameObject:
   - component: {fileID: 2106381806}
   - component: {fileID: 2106381805}
   m_Layer: 5
-  m_Name: Team Stamina Text
+  m_Name: Kai Stamina Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -209820,7 +210262,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 140, y: 30}
+  m_SizeDelta: {x: 162, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2106381805
 MonoBehaviour:
@@ -213390,6 +213832,7 @@ RectTransform:
   - {fileID: 98000000000002}
   - {fileID: 98000000000003}
   - {fileID: 98000000000005}
+  - {fileID: 559167838}
   - {fileID: 98000000000010}
   - {fileID: 98000000000015}
   m_Father: {fileID: 0}
@@ -213522,7 +213965,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 660, y: 440}
+  m_SizeDelta: {x: 660, y: 330}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000008
 RectTransform:
@@ -213542,7 +213985,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 660, y: 550}
+  m_SizeDelta: {x: 660, y: 412.5}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000009
 RectTransform:
@@ -213561,7 +214004,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 620, y: 510}
+  m_SizeDelta: {x: 620, y: 382.5}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000010
 RectTransform:
@@ -213706,7 +214149,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -180}
+  m_AnchoredPosition: {x: 0, y: -148}
   m_SizeDelta: {x: 200, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000017
@@ -213743,6 +214186,7 @@ GameObject:
   - component: {fileID: 98000000000041}
   - component: {fileID: 98000000000040}
   - component: {fileID: 98000000000039}
+  - component: {fileID: 1829539501}
   m_Layer: 5
   m_Name: Mush Scene UI
   m_TagString: Untagged
@@ -214026,7 +214470,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &98000000000035
 RectTransform:
   m_ObjectHideFlags: 0
@@ -214046,7 +214490,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 660, y: 550}
+  m_SizeDelta: {x: 660, y: 412.5}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000036
 RectTransform:
@@ -214182,6 +214626,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a8e38a34d62522b5069b03c688360b5e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MushCanvasQuestInput
+  vrTitleHeightOffset: 0.3
+  vrTitleScale: 0.00135
   canvas: {fileID: 98000000000039}
   raycaster: {fileID: 98000000000041}
 --- !u!114 &98000000000043
@@ -214323,10 +214769,18 @@ MonoBehaviour:
   timer: {fileID: 98000000000295}
   progress: {fileID: 98000000000114}
   staminaFill: {fileID: 98000000000297}
-  secondStaminaFill: {fileID: 0}
-  useTeamStamina: 1
+  secondStaminaFill: {fileID: 250194020}
+  useTeamStamina: 0
   staminaText: {fileID: 2106381805}
-  secondStaminaText: {fileID: 0}
+  secondStaminaText: {fileID: 1434099783}
+  firstPortrait: {fileID: 1002309788}
+  firstNormalPortrait: {fileID: 1671606054, guid: 8bcf2f252eed76642bf808781f127697, type: 3}
+  firstGoodPortrait: {fileID: 558924328, guid: 5d0660bc136800041b7be87d52350245, type: 3}
+  firstBadPortrait: {fileID: -232160024, guid: b4853ce6a35d4c24187fe23f03a7ec49, type: 3}
+  secondPortrait: {fileID: 1150258279}
+  secondNormalPortrait: {fileID: -398925139, guid: c9c3b22ed68fed14c9a9304972eb88b9, type: 3}
+  secondGoodPortrait: {fileID: 617371896, guid: 3c1c429a93f23e241958f8adacf173b2, type: 3}
+  secondBadPortrait: {fileID: -2146901255, guid: 8ba8d70bb003fca4182176945f44c695, type: 3}
   progressIcon: {fileID: 98000000000048}
   progressRoot: {fileID: 98000000000020}
   trackRoot: {fileID: 98000000000265}
@@ -214350,7 +214804,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 2100000, guid: a69aca8636c64c4ba0ba91d0a29ef32b, type: 2}
   m_Color: {r: 0.015, g: 0.025, b: 0.035, a: 0.72}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
@@ -214384,7 +214838,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 185}
+  m_AnchoredPosition: {x: 0, y: 138.75}
   m_SizeDelta: {x: 280, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000053
@@ -214403,7 +214857,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 40}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 190, y: 120}
+  m_AnchoredPosition: {x: 190, y: 90}
   m_SizeDelta: {x: 60, y: 60}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000054
@@ -214426,7 +214880,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 30}
+  m_AnchoredPosition: {x: 0, y: -2}
   m_SizeDelta: {x: 560, y: 220}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000055
@@ -214446,7 +214900,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -140, y: -55}
+  m_AnchoredPosition: {x: -150, y: -50}
   m_SizeDelta: {x: 250, y: 80}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000056
@@ -214466,7 +214920,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 140, y: -55}
+  m_AnchoredPosition: {x: 150, y: -50}
   m_SizeDelta: {x: 250, y: 80}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &98000000000057
@@ -214925,6 +215379,7 @@ MonoBehaviour:
   titlePanel: {fileID: 0}
   pausePanel: {fileID: 98000000000022}
   optionPanel: {fileID: 98000000000027}
+  controlGuide: {fileID: 1829539501}
   message: {fileID: 98000000000075}
   master: {fileID: 98000000000234}
   music: {fileID: 98000000000218}
@@ -215482,7 +215937,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!1 &98000000000102
 GameObject:
   m_ObjectHideFlags: 0
@@ -215803,7 +216258,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 140, y: 55}
+  m_AnchoredPosition: {x: 150, y: 50}
   m_SizeDelta: {x: 250, y: 80}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000119
@@ -215823,7 +216278,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -140, y: 55}
+  m_AnchoredPosition: {x: -150, y: 50}
   m_SizeDelta: {x: 250, y: 80}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &98000000000120
@@ -219575,17 +220030,17 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 98000000000265}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -0.63}
-  m_LocalScale: {x: 0.003645, y: 0.003645, z: 0.003645}
+  m_LocalRotation: {x: 0.22031532, y: -0, z: -0, w: 0.9754287}
+  m_LocalPosition: {x: 0, y: 0, z: -0.922}
+  m_LocalScale: {x: 0.004745, y: 0.004245, z: 0.004745}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 98000000000264}
   m_Father: {fileID: 197634510}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 25.455, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0.95}
+  m_AnchoredPosition: {x: 0, y: 0.88}
   m_SizeDelta: {x: 272.58, y: 156.672}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000264
@@ -219747,8 +220202,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 40, y: -23}
-  m_SizeDelta: {x: 150, y: 33.6}
+  m_AnchoredPosition: {x: 26, y: 0.83360004}
+  m_SizeDelta: {x: 178, y: 33.6}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &98000000000272
 RectTransform:
@@ -219840,14 +220295,14 @@ Canvas:
   m_PlaneDistance: 2
   m_PixelPerfect: 0
   m_ReceivesEvents: 1
-  m_OverrideSorting: 0
+  m_OverrideSorting: 1
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 1
   m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
-  m_SortingOrder: 0
+  m_SortingOrder: 50
   m_TargetDisplay: 0
 --- !u!1 &98000000000277
 GameObject:
@@ -219931,7 +220386,7 @@ GameObject:
   - component: {fileID: 98000000000292}
   - component: {fileID: 98000000000293}
   m_Layer: 5
-  m_Name: Team Stamina Bar
+  m_Name: DogHealthBar
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

@@ -1,0 +1,71 @@
+{
+  "rice_section_seconds": [
+    2.0,
+    4.0
+  ],
+  "rice_source_kind": "public HQ MP3 preview, not original WAV",
+  "assets": [
+    {
+      "file": "KibblePour.wav",
+      "duration": 2.0,
+      "rate": 22050,
+      "channels": 1,
+      "peak": 0.48
+    },
+    {
+      "file": "KibbleRattle.wav",
+      "duration": 0.32,
+      "rate": 22050,
+      "channels": 1,
+      "peak": 0.4
+    },
+    {
+      "file": "CanisterGrab.wav",
+      "duration": 0.43,
+      "rate": 48000,
+      "channels": 1,
+      "peak": 0.4453796148300171,
+      "bits": 24,
+      "source": "E:/Mush/SFX/3/SFX_Canister_Grab.wav",
+      "processing": "Copied unchanged from user-supplied WAV"
+    },
+    {
+      "file": "CanisterSetDown.wav",
+      "duration": 0.6,
+      "rate": 48000,
+      "channels": 1,
+      "peak": 0.5616453886032104,
+      "bits": 24,
+      "source": "E:/Mush/SFX/3/SFX_Canister_SetDown.wav",
+      "processing": "Copied unchanged from user-supplied WAV"
+    },
+    {
+      "file": "KibbleBowlImpact.wav",
+      "duration": 0.1396,
+      "rate": 22050,
+      "channels": 1,
+      "peak": 0.17849612026370093
+    },
+    {
+      "file": "DogCrunch1.wav",
+      "duration": 1.0115,
+      "rate": 22050,
+      "channels": 1,
+      "peak": 0.45
+    },
+    {
+      "file": "DogCrunch3.wav",
+      "duration": 0.4311,
+      "rate": 22050,
+      "channels": 1,
+      "peak": 0.45
+    },
+    {
+      "file": "DogCrunch5.wav",
+      "duration": 0.7895,
+      "rate": 22050,
+      "channels": 1,
+      "peak": 0.45
+    }
+  ]
+}

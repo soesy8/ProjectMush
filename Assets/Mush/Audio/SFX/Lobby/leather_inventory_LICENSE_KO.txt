@@ -1,0 +1,32 @@
+﻿사운드 3번: Leather / Inventory Sound Effects
+
+포함 파일
+- leather_inventory.wav: 원본 ZIP에서 추출한 WAV. 오디오 편집·변환 없음
+- LICENSE_KO.txt: 사용 안내 및 복사할 크레딧
+- SOURCE_INFO.txt: 출처와 파일 검증 정보
+
+1. 선택한 라이선스
+Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+https://creativecommons.org/licenses/by/3.0/
+정식 법률 문서: https://creativecommons.org/licenses/by/3.0/legalcode.en
+
+이 사운드는 출처 표시 등 라이선스 조건을 지키면 상업적 게임에 사용하고 편집할 수 있습니다.
+출처 페이지에는 CC BY 3.0, CC BY-SA 3.0, GPL 3.0, GPL 2.0이 선택지로 병기되어 있습니다. 이 패키지는 CC BY 3.0을 선택해 이용합니다. 다른 선택지의 SA/GPL 의무를 동시에 적용하는 것은 아닙니다.
+복수 라이선스 안내: https://opengameart.org/content/faq
+
+2. 그대로 복사할 크레딧
+
+"Leather" (leather_inventory.wav), from "Inventory Sound Effects"
+by artisticdude (submitted to OpenGameArt by Ogrebane)
+Source: https://opengameart.org/content/inventory-sound-effects
+License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+https://creativecommons.org/licenses/by/3.0/
+Audio modifications: None. Original WAV used without audio editing.
+
+3. 적용할 때
+위 크레딧을 게임의 크레딧 화면과 배포물의 크레딧/라이선스 문서에 함께 넣는 방식을 권장합니다. 원본 링크와 라이선스 링크를 유지하세요. WAV를 다시 배포할 때도 출처·라이선스 정보를 함께 제공하세요.
+나중에 자르기, 피치 변경, 효과 추가 등을 했다면 마지막 줄을 실제 변경 사항으로 바꾸세요. 예: "Audio modifications: Trimmed and pitch-shifted."
+제작자가 프로젝트를 후원하거나 보증하는 것처럼 표시하지 마세요. 라이선스가 허용하는 이용을 제한하는 추가 조건이나 기술적 제한을 이 사운드에 부과하지 마세요.
+
+이 안내는 확인된 출처와 라이선스를 요약한 것이며 정식 라이선스 문서를 대체하지 않습니다. 권리 보증이나 개별 배포 방식에 대한 법률 자문은 아닙니다.
+확인일: 2026-10-08

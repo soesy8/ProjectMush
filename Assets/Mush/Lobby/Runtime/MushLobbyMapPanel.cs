@@ -2,12 +2,15 @@ using TMPro;
 using Mush.Quest;
 using Mush.UI;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using UnityEngine.XR;
 
 namespace Mush.Lobby
 {
     // The canvas, labels, stars and buttons are authored in the scene.
+    [DefaultExecutionOrder(-300)]
     public sealed class MushLobbyMapPanel : MonoBehaviour
     {
         public static bool IsOpen { get; private set; }
@@ -59,6 +62,19 @@ namespace Mush.Lobby
 
         private void OnDisable() => IsOpen = false;
 
+        private void Update()
+        {
+            if (MushSceneUI.ModalOpen || (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen))
+                return;
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null || (!keyboard.enterKey.wasPressedThisFrame && !keyboard.numpadEnterKey.wasPressedThisFrame))
+                return;
+
+            // Consume Enter before the EventSystem can submit a focused course/close button as well.
+            EventSystem.current?.SetSelectedGameObject(null);
+            DepartSelectedCourse();
+        }
+
         private void LateUpdate() => RefreshDogStamina();
 
         private void BindButtons()
@@ -85,7 +101,7 @@ namespace Mush.Lobby
                 startButton.onClick.AddListener(() =>
                 {
                     MushSounds.PlayClick();
-                    Depart(selectedCourse);
+                    DepartSelectedCourse();
                 });
             if (closeButton != null)
                 closeButton.onClick.AddListener(() =>
@@ -126,11 +142,17 @@ namespace Mush.Lobby
             RefreshDogStamina();
         }
 
-        private void Depart(int index)
+        public bool DepartSelectedCourse()
         {
-            if (!MushGameSave.IsStageUnlocked(Scenes[index])) return;
-            controller?.HandleAction(index == 0 ? MushLobbyAction.SelectSnowfield :
-                index == 1 ? MushLobbyAction.SelectForest : MushLobbyAction.SelectSharpCurve);
+            if (!isActiveAndEnabled || MushSceneUI.ModalOpen ||
+                (MushLobbyPauseMenu.Active != null && MushLobbyPauseMenu.Active.IsOpen))
+                return false;
+            return Depart(selectedCourse);
+        }
+
+        private bool Depart(int index)
+        {
+            return controller != null && controller.TryDepartMap(Scenes[index], Names[index]);
         }
 
         private void RefreshDogStamina()

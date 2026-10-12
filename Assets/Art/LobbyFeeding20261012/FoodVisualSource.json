@@ -1,0 +1,15 @@
+{
+  "sourceMesh": "Assets/Art/LobbyAdditional20261006/Models/PM_FeedCanister_V3_BodyLocal.asset",
+  "sourceMaterial": "Assets/Art/LobbyAdditional20261006/Materials/PM_FeedCanister_V3.mat",
+  "texture": "Assets/Art/LobbyAdditional20261006/Textures/PM_FeedCanister_V3_BaseColor.png",
+  "alignmentBowl": "Assets/Art/LobbyRefresh20261006/Models/06_DogBowl.fbx",
+  "runtimeMesh": "Assets/Mush/Resources/Feeding/BowlFood.asset",
+  "runtimeMaterial": "Assets/Mush/Resources/Feeding/BowlFood.mat",
+  "heightMap": "Assets/Mush/Resources/Feeding/BowlInteriorHeight.asset",
+  "meshSpace": "Y up, meters, sibling of the rendered bowl model",
+  "geometry": "Extract 77 connected food pellet components and the bulk food component from the canister. Pack two fixed layers of pellets into a circular bowl footprint; retain pellet shapes and UVs. Exclude canister shell, handle and hardware.",
+  "runtimeVertices": 12136,
+  "runtimeTriangles": 5768,
+  "fill": "Translate the entire shared mesh in local Y only. Scale, vertices and normals remain constant; zero fill hides the renderer.",
+  "clipping": "128x128 RFloat highest upward inner bowl surface; .42 m span, .201 m maximum interior radius. The fixed bowl matrix clips submerged food in forward, shadow, depth and depth-normal passes."
+}

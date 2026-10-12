@@ -19,7 +19,7 @@ public sealed class MushSceneTransition : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => instance = null;
 
-    public static void Load(string sceneName)
+    public static void Load(string sceneName, bool lobbyTrackDeparture = false)
     {
         if (instance != null && instance.loading) return;
         if (!Application.CanStreamedLevelBeLoaded(sceneName)) return;
@@ -31,7 +31,9 @@ public sealed class MushSceneTransition : MonoBehaviour
             instance.CreateOverlay();
         }
         instance.loading = true;
-        instance.StartCoroutine(instance.Transition(sceneName));
+        bool fadeLobbyAudio = lobbyTrackDeparture &&
+            SceneManager.GetActiveScene().name is "PM_Lobby" or "MushLobby";
+        instance.StartCoroutine(instance.Transition(sceneName, fadeLobbyAudio));
     }
 
     private void CreateOverlay()
@@ -58,11 +60,12 @@ public sealed class MushSceneTransition : MonoBehaviour
         overlay.SetActive(false);
     }
 
-    private IEnumerator Transition(string sceneName)
+    private IEnumerator Transition(string sceneName, bool fadeLobbyAudio)
     {
         canvas.gameObject.SetActive(true);
         group.blocksRaycasts = true;
-        yield return Fade(0f, 1f);
+        if (fadeLobbyAudio) MushSounds.BeginLobbyTrackDeparture();
+        yield return Fade(0f, 1f, fadeLobbyAudio);
         AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName);
         if (operation != null)
             while (!operation.isDone) yield return null;
@@ -75,16 +78,19 @@ public sealed class MushSceneTransition : MonoBehaviour
         loading = false;
     }
 
-    private IEnumerator Fade(float from, float to)
+    private IEnumerator Fade(float from, float to, bool fadeLobbyAudio = false)
     {
         float elapsed = 0f;
         while (elapsed < FadeSeconds)
         {
             elapsed += Time.unscaledDeltaTime;
-            group.alpha = Mathf.SmoothStep(from, to, Mathf.Clamp01(elapsed / FadeSeconds));
+            float progress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / FadeSeconds));
+            group.alpha = Mathf.Lerp(from, to, progress);
+            if (fadeLobbyAudio) MushSounds.SetLobbyDepartureFade(progress);
             yield return null;
         }
         group.alpha = to;
+        if (fadeLobbyAudio) MushSounds.SetLobbyDepartureFade(1f);
     }
 
     private void LateUpdate()

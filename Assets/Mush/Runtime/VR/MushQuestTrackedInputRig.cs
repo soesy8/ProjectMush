@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 using UnityEngine.InputSystem.XR;
 using UnityEngine.XR;
 
@@ -592,6 +593,12 @@ namespace Mush.Quest
 
         private static bool ReadButton(XRNode node, InputFeatureUsage<bool> usage)
         {
+            XRController controller = node == XRNode.LeftHand ? XRController.leftHand : XRController.rightHand;
+            string controlName = usage.Equals(UnityEngine.XR.CommonUsages.primaryButton) ? "primaryButton" :
+                usage.Equals(UnityEngine.XR.CommonUsages.secondaryButton) ? "secondaryButton" :
+                usage.Equals(UnityEngine.XR.CommonUsages.gripButton) ? "gripPressed" : "triggerPressed";
+            ButtonControl control = controller?.TryGetChildControl<ButtonControl>(controlName);
+            if (control != null) return control.isPressed;
             UnityEngine.XR.InputDevice device = InputDevices.GetDeviceAtXRNode(node);
             return device.isValid && device.TryGetFeatureValue(usage, out bool pressed) && pressed;
         }

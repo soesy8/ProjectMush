@@ -21,6 +21,7 @@ public sealed class MushSceneUI : MonoBehaviour
     [SerializeField] private GameObject titlePanel;
     [SerializeField] private GameObject pausePanel;
     [SerializeField] private GameObject optionPanel;
+    [SerializeField] private MushRideControlGuide controlGuide;
     [SerializeField] private TMP_Text message;
     [SerializeField] private Slider master;
     [SerializeField] private Slider music;
@@ -40,6 +41,16 @@ public sealed class MushSceneUI : MonoBehaviour
     public static MushSceneUI Active { get; private set; }
     public static bool ModalOpen => Active != null && Active.OptionsOpen;
     private bool OptionsOpen => optionPanel != null && optionPanel.activeSelf;
+    private void OnEnable() => MushAudioSettings.Changed += RefreshAudioControls;
+    private void OnDisable() => MushAudioSettings.Changed -= RefreshAudioControls;
+
+    private void RefreshAudioControls()
+    {
+        if (master != null) master.SetValueWithoutNotify(MushAudioSettings.Master);
+        if (music != null) music.SetValueWithoutNotify(MushAudioSettings.Music);
+        if (effects != null) effects.SetValueWithoutNotify(MushAudioSettings.Effects);
+        RefreshVolumeCounts();
+    }
 
     private void Awake()
     {
@@ -49,12 +60,13 @@ public sealed class MushSceneUI : MonoBehaviour
         ResolveAuthoredTitleReferences();
         if (pausePanel != null) pausePanel.SetActive(false);
         if (optionPanel != null) optionPanel.SetActive(false);
-        Bind(titlePanel, "TitleUI_Start", StartGame);
+        Button startButton = Bind(titlePanel, "TitleUI_Start", StartGame);
+        ConfigurePointerFeedback(startButton);
         continueButton = Bind(titlePanel, "TitleUI_Continue", ContinueGame);
         if (continueButton != null) continueButton.interactable = MushGameSave.HasSave;
         Bind(titlePanel, "TitleUI_Option", OpenOptions);
         Bind(titlePanel, "TitleUI_Quit", QuitGame);
-        Bind(pausePanel, "Button_Resume", Resume);
+        ConfigurePointerFeedback(Bind(pausePanel, "Button_Resume", Resume));
         Bind(pausePanel, "Button_Recover", () => ride?.RecoverToCourse());
         Bind(pausePanel, "Button_Option", OpenOptions);
         Bind(pausePanel, "Button_Lobby", ReturnToLobby);
@@ -117,11 +129,13 @@ public sealed class MushSceneUI : MonoBehaviour
 
     private IEnumerator Start()
     {
+        bool lobbyScene = gameObject.scene.name is "PM_Lobby" or "MushLobby";
+        if (lobbyScene) MushGameSave.EnterLobby();
+        if (lobbyScene || ride != null) MushGameSave.CaptureSceneStartStamina();
         // Ride construction binds its authored sled in Start; restore only after that binding.
         yield return null;
         TryConfigureVrRideCanvas();
         if (ride != null && MushGameSave.ConsumeRideRestore(gameObject.scene.name)) ride.RestoreSavedRide(MushGameSave.Current);
-        else if (gameObject.scene.name is "PM_Lobby" or "MushLobby") MushGameSave.EnterLobby();
         foreach (GameObject root in gameObject.scene.GetRootGameObjects())
             foreach (AudioSource source in root.GetComponentsInChildren<AudioSource>(true))
                 if (!source.TryGetComponent<MushAudioChannel>(out _)) source.gameObject.AddComponent<MushAudioChannel>();
@@ -168,6 +182,7 @@ public sealed class MushSceneUI : MonoBehaviour
             Cursor.visible = previousCursorVisible;
         }
         pausePanel.SetActive(paused);
+        controlGuide?.SetPaused(paused);
         SelectFirst(paused ? pausePanel : null);
     }
 
@@ -183,6 +198,9 @@ public sealed class MushSceneUI : MonoBehaviour
         rootCanvas.sortingOrder = 200;
         rootCanvasRect.sizeDelta = new Vector2(1920f, 1080f);
         vrCanvasConfigured = true;
+        if (pausePanel != null)
+            foreach (TMP_Text label in pausePanel.GetComponentsInChildren<TMP_Text>(true))
+                if (label.text.Contains("코스 복귀")) label.text = "코스 복귀 (A 버튼)";
         PositionVrCanvasAtNeutralView();
     }
 
@@ -236,19 +254,23 @@ public sealed class MushSceneUI : MonoBehaviour
         if (optionPanel == null) return;
         if (titlePanel != null) titlePanel.SetActive(false);
         optionPanel.SetActive(true);
+        controlGuide?.SetOptionsVisible(true);
         optionPanel.transform.SetAsLastSibling();
         SelectFirst(optionPanel);
     }
     private void CloseOptions()
     {
         if (optionPanel != null) optionPanel.SetActive(false);
+        controlGuide?.SetOptionsVisible(false);
         if (titlePanel != null) titlePanel.SetActive(true);
         MushAudioSettings.Flush();
         SelectFirst(ride != null && ride.IsPaused ? pausePanel : titlePanel);
     }
     private void OnVolumeChanged(float _)
     {
-        MushAudioSettings.Set(master.value, music.value, effects.value);
+        MushAudioSettings.Set(master != null ? master.value : MushAudioSettings.Master,
+            music != null ? music.value : MushAudioSettings.Music,
+            effects != null ? effects.value : MushAudioSettings.Effects);
         RefreshVolumeCounts();
     }
     private void RefreshVolumeCounts()
@@ -294,6 +316,20 @@ public sealed class MushSceneUI : MonoBehaviour
     private void OnApplicationPause(bool paused) { if (paused) { SaveCurrent(); MushAudioSettings.Flush(); } }
     private void OnApplicationQuit() { if (!leaving) SaveCurrent(); MushAudioSettings.Flush(); }
     private void OnDestroy() { if (Active == this) Active = null; }
+
+    private static void ConfigurePointerFeedback(Button button)
+    {
+        if (button == null) return;
+        Mush.UI.MushUiButtonFeedback feedback = button.GetComponent<Mush.UI.MushUiButtonFeedback>();
+        if (feedback == null && button.targetGraphic is Image artwork)
+        {
+            SpriteState states = button.spriteState;
+            feedback = Mush.UI.MushUiButtonFeedback.Attach(button.gameObject, artwork,
+                states.highlightedSprite, states.pressedSprite);
+        }
+        // Retain navigation selection while making pointer hover visibly independent.
+        feedback?.SetHighlightOnFocus(false);
+    }
 
     private static Button Bind(GameObject root, string name, UnityEngine.Events.UnityAction action)
     {

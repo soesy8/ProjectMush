@@ -19,8 +19,16 @@ MonoBehaviour:
   fireplaceAmbience: {fileID: 8300000, guid: 7a81cbbdf516d064fa77f9f036a0b174, type: 3}
   fireplaceAmbienceVolume: 0.15
   click: {fileID: 8300000, guid: 6685c17a655ee22409c84ac5e71abdf5, type: 3}
-  canisterGrab: {fileID: 8300000, guid: 83e3ddd75ddd12849a0d1a3e5dc8987e, type: 3}
-  canisterSetDown: {fileID: 8300000, guid: 3c903994954b58948bd04bd7abd96783, type: 3}
+  canisterGrab: {fileID: 8300000, guid: 56c1b87f33548a34c931255d5bc36f9e, type: 3}
+  canisterSetDown: {fileID: 8300000, guid: cd06174b83454214d890ea2771855a45, type: 3}
+  kibbleRattle: {fileID: 8300000, guid: 9f274a634e605264ca816357895af283, type: 3}
+  kibblePour: {fileID: 8300000, guid: 8f1f4dbefee2bb74dac7af0ef0b776e3, type: 3}
+  kibbleBowlImpact: {fileID: 8300000, guid: a6f3516569aeaa047bb125caa00aa64d, type: 3}
+  dogEatCrunches:
+  - {fileID: 8300000, guid: f3bb59ac4ddb6ef4095b3cfb6af1f6fc, type: 3}
+  - {fileID: 8300000, guid: 05a745f41f7dc7543903265cb4a6f132, type: 3}
+  - {fileID: 8300000, guid: a6b0a027ced47de42ba0a632b24ca255, type: 3}
+  lobbyTrackDeparture: {fileID: 8300000, guid: b9880454e7222f94689a1f4d0fb2461b, type: 3}
   pawSnow:
   - {fileID: 8300000, guid: 1d91db5141f3f61428a6599801fc17f1, type: 3}
   - {fileID: 8300000, guid: 628109023c929f440b3ffd2b37bab1be, type: 3}

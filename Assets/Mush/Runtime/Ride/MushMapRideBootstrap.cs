@@ -33,6 +33,9 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     [SerializeField, HideInInspector, FormerlySerializedAs("rightDogPosition")] private Vector3 legacyRightDogPosition = new(0.72f, 0f, 4.15f);
     [SerializeField] private Vector3 cameraPosition = new(0f, 1.87f, -2.52f);
     [SerializeField] private Vector3 cameraLookTarget = new(0f, 1.87f, 8f);
+    [Header("VR 전용 시야")]
+    [SerializeField, Range(-30f, 30f)] private float vrViewPitchOffset = 12f;
+    private Quaternion vrViewLocalRotation = Quaternion.identity;
 
     [SerializeField, Range(70f, 100f)] private float normalFieldOfView = 82f;
     [SerializeField, Range(75f, 110f)] private float boostFieldOfView = 90f;
@@ -145,11 +148,12 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private bool resultVisible;
     public bool HasFinished => resultVisible;
     public bool IsPaused => ridePaused;
+    public bool HasRideStarted => rideController != null && rideController.RideStarted;
     public bool IsOffCourse => offCourse;
     public Camera RideCamera => rideCamera;
     public Transform RideViewAnchor => rideSeatAnchor;
     public Vector3 RideViewLocalPosition => cameraBaseLocalPosition;
-    public Quaternion RideViewLocalRotation => cameraRestLocalRotation;
+    public Quaternion RideViewLocalRotation => IsVrRideActive() ? vrViewLocalRotation : cameraRestLocalRotation;
     public bool IsBoosting => rideController != null && rideController.IsBoosting;
     public float RemainingSeconds => Mathf.Max(0f, deliveryTimeLimitSeconds - missionElapsedSeconds);
     public bool ShowingOffCourseTimePenalty => Time.unscaledTime < sharpOffCoursePenaltyFeedbackUntil;
@@ -168,6 +172,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private int earnedStars;
     private float resultSequenceElapsed;
     private bool resultButtonsShown;
+    private MushQuestRayAction desktopHoveredResultButton;
 
     private sealed class DogRuntime
     {
@@ -194,7 +199,11 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private void Start()
     {
         BuildRideTeam();
-        if (built) ConfigureRideAudio();
+        if (built)
+        {
+            ConfigureRideAudio();
+            MushTrackObstacleAvoidance.Install(this, rideController, curvedWorld);
+        }
     }
 
     private void ConfigureRideAudio()
@@ -533,6 +542,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (!suppliedSled.IsChildOf(sledHolder)) sledHolder.gameObject.SetActive(false);
         equippedSledVisual = MushCustomizationVisuals.ApplyEquippedSled(suppliedSled, customization);
         MushCustomizationVisuals.ApplySledDecoration(equippedSledVisual, customization, 1.25f);
+        MushSledFogMask.ApplyToSled(equippedSledVisual);
     }
 
     private DogRuntime CreateSavedDogRuntime(
@@ -620,8 +630,13 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         }
 
         Keyboard keyboard = Keyboard.current;
-        if (questRig != null && questRig.BButtonPressedThisFrame)
+        if (questRig != null && questRig.IsTracking && questRig.XButtonPressedThisFrame)
             SetRidePaused(!ridePaused);
+        if (questRig != null && questRig.IsTracking && questRig.AButtonPressedThisFrame && !MushSceneUI.ModalOpen)
+        {
+            RecoverToCourse();
+            return;
+        }
         if (keyboard != null && keyboard.zKey.wasPressedThisFrame && !MushSceneUI.ModalOpen)
         {
             RecoverToCourse();
@@ -721,6 +736,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         if (decoration != null && customization?.equippedSledDecoration == MushCustomizationIds.SledLantern)
             BuildVisibleRideLantern(decoration.transform);
         if (!suppliedSled) BuildSledCockpit(holder);
+        MushSledFogMask.ApplyToSled(holder);
     }
 
     private DogRuntime BuildDog(
@@ -1040,11 +1056,12 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
         questRig = team.GetComponent<MushQuestTrackedInputRig>();
         if (questRig == null)
             questRig = team.gameObject.AddComponent<MushQuestTrackedInputRig>();
+        vrViewLocalRotation = cameraRestLocalRotation * Quaternion.Euler(vrViewPitchOffset, 0f, 0f);
         questRig.Configure(
             rideCamera,
             team,
             cameraBaseLocalPosition,
-            cameraRestLocalRotation,
+            MushQuestTrackedInputRig.IsXrActive ? vrViewLocalRotation : cameraRestLocalRotation,
             leftGrip,
             rightGrip);
     }
@@ -1401,15 +1418,34 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
     private void UpdateDesktopResultSelection()
     {
         if (!resultButtonsShown || rideCamera == null || IsVrRideActive())
+        {
+            SetDesktopResultHover(null);
             return;
+        }
         Mouse mouse = Mouse.current;
-        if (mouse == null || !mouse.leftButton.wasPressedThisFrame)
+        if (mouse == null)
+        {
+            SetDesktopResultHover(null);
             return;
+        }
 
         Ray ray = rideCamera.ScreenPointToRay(mouse.position.ReadValue());
-        if (!Physics.Raycast(ray, out RaycastHit hit, 8f))
-            return;
-        hit.collider.GetComponentInParent<MushQuestRayAction>()?.SelectWithQuestRay();
+        MushQuestRayAction target = Physics.Raycast(ray, out RaycastHit hit, 8f,
+            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide)
+            ? hit.collider.GetComponentInParent<MushQuestRayAction>() : null;
+        if (target != null && (resultPanel == null || !target.transform.IsChildOf(resultPanel.transform)))
+            target = null;
+        SetDesktopResultHover(target);
+        if (mouse.leftButton.wasPressedThisFrame)
+            target?.SelectWithQuestRay();
+    }
+
+    private void SetDesktopResultHover(MushQuestRayAction target)
+    {
+        if (desktopHoveredResultButton == target) return;
+        if (desktopHoveredResultButton != null) desktopHoveredResultButton.SetMouseHovered(false);
+        desktopHoveredResultButton = target;
+        if (target != null) target.SetMouseHovered(true);
     }
 
     private Vector3 StarFlightStart(int index)
@@ -2237,6 +2273,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
             Debug.LogError("[Mush] 다시 시작할 현재 맵 씬을 찾을 수 없습니다.", this);
             return;
         }
+        MushGameSave.RestoreSceneStartStamina();
         MushSceneTransition.Load(activeScene.name);
     }
 
@@ -2724,6 +2761,7 @@ public sealed class MushMapRideBootstrap : MonoBehaviour
 
     private void OnDestroy()
     {
+        SetDesktopResultHover(null);
         if (ridePaused)
         {
             Time.timeScale = 1f;

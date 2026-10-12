@@ -11,6 +11,11 @@ public sealed class MushSoundBank : ScriptableObject
     public AudioClip click;
     public AudioClip canisterGrab;
     public AudioClip canisterSetDown;
+    public AudioClip kibbleRattle;
+    public AudioClip kibblePour;
+    public AudioClip kibbleBowlImpact;
+    public AudioClip[] dogEatCrunches;
+    public AudioClip lobbyTrackDeparture;
     public AudioClip[] pawSnow;
     public AudioClip reinsTension;
     public AudioClip sledSoftSnow;

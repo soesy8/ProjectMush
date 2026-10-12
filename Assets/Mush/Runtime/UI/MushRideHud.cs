@@ -1,5 +1,6 @@
-﻿using TMPro;
+using TMPro;
 using UnityEngine;
+using Mush.Quest;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
@@ -15,12 +16,24 @@ public sealed class MushRideHud : MonoBehaviour
     [SerializeField] private bool useTeamStamina;
     [SerializeField] private TMP_Text staminaText;
     [SerializeField] private TMP_Text secondStaminaText;
+    [SerializeField] private Image firstPortrait;
+    [SerializeField] private Sprite firstNormalPortrait;
+    [SerializeField] private Sprite firstGoodPortrait;
+    [SerializeField] private Sprite firstBadPortrait;
+    [SerializeField] private Image secondPortrait;
+    [SerializeField] private Sprite secondNormalPortrait;
+    [SerializeField] private Sprite secondGoodPortrait;
+    [SerializeField] private Sprite secondBadPortrait;
     [SerializeField] private RectTransform progressIcon;
     [SerializeField] private GameObject progressRoot;
     [SerializeField] private GameObject trackRoot;
     private int previousSeconds = -1;
     private int previousFirstStamina = -1;
     private int previousSecondStamina = -1;
+    [Header("VR 전용 HUD")]
+    [SerializeField, Min(0.5f)] private float vrHudDistance = 1.65f;
+    [SerializeField, Min(0.0001f)] private float vrHudScale = 0.0016f;
+    private Canvas vrHudCanvas;
 
     private void OnEnable()
     {
@@ -30,6 +43,7 @@ public sealed class MushRideHud : MonoBehaviour
     private void LateUpdate()
     {
         if (ride == null) return;
+        ConfigureVrHud();
         bool visible = !ride.HasFinished;
         RefreshProgress(ride.RouteProgress);
         if (trackRoot != null && trackRoot.activeSelf != visible) trackRoot.SetActive(visible);
@@ -41,6 +55,10 @@ public sealed class MushRideHud : MonoBehaviour
         {
             RefreshStamina(staminaFill, staminaText, 0, ref previousFirstStamina);
             RefreshStamina(secondStaminaFill, secondStaminaText, 1, ref previousSecondStamina);
+            RefreshPortrait(firstPortrait, MushGameSave.GetDogCondition(0),
+                firstNormalPortrait, firstGoodPortrait, firstBadPortrait);
+            RefreshPortrait(secondPortrait, MushGameSave.GetDogCondition(1),
+                secondNormalPortrait, secondGoodPortrait, secondBadPortrait);
         }
         int seconds = Mathf.CeilToInt(ride.RemainingSeconds);
         if (timer != null)
@@ -64,6 +82,57 @@ public sealed class MushRideHud : MonoBehaviour
         }
     }
 
+    private void ConfigureVrHud()
+    {
+        if (!MushQuestTrackedInputRig.IsXrActive || ride.RideCamera == null) return;
+        if (vrHudCanvas == null)
+        {
+            GameObject root = new("VR Ride HUD", typeof(RectTransform), typeof(Canvas));
+            root.transform.SetParent(ride.RideCamera.transform, false);
+            vrHudCanvas = root.GetComponent<Canvas>();
+            vrHudCanvas.renderMode = RenderMode.WorldSpace;
+            vrHudCanvas.worldCamera = ride.RideCamera;
+            vrHudCanvas.overrideSorting = true;
+            vrHudCanvas.sortingOrder = 210;
+            RectTransform canvasRect = root.GetComponent<RectTransform>();
+            canvasRect.sizeDelta = new Vector2(1920f, 1080f);
+            canvasRect.localScale = Vector3.one * vrHudScale;
+            canvasRect.SetLocalPositionAndRotation(Vector3.forward * vrHudDistance, Quaternion.identity);
+            MoveVrHudPanel(progressRoot, canvasRect, true);
+            MoveVrHudPanel(trackRoot, canvasRect, false);
+            GameObject hintObject = new("VR Controls", typeof(RectTransform), typeof(TextMeshProUGUI));
+            hintObject.transform.SetParent(canvasRect, false);
+            TMP_Text hint = hintObject.GetComponent<TMP_Text>();
+            if (timer != null) hint.font = timer.font;
+            hint.fontSize = 28f;
+            hint.color = Color.white;
+            hint.alignment = TextAlignmentOptions.Center;
+            hint.raycastTarget = false;
+            hint.text = "X 버튼: 메뉴 열기/닫기   ·   A 버튼: 코스 복귀";
+            RectTransform hintRect = hint.rectTransform;
+            hintRect.anchorMin = hintRect.anchorMax = new Vector2(0.5f, 0f);
+            hintRect.pivot = new Vector2(0.5f, 0f);
+            hintRect.sizeDelta = new Vector2(1200f, 55f);
+            hintRect.anchoredPosition = new Vector2(0f, 8f);
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = 5;
+        }
+        vrHudCanvas.gameObject.SetActive(!ride.HasFinished && !ride.IsPaused);
+    }
+
+    private static void MoveVrHudPanel(GameObject panel, RectTransform parent, bool top)
+    {
+        if (panel == null) return;
+        RectTransform rect = panel.GetComponent<RectTransform>();
+        if (rect == null) return;
+        rect.SetParent(parent, false);
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, top ? 1f : 0f);
+        rect.anchoredPosition = new Vector2(0f, top ? -24f : 70f);
+        Vector2 size = rect.sizeDelta;
+        if (size.x < 1f) size.x = 1700f;
+        if (size.y < 1f) size.y = top ? 160f : 260f;
+        rect.sizeDelta = size;
+    }
+
     private void RefreshProgress(float routeProgress)
     {
         float value = Mathf.Clamp01(routeProgress);
@@ -80,6 +149,19 @@ public sealed class MushRideHud : MonoBehaviour
         Vector3 position = progressIcon.localPosition;
         position.x = local.x;
         progressIcon.localPosition = position;
+    }
+
+    private static void RefreshPortrait(Image portrait, MushDogCondition condition, Sprite normal, Sprite good, Sprite bad)
+    {
+        if (portrait == null) return;
+        Sprite artwork = condition switch
+        {
+            MushDogCondition.Good => good,
+            MushDogCondition.Bad => bad,
+            _ => normal,
+        };
+        if (artwork != null && portrait.sprite != artwork)
+            portrait.sprite = artwork;
     }
 
     private static void RefreshStamina(Image fill, TMP_Text label, int dogIndex,
