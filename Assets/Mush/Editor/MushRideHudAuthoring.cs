@@ -14,6 +14,8 @@ public static class MushRideHudAuthoring
     private const float AddedHeight = 38.8f;
     private const float ProgressBackgroundHeight = 28.8f;
     private const float ProgressFillHeight = 15.6f;
+    private const float ProgressHorizontalInset = 8f;
+    private const float GoalHorizontalInset = 8f;
     private const float IconBottomInset = 4f;
     // Transparent rows below each visible tip, expressed at the unchanged 42 px icon size.
     private const float MarkerBottomPadding = 42f * 29f / 1024f;
@@ -106,7 +108,7 @@ public static class MushRideHudAuthoring
         Center(background);
         background.sizeDelta = new Vector2(PanelWidth - 26f, ProgressBackgroundHeight);
         Center(progress.rectTransform);
-        progress.rectTransform.sizeDelta = new Vector2(background.sizeDelta.x - 48f, ProgressFillHeight);
+        progress.rectTransform.sizeDelta = new Vector2(background.sizeDelta.x - ProgressHorizontalInset * 2f, ProgressFillHeight);
         progress.fillAmount = 0f;
 
         // Preserve both marker dimensions while resizing only the gauge rectangles.
@@ -124,7 +126,7 @@ public static class MushRideHudAuthoring
         goalRect.anchorMin = goalRect.anchorMax = new Vector2(1f, 0.5f);
         goalRect.pivot = new Vector2(0.5f, 0.5f);
         goalRect.sizeDelta = marker.sizeDelta;
-        goalRect.anchoredPosition3D = new Vector3(0f, markerY - GoalBottomPadding + IconBottomInset, 0f);
+        goalRect.anchoredPosition3D = new Vector3(-GoalHorizontalInset, markerY - GoalBottomPadding + IconBottomInset, 0f);
         goalRect.localScale = marker.localScale;
         goalRect.localRotation = marker.localRotation;
         goalObject.SetActive(true);

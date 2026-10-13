@@ -1,0 +1,26 @@
+[
+  {
+    "scene": "Assets/Scenes/Track_v2.unity",
+    "oldX": 12.5,
+    "newX": -8.0,
+    "rightInset": 8.0,
+    "size": "(42.00, 42.00)",
+    "flagInsidePanel": "PASS"
+  },
+  {
+    "scene": "Assets/Scenes/Tree.unity",
+    "oldX": 0.0,
+    "newX": -8.0,
+    "rightInset": 8.0,
+    "size": "(42.00, 42.00)",
+    "flagInsidePanel": "PASS"
+  },
+  {
+    "scene": "Assets/Scenes/SharpCurve.unity",
+    "oldX": 0.0,
+    "newX": -8.0,
+    "rightInset": 7.999954,
+    "size": "(42.00, 42.00)",
+    "flagInsidePanel": "PASS"
+  }
+]
