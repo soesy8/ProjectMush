@@ -308,8 +308,8 @@ public static class ArtOptUiValidation
         }
         GameObject track = (GameObject)data.FindProperty("trackRoot").objectReferenceValue;
         Vector2 panelSize = track.transform.Find("TrackUI_Panel").GetComponent<RectTransform>().sizeDelta;
-        Require(Vector2.Distance(panelSize, new Vector2(272.58f, 156.672f)) < 0.001f,
-            "Track HUD must match the authored size of 272.58 by 156.672.");
+        Require(Vector2.Distance(panelSize, new Vector2(MushRideHudAuthoring.PanelWidth, MushRideHudAuthoring.PanelHeight)) < 0.001f,
+            "Track HUD must fit the integrated progress row without changing its width.");
         foreach (UnityEngine.UI.Image fill in new[] { first, second, progress }.Where(fill => fill != null))
             Require(fill.type == UnityEngine.UI.Image.Type.Filled &&
                     fill.fillMethod == UnityEngine.UI.Image.FillMethod.Horizontal && fill.fillOrigin == 0,
@@ -344,7 +344,7 @@ public static class ArtOptUiValidation
                 if (unified)
                 {
                     Require(track.GetComponentsInChildren<UnityEngine.UI.Image>().Count(image =>
-                        image.type == UnityEngine.UI.Image.Type.Filled) == 1,
+                        image != progress && image.type == UnityEngine.UI.Image.Type.Filled) == 1,
                         "The unified track HUD must show only one stamina gauge.");
                     foreach (int value in new[] { 0, 25, 50, 75, 100 })
                     {

@@ -84,6 +84,13 @@ public sealed class MushRideHud : MonoBehaviour
 
     private void UpdateVrProgressPosition()
     {
+        // The integrated progress bar inherits the sled HUD's authored placement.
+        if (progressRoot != null && trackRoot != null &&
+            progressRoot.transform.IsChildOf(trackRoot.transform))
+        {
+            RestoreProgressPosition();
+            return;
+        }
         bool vr = MushQuestTrackedInputRig.IsXrActive;
         if (vr == vrProgressPlaced) return;
         if (vr)
